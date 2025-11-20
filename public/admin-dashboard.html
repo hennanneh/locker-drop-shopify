@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LockerDrop.it - Seller Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f6f6f7;
+            color: #202223;
+        }
+        
+        .header {
+            background: white;
+            border-bottom: 1px solid #e1e3e5;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 20px;
+            font-weight: 600;
+            color: #5c6ac4;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        
+        .nav-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            background: white;
+            padding: 8px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .tab:hover {
+            background: #f6f6f7;
+        }
+        
+        .tab.active {
+            background: #5c6ac4;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+        
+        .card-header {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .stat-label {
+            color: #6d7175;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: 600;
+            color: #202223;
+        }
+        
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #5c6ac4;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #4959bd;
+        }
+        
+        .btn-secondary {
+            background: #f6f6f7;
+            color: #202223;
+        }
+        
+        .btn-secondary:hover {
+            background: #e1e3e5;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        .form-input,
+        .form-select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #c4cdd5;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .form-input:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: #5c6ac4;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .orders-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .orders-table th {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 2px solid #e1e3e5;
+            font-size: 13px;
+            font-weight: 600;
+            color: #6d7175;
+        }
+        
+        .orders-table td {
+            padding: 16px 12px;
+            border-bottom: 1px solid #e1e3e5;
+            font-size: 14px;
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-pending {
+            background: #fff4e6;
+            color: #996300;
+        }
+        
+        .status-ready {
+            background: #e3f5ef;
+            color: #008060;
+        }
+        
+        .status-picked-up {
+            background: #f0f1f2;
+            color: #6d7175;
+        }
+        
+        .locker-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+        }
+        
+        .locker-card {
+            border: 2px solid #e1e3e5;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .locker-card:hover {
+            border-color: #5c6ac4;
+        }
+        
+        .locker-card.selected {
+            border-color: #5c6ac4;
+            background: #f4f5fa;
+        }
+        
+        .locker-name {
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .locker-address {
+            font-size: 13px;
+            color: #6d7175;
+            margin-bottom: 8px;
+        }
+        
+        .locker-sizes {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .size-badge {
+            padding: 4px 8px;
+            background: #f6f6f7;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        
+        .order-details {
+            background: #f6f6f7;
+            padding: 16px;
+            border-radius: 6px;
+            margin-top: 12px;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e1e3e5;
+        }
+        
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        
+        .detail-label {
+            font-weight: 500;
+            color: #6d7175;
+        }
+        
+        .access-code {
+            font-family: monospace;
+            font-size: 18px;
+            font-weight: 600;
+            color: #5c6ac4;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        
+        .notification-settings {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #5c6ac4;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 32px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .close {
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 20px;
+        }
+        
+        .close:hover {
+            color: #5c6ac4;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">🔐 LockerDrop.it</div>
+        <div class="user-info">
+            <span id="store-name">ENNA Test Store</span>
+            <button class="btn btn-secondary" onclick="showSettings()">Settings</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <button class="tab active" onclick="showTab('dashboard')">Dashboard</button>
+            <button class="tab" onclick="showTab('orders')">Orders</button>
+            <button class="tab" onclick="showTab('lockers')">My Lockers</button>
+            <button class="tab" onclick="showTab('products')">Product Settings</button>
+            <button class="tab" onclick="showTab('shipping')">Shipping Rates</button>
+            <button class="tab" onclick="showTab('notifications')">Notifications</button>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content active">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Pending Drop-offs</div>
+                    <div class="stat-value">3</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Ready for Pickup</div>
+                    <div class="stat-value">7</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Completed This Week</div>
+                    <div class="stat-value">24</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Active Lockers</div>
+                    <div class="stat-value">5</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Recent Orders</div>
+                <table class="orders-table">
+                    <thead>
+                        <tr>
+                            <th>Order #</th>
+                            <th>Customer</th>
+                            <th>Locker</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recent-orders">
+                        <tr>
+                            <td>#1001</td>
+                            <td>John Smith</td>
+                            <td>Dallas Downtown</td>
+                            <td><span class="status-badge status-pending">Pending Drop-off</span></td>
+                            <td><button class="btn btn-primary" onclick="viewOrder('1001')">View Details</button></td>
+                        </tr>
+                        <tr>
+                            <td>#1002</td>
+                            <td>Sarah Johnson</td>
+                            <td>North Dallas</td>
+                            <td><span class="status-badge status-ready">Ready for Pickup</span></td>
+                            <td><button class="btn btn-primary" onclick="viewOrder('1002')">View Details</button></td>
+                        </tr>
+                        <tr>
+                            <td>#1003</td>
+                            <td>Mike Wilson</td>
+                            <td>Dallas Downtown</td>
+                            <td><span class="status-badge status-picked-up">Picked Up</span></td>
+                            <td><button class="btn btn-secondary" onclick="viewOrder('1003')">View Details</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Orders Tab -->
+        <div id="orders" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    All Orders
+                    <button class="btn btn-secondary" onclick="filterOrders()">Filter</button>
+                </div>
+                <table class="orders-table">
+                    <thead>
+                        <tr>
+                            <th>Order #</th>
+                            <th>Date</th>
+                            <th>Customer</th>
+                            <th>Locker</th>
+                            <th>Drop-off Code</th>
+                            <th>Pickup Code</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="all-orders">
+                        <!-- Orders will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- My Lockers Tab -->
+        <div id="lockers" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    Select Your Preferred Lockers
+                    <button class="btn btn-primary" onclick="saveLockerPreferences()">Save Changes</button>
+                </div>
+                <p style="color: #6d7175; margin-bottom: 20px;">Choose which lockers you're willing to use for deliveries. You can select all products or assign specific lockers to certain products.</p>
+                
+                <div class="locker-selector" id="locker-list">
+                    <!-- Lockers will be loaded from Harbor API -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Settings Tab -->
+        <div id="products" class="tab-content">
+            <div class="card">
+                <div class="card-header">Product Locker Size Settings</div>
+                <p style="color: #6d7175; margin-bottom: 20px;">Assign locker sizes to your products. This helps customers see only available lockers that can fit their order.</p>
+                
+                <div class="form-group">
+                    <label class="form-label">Product</label>
+                    <select class="form-select" id="product-select">
+                        <option>All Products (Default)</option>
+                        <option>T-Shirt - Small</option>
+                        <option>T-Shirt - Large</option>
+                        <option>Shoes - Size 10</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Maximum Locker Size Required</label>
+                    <select class="form-select">
+                        <option>Small (up to 12" x 12" x 12")</option>
+                        <option>Medium (up to 18" x 18" x 18")</option>
+                        <option selected>Large (up to 24" x 24" x 24")</option>
+                        <option>X-Large (up to 36" x 36" x 36")</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Product Dimensions (Optional)</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                        <input type="text" class="form-input" placeholder="Length (in)">
+                        <input type="text" class="form-input" placeholder="Width (in)">
+                        <input type="text" class="form-input" placeholder="Height (in)">
+                    </div>
+                </div>
+
+                <button class="btn btn-primary">Save Product Settings</button>
+            </div>
+        </div>
+
+        <!-- Shipping Rates Tab -->
+        <div id="shipping" class="tab-content">
+            <div class="card">
+                <div class="card-header">Shipping Rate Configuration</div>
+                
+                <div class="form-group">
+                    <label class="form-label">Base Rate for LockerDrop Pickup</label>
+                    <input type="number" class="form-input" value="0.00" step="0.01">
+                    <small style="color: #6d7175;">This is the shipping cost shown to customers at checkout</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Processing Time</label>
+                    <select class="form-select">
+                        <option>1-2 business days</option>
+                        <option selected>2-3 business days</option>
+                        <option>3-5 business days</option>
+                        <option>5-7 business days</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Locker Hold Time</label>
+                    <select class="form-select">
+                        <option>3 days</option>
+                        <option selected>5 days</option>
+                        <option>7 days</option>
+                        <option>10 days</option>
+                    </select>
+                    <small style="color: #6d7175;">How long will items be held in locker before being returned</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Service Availability</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-item">
+                            <input type="checkbox" checked>
+                            <span>Enable for all products</span>
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox">
+                            <span>Limit to specific collections</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary">Save Shipping Settings</button>
+            </div>
+        </div>
+
+        <!-- Notifications Tab -->
+        <div id="notifications" class="tab-content">
+            <div class="card">
+                <div class="card-header">Email Notifications</div>
+                <div class="notification-settings">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>New Order Received</strong>
+                            <p style="color: #6d7175; font-size: 13px;">Get notified when a customer places a LockerDrop order</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>Reminder: Pending Drop-off</strong>
+                            <p style="color: #6d7175; font-size: 13px;">Daily reminder for orders waiting to be dropped off</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>Item Picked Up</strong>
+                            <p style="color: #6d7175; font-size: 13px;">Confirmation when customer picks up their order</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>Pickup Deadline Approaching</strong>
+                            <p style="color: #6d7175; font-size: 13px;">Alert when customer hasn't picked up and deadline is near</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Customer Email Templates</div>
+                <p style="color: #6d7175; margin-bottom: 20px;">Customize the emails your customers receive</p>
+                
+                <div class="form-group">
+                    <label class="form-label">Order Confirmation Email</label>
+                    <textarea class="form-input" rows="4" placeholder="Hi {{customer_name}}, your order is being prepared..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Ready for Pickup Email</label>
+                    <textarea class="form-input" rows="4" placeholder="Your order is ready! Access code: {{pickup_code}}"></textarea>
+                </div>
+
+                <button class="btn btn-primary">Save Templates</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Detail Modal -->
+    <div id="orderModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2 style="margin-bottom: 20px;">Order Details</h2>
+            
+            <div class="order-details">
+                <div class="detail-row">
+                    <span class="detail-label">Order Number:</span>
+                    <span id="modal-order-number">#1001</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Customer:</span>
+                    <span id="modal-customer">John Smith</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Customer Email:</span>
+                    <span id="modal-email">john@example.com</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Locker Location:</span>
+                    <span id="modal-locker">Dallas Downtown</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Locker Address:</span>
+                    <span id="modal-address">123 Main St, Dallas, TX 75201</span>
+                </div>
+            </div>
+
+            <div style="margin-top: 24px;">
+                <h3 style="margin-bottom: 12px;">Your Drop-off Access Code</h3>
+                <div class="access-code">SELL-1234</div>
+                <p style="color: #6d7175; font-size: 13px; margin-top: 8px;">Use this code to open the locker and drop off the package</p>
+            </div>
+
+            <div style="margin-top: 24px;">
+                <h3 style="margin-bottom: 12px;">Customer Pickup Code</h3>
+                <div class="access-code">PICK-5678</div>
+                <p style="color: #6d7175; font-size: 13px; margin-top: 8px;">This code was sent to the customer via email</p>
+            </div>
+
+            <div style="margin-top: 24px; display: flex; gap: 12px;">
+                <button class="btn btn-primary" onclick="markAsDroppedOff()">Mark as Dropped Off</button>
+                <button class="btn btn-secondary" onclick="resendCustomerEmail()">Resend Pickup Email</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get shop from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const shop = urlParams.get('shop');
+        
+        if (!shop) {
+            alert('Shop parameter missing! Please access this page from Shopify.');
+        }
+
+        // Tab Navigation
+        function showTab(tabName) {
+            const tabs = document.querySelectorAll('.tab');
+            const contents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => tab.classList.remove('active'));
+            contents.forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+            
+            // Load tab-specific data
+            if (tabName === 'orders') {
+                loadAllOrders();
+            } else if (tabName === 'lockers') {
+                loadLockers();
+            }
+        }
+
+        // Load Dashboard Stats
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch(`/api/stats/${shop}`);
+                const stats = await response.json();
+                
+                document.querySelectorAll('.stat-value')[0].textContent = stats.pendingDropoffs;
+                document.querySelectorAll('.stat-value')[1].textContent = stats.readyForPickup;
+                document.querySelectorAll('.stat-value')[2].textContent = stats.completedThisWeek;
+                document.querySelectorAll('.stat-value')[3].textContent = stats.activeLockers;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Load All Orders
+        async function loadAllOrders() {
+            try {
+                const response = await fetch(`/api/orders/${shop}`);
+                const orders = await response.json();
+                
+                const tbody = document.getElementById('all-orders');
+                tbody.innerHTML = orders.map(order => `
+                    <tr>
+                        <td>${order.orderNumber}</td>
+                        <td>${order.date}</td>
+                        <td>${order.customerName}</td>
+                        <td>${order.locker}</td>
+                        <td><span class="access-code" style="font-size: 12px;">${order.dropOffCode}</span></td>
+                        <td><span class="access-code" style="font-size: 12px;">${order.pickupCode}</span></td>
+                        <td>
+                            <span class="status-badge status-${order.status}">
+                                ${order.status === 'pending' ? 'Pending Drop-off' : 
+                                  order.status === 'ready' ? 'Ready for Pickup' : 'Picked Up'}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn btn-primary" onclick="viewOrderDetails('${order.orderNumber}')">
+                                View
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading orders:', error);
+            }
+        }
+
+        // Modal Functions
+        async function viewOrder(orderId) {
+            await viewOrderDetails(orderId);
+        }
+
+        async function viewOrderDetails(orderId) {
+            try {
+                // For now, use sample data
+                // In production, fetch from: /api/order/${shop}/${orderId}
+                document.getElementById('modal-order-number').textContent = orderId;
+                document.getElementById('orderModal').style.display = 'block';
+            } catch (error) {
+                console.error('Error loading order details:', error);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('orderModal').style.display = 'none';
+        }
+
+        async function markAsDroppedOff() {
+            const orderId = document.getElementById('modal-order-number').textContent;
+            
+            try {
+                const response = await fetch(`/api/order/${shop}/${orderId}/status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status: 'ready' })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Order marked as dropped off! Customer will be notified.');
+                    closeModal();
+                    loadDashboardStats();
+                    loadAllOrders();
+                }
+            } catch (error) {
+                console.error('Error updating order:', error);
+                alert('Failed to update order status');
+            }
+        }
+
+        async function resendCustomerEmail() {
+            const orderId = document.getElementById('modal-order-number').textContent;
+            
+            try {
+                const response = await fetch(`/api/order/${shop}/${orderId}/resend-email`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Pickup email resent to customer!');
+                }
+            } catch (error) {
+                console.error('Error resending email:', error);
+                alert('Failed to resend email');
+            }
+        }
+
+        // Settings Functions
+        function showSettings() {
+            showTab('notifications');
+        }
+
+        async function saveLockerPreferences() {
+            const selectedLockers = Array.from(document.querySelectorAll('.locker-card.selected'))
+                .map(card => card.dataset.lockerId);
+            
+            try {
+                const response = await fetch(`/api/lockers/${shop}/preferences`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ selectedLockers })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Locker preferences saved successfully!');
+                }
+            } catch (error) {
+                console.error('Error saving preferences:', error);
+                alert('Failed to save locker preferences');
+            }
+        }
+
+        function filterOrders() {
+            alert('Filter options will appear here');
+        }
+
+        // Load lockers from Harbor API via backend
+        async function loadLockers() {
+            const lockerList = document.getElementById('locker-list');
+            lockerList.innerHTML = '<p>Loading lockers...</p>';
+            
+            try {
+                const response = await fetch(`/api/lockers/${shop}`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load lockers');
+                }
+                
+                const data = await response.json();
+                const lockers = data.data || data; // Handle different API response formats
+                
+                if (lockers.length === 0) {
+                    lockerList.innerHTML = '<p>No lockers available in your area yet.</p>';
+                    return;
+                }
+
+                lockerList.innerHTML = lockers.map(locker => `
+                    <div class="locker-card" onclick="toggleLocker(event)" data-locker-id="${locker.id}">
+                        <div class="locker-name">${locker.name || locker.location_name || 'Locker'}</div>
+                        <div class="locker-address">${locker.address || locker.street_address || 'Address not available'}</div>
+                        <div class="locker-sizes">
+                            ${locker.available_sizes ? locker.available_sizes.map(size => 
+                                `<span class="size-badge">${size}</span>`
+                            ).join('') : '<span class="size-badge">Standard</span>'}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading lockers:', error);
+                lockerList.innerHTML = `
+                    <div class="card">
+                        <p style="color: #bf0711;">Error loading lockers. Please try again later.</p>
+                        <p style="color: #6d7175; font-size: 13px;">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function toggleLocker(event) {
+            const card = event.currentTarget;
+            card.classList.toggle('selected');
+        }
+
+        // Initialize
+        window.onload = function() {
+            document.getElementById('store-name').textContent = shop;
+            loadDashboardStats();
+            loadLockers();
+        };
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('orderModal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        };
+    </script>
+</body>
+</html>
