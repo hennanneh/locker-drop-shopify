@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ - LockerDrop</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f6f6f7;
+            color: #202223;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #e1e3e5;
+            padding: 16px 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 600;
+            color: #5c6ac4;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-links a {
+            color: #6d7175;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .nav-links a:hover {
+            color: #5c6ac4;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        .doc-card {
+            background: white;
+            border-radius: 8px;
+            padding: 40px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #5c6ac4;
+            margin-bottom: 8px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            color: #6d7175;
+            margin-bottom: 32px;
+            font-size: 18px;
+        }
+
+        h2 {
+            color: #202223;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e1e3e5;
+        }
+
+        .faq-item {
+            margin-bottom: 24px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid #e1e3e5;
+        }
+
+        .faq-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .faq-question {
+            font-weight: 600;
+            color: #202223;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        .faq-answer {
+            color: #6d7175;
+        }
+
+        .faq-answer p {
+            margin-bottom: 12px;
+        }
+
+        .faq-answer p:last-child {
+            margin-bottom: 0;
+        }
+
+        .faq-answer ul, .faq-answer ol {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+
+        .faq-answer li {
+            margin-bottom: 6px;
+        }
+
+        .info-box {
+            background: #f4f5fa;
+            border-left: 4px solid #5c6ac4;
+            padding: 16px;
+            margin: 16px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        code {
+            background: #f6f6f7;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 40px;
+            color: #6d7175;
+            font-size: 14px;
+        }
+
+        .toc {
+            background: #f6f6f7;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 32px;
+        }
+
+        .toc h3 {
+            margin-bottom: 12px;
+        }
+
+        .toc ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .toc li {
+            margin-bottom: 8px;
+        }
+
+        .toc a {
+            color: #5c6ac4;
+            text-decoration: none;
+        }
+
+        .toc a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <a href="/" class="logo">LockerDrop</a>
+            <div class="nav-links">
+                <a href="/docs/training">Training Guide</a>
+                <a href="/docs/faq">FAQ</a>
+                <a href="/docs/customer-faq">Customer FAQ</a>
+                <a href="/privacy">Privacy</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="doc-card">
+            <h1>Frequently Asked Questions</h1>
+            <p class="subtitle">Common questions and answers for LockerDrop sellers</p>
+
+            <div class="toc">
+                <h3>Quick Navigation</h3>
+                <ul>
+                    <li><a href="#general">General Questions</a></li>
+                    <li><a href="#sellers">For Sellers</a></li>
+                    <li><a href="#orders">Orders & Fulfillment</a></li>
+                    <li><a href="#customers">Customer Questions</a></li>
+                    <li><a href="#technical">Technical Issues</a></li>
+                    <li><a href="#billing">Billing & Account</a></li>
+                    <li><a href="#enterprise">Enterprise Features</a></li>
+                    <li><a href="#safety">Safety & Security</a></li>
+                </ul>
+            </div>
+
+            <h2 id="general">General Questions</h2>
+
+            <div class="faq-item">
+                <div class="faq-question">What is LockerDrop?</div>
+                <div class="faq-answer">
+                    <p>LockerDrop is a Shopify app that adds smart locker pickup as a shipping option. Customers can choose to pick up their orders from secure Harbor Locker locations instead of home delivery.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">How does it work?</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>Customer selects "LockerDrop Pickup" at checkout</li>
+                        <li>You receive the order with a drop-off link</li>
+                        <li>You drop the package at the assigned locker</li>
+                        <li>Customer gets notified and picks up with their link</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">What are Harbor Lockers?</div>
+                <div class="faq-answer">
+                    <p>Harbor Lockers are secure, automated pickup lockers located in convenient public locations like apartment buildings, retail stores, and office complexes. Each locker has a touchscreen where users can open compartments using secure links.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Is LockerDrop free for customers?</div>
+                <div class="faq-answer">
+                    <p>That depends on your settings! You can configure LockerDrop to be:</p>
+                    <ul>
+                        <li><strong>Free</strong> (most common) - as a delivery alternative</li>
+                        <li><strong>Discounted</strong> - cheaper than home delivery</li>
+                        <li><strong>Standard rate</strong> - same as other shipping options</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h2 id="sellers">For Sellers</h2>
+
+            <div class="faq-item">
+                <div class="faq-question">How do I get started?</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>Install the LockerDrop app from the Shopify App Store</li>
+                        <li>Select which locker locations you want to use</li>
+                        <li>Configure your shipping settings</li>
+                        <li>LockerDrop will appear as a shipping option at checkout</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Do I need special equipment?</div>
+                <div class="faq-answer">
+                    <p>No! You just need:</p>
+                    <ul>
+                        <li>A smartphone or computer to access the dashboard</li>
+                        <li>Your packages ready to drop off</li>
+                        <li>Transportation to reach locker locations</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">How do I know when I have a new order?</div>
+                <div class="faq-answer">
+                    <ul>
+                        <li>Dashboard shows "Pending Drop-offs" count</li>
+                        <li>Orders tab lists all orders needing attention</li>
+                        <li>You'll see the order in your Shopify admin as well</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Can I use LockerDrop for all my products?</div>
+                <div class="faq-answer">
+                    <p>Most products work great! Consider:</p>
+                    <ul>
+                        <li><strong>Size</strong> - Must fit in largest locker (24" x 20" x 16")</li>
+                        <li><strong>Value</strong> - High-value items are secure in lockers</li>
+                        <li><strong>Fragility</strong> - Lockers are safe for most items</li>
+                    </ul>
+                    <p>Products that may NOT work:</p>
+                    <ul>
+                        <li>Oversized items (furniture, large equipment)</li>
+                        <li>Temperature-sensitive items (unless using special lockers)</li>
+                        <li>Extremely heavy items</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Can I use multiple locker locations?</div>
+                <div class="faq-answer">
+                    <p>Yes! In the "My Lockers" tab, you can select any Harbor Locker locations you want to use. Most sellers choose 3-10 locations that are convenient for them and their customers.</p>
+                </div>
+            </div>
+
+            <h2 id="orders">Orders & Fulfillment</h2>
+
+            <div class="faq-item">
+                <div class="faq-question">How do I find the locker location?</div>
+                <div class="faq-answer">
+                    <p>Each order includes:</p>
+                    <ul>
+                        <li>Locker name (e.g., "Harbor Locker - Downtown Dallas")</li>
+                        <li>Full street address</li>
+                        <li>Sometimes specific instructions (e.g., "Inside lobby")</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">What if the package doesn't fit?</div>
+                <div class="faq-answer">
+                    <p><strong>Before dropping off:</strong></p>
+                    <ul>
+                        <li>Contact support to reassign to a larger locker</li>
+                        <li>Never force a package that doesn't fit</li>
+                    </ul>
+                    <p><strong>If you discover at the locker:</strong></p>
+                    <ul>
+                        <li>Do not leave the package</li>
+                        <li>Return and contact support</li>
+                        <li>We'll assign a different locker</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Can I drop off multiple orders at once?</div>
+                <div class="faq-answer">
+                    <p>Yes! If you have multiple orders for the same locker location:</p>
+                    <ul>
+                        <li>Each order has its own drop-off link</li>
+                        <li>Drop off each package separately using its specific link</li>
+                        <li>Each package goes in its own compartment</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">How long do customers have to pick up?</div>
+                <div class="faq-answer">
+                    <p>Default is <strong>5 days</strong> from when you mark the order as dropped off. After that:</p>
+                    <ul>
+                        <li>Package is flagged for return</li>
+                        <li>Customer is notified of expiration</li>
+                        <li>You coordinate on next steps</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">What if a customer doesn't pick up?</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>You'll receive a notification</li>
+                        <li>Package may be returned to a holding location</li>
+                        <li>Options:
+                            <ul>
+                                <li>Reship to a new locker</li>
+                                <li>Arrange alternative delivery</li>
+                                <li>Process a refund</li>
+                            </ul>
+                        </li>
+                    </ol>
+                </div>
+            </div>
+
+            <h2 id="customers">Customer Questions</h2>
+            <p><em>These are questions your customers may ask you</em></p>
+
+            <div class="faq-item">
+                <div class="faq-question">"Where is my locker?"</div>
+                <div class="faq-answer">
+                    <p>Direct them to check their confirmation email, which includes:</p>
+                    <ul>
+                        <li>Locker location name</li>
+                        <li>Full address</li>
+                        <li>Pickup link</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">"I lost my pickup link!"</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>Go to the Orders tab</li>
+                        <li>Find their order</li>
+                        <li>Click "View" then "Resend Pickup Email"</li>
+                        <li>They'll receive a new email with the link</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">"The locker won't open!"</div>
+                <div class="faq-answer">
+                    <p>Ask them to verify:</p>
+                    <ol>
+                        <li>They're at the correct location</li>
+                        <li>They're using their PICKUP link (not the seller drop-off link)</li>
+                        <li>The link hasn't expired</li>
+                    </ol>
+                    <p>If still not working, contact Harbor support.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">"Can someone else pick up for me?"</div>
+                <div class="faq-answer">
+                    <p>Yes, as long as they have the pickup link. The locker doesn't verify identity - just the correct link/code.</p>
+                </div>
+            </div>
+
+            <h2 id="technical">Technical Issues</h2>
+
+            <div class="faq-item">
+                <div class="faq-question">"Dashboard won't load"</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>Clear your browser cache</li>
+                        <li>Try a different browser</li>
+                        <li>Make sure you're logged into Shopify</li>
+                        <li>Check your internet connection</li>
+                        <li>Contact support if still not working</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">"Locker list isn't loading"</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>Refresh the page</li>
+                        <li>Check your internet connection</li>
+                        <li>The Harbor API may be temporarily unavailable</li>
+                        <li>Try again in a few minutes</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">"Order status isn't updating"</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>Refresh your browser</li>
+                        <li>Changes may take a moment to sync</li>
+                        <li>Try logging out and back in</li>
+                        <li>Contact support if the issue persists</li>
+                    </ol>
+                </div>
+            </div>
+
+            <h2 id="billing">Billing & Account</h2>
+
+            <div class="faq-item">
+                <div class="faq-question">What subscription plans are available?</div>
+                <div class="faq-answer">
+                    <p>LockerDrop offers three plans:</p>
+                    <ul>
+                        <li><strong>Basic ($9/month)</strong> - 25 orders/month, email notifications, dashboard access</li>
+                        <li><strong>Pro ($29/month)</strong> - 100 orders/month, email & SMS, priority support, analytics</li>
+                        <li><strong>Enterprise ($99/month)</strong> - Unlimited orders, custom branding, upsell widgets, Rebuy integration</li>
+                    </ul>
+                    <p>All plans include a <strong>3-day free trial</strong>.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">How do I change my plan?</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>Go to the <strong>Billing</strong> tab in your dashboard</li>
+                        <li>Click on the plan you want to switch to</li>
+                        <li>Confirm the change through Shopify's billing system</li>
+                        <li>Your new plan takes effect immediately</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">What happens if I hit my order limit?</div>
+                <div class="faq-answer">
+                    <p>When you approach your monthly order limit:</p>
+                    <ul>
+                        <li>You'll see a warning in the Billing tab usage meter</li>
+                        <li>At 90%, the meter turns red</li>
+                        <li>Consider upgrading to avoid service interruption</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Can I pause my LockerDrop service?</div>
+                <div class="faq-answer">
+                    <p>Yes, you can cancel your subscription in the Billing tab. Note that:</p>
+                    <ul>
+                        <li>Your subscription remains active until the end of the billing period</li>
+                        <li>Existing orders must still be fulfilled</li>
+                        <li>Reactivation is quick and easy</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">How do I cancel LockerDrop?</div>
+                <div class="faq-answer">
+                    <p>Go to the Billing tab and click "Cancel Subscription". Before canceling:</p>
+                    <ul>
+                        <li>Complete all pending orders</li>
+                        <li>Download any order history you need</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h2 id="enterprise">Enterprise Features</h2>
+
+            <div class="faq-item">
+                <div class="faq-question">What is custom branding?</div>
+                <div class="faq-answer">
+                    <p>Enterprise subscribers can customize the pickup success page customers see after collecting their order:</p>
+                    <ul>
+                        <li>Your brand logo</li>
+                        <li>Custom colors matching your brand</li>
+                        <li>Personalized thank-you message</li>
+                        <li>Upsell products with links to your store</li>
+                        <li>Rebuy widget integration</li>
+                        <li>Custom CSS for advanced styling</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">How do I set up upsell products?</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>Go to the <strong>Branding</strong> tab (Enterprise only)</li>
+                        <li>Enable "Show upsell products"</li>
+                        <li>Enter your Shopify product IDs (comma-separated, max 4)</li>
+                        <li>Customize the upsell heading (e.g., "You might also like")</li>
+                        <li>Save changes</li>
+                    </ol>
+                    <p>Find product IDs in Shopify Admin: Products > [Product] > check the URL for the numeric ID.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">How do I connect Rebuy?</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>Go to the <strong>Branding</strong> tab</li>
+                        <li>Enable "Rebuy widget"</li>
+                        <li>Enter your Rebuy Widget ID from your Rebuy dashboard</li>
+                        <li>Save changes</li>
+                    </ol>
+                    <p>Rebuy will display AI-powered product recommendations on the pickup success page.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">How do I set product dimensions?</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>Go to the <strong>Product Sizes</strong> tab</li>
+                        <li>Find your product in the list</li>
+                        <li>Enter L x W x H dimensions <strong>in inches</strong></li>
+                        <li>Optionally select a fixed locker size</li>
+                        <li>Click "Save All Changes"</li>
+                    </ol>
+                    <p>Dimensions help LockerDrop automatically select the right locker size for orders.</p>
+                </div>
+            </div>
+
+            <h2 id="safety">Safety & Security</h2>
+
+            <div class="faq-item">
+                <div class="faq-question">Are lockers secure?</div>
+                <div class="faq-answer">
+                    <p>Yes! Harbor Lockers feature:</p>
+                    <ul>
+                        <li>Individual compartments with unique codes</li>
+                        <li>Steel construction</li>
+                        <li>24/7 video surveillance</li>
+                        <li>Access logging for all openings</li>
+                        <li>Weather protection</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">What if a locker is damaged?</div>
+                <div class="faq-answer">
+                    <ul>
+                        <li>Do not use a damaged locker</li>
+                        <li>Contact Harbor support immediately</li>
+                        <li>Contact LockerDrop support for order reassignment</li>
+                        <li>Document with photos if possible</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Is customer information secure?</div>
+                <div class="faq-answer">
+                    <p>Yes, we follow industry best practices:</p>
+                    <ul>
+                        <li>Data encrypted in transit and at rest</li>
+                        <li>Limited access to customer information</li>
+                        <li>Compliance with privacy regulations</li>
+                        <li>Regular security audits</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h2>Getting Help</h2>
+
+            <div class="info-box">
+                <p><strong>Email:</strong> support@lockerdrop.it</p>
+                <p><strong>Live Chat:</strong> Available in the dashboard</p>
+                <p style="margin-bottom: 0;"><strong>Include:</strong> Store name, order number (if applicable), description of issue, screenshots (if helpful)</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>LockerDrop - Pickup on Your Schedule</p>
+        <p style="margin-top: 8px;">Last updated: December 2025</p>
+    </div>
+</body>
+</html>

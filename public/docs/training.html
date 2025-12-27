@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seller Training Guide - LockerDrop</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f6f6f7;
+            color: #202223;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #e1e3e5;
+            padding: 16px 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 600;
+            color: #5c6ac4;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-links a {
+            color: #6d7175;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .nav-links a:hover {
+            color: #5c6ac4;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        .doc-card {
+            background: white;
+            border-radius: 8px;
+            padding: 40px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #5c6ac4;
+            margin-bottom: 8px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            color: #6d7175;
+            margin-bottom: 32px;
+            font-size: 18px;
+        }
+
+        h2 {
+            color: #202223;
+            margin-top: 40px;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e1e3e5;
+        }
+
+        h3 {
+            color: #202223;
+            margin-top: 24px;
+            margin-bottom: 12px;
+        }
+
+        p {
+            margin-bottom: 16px;
+        }
+
+        ul, ol {
+            margin-bottom: 16px;
+            padding-left: 24px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .benefit-list {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .benefit-list li {
+            padding-left: 28px;
+            position: relative;
+        }
+
+        .benefit-list li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #008060;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e1e3e5;
+        }
+
+        th {
+            background: #f6f6f7;
+            font-weight: 600;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-pending {
+            background: #fff4e6;
+            color: #996300;
+        }
+
+        .status-ready {
+            background: #e3f5ef;
+            color: #008060;
+        }
+
+        .status-completed {
+            background: #f0f1f2;
+            color: #6d7175;
+        }
+
+        .status-expired {
+            background: #fff4f4;
+            color: #bf0711;
+        }
+
+        .lifecycle {
+            background: #f6f6f7;
+            padding: 24px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .lifecycle-step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .lifecycle-step:last-child {
+            margin-bottom: 0;
+        }
+
+        .step-number {
+            background: #5c6ac4;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+            margin-right: 16px;
+            flex-shrink: 0;
+        }
+
+        .step-content h4 {
+            margin-bottom: 4px;
+        }
+
+        .step-content p {
+            margin: 0;
+            color: #6d7175;
+            font-size: 14px;
+        }
+
+        .info-box {
+            background: #f4f5fa;
+            border-left: 4px solid #5c6ac4;
+            padding: 16px;
+            margin: 16px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .warning-box {
+            background: #fff4e6;
+            border-left: 4px solid #996300;
+            padding: 16px;
+            margin: 16px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        code {
+            background: #f6f6f7;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .quick-ref {
+            background: #f6f6f7;
+            padding: 24px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .quick-ref h3 {
+            margin-top: 0;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 40px;
+            color: #6d7175;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <a href="/" class="logo">LockerDrop</a>
+            <div class="nav-links">
+                <a href="/docs/training">Training Guide</a>
+                <a href="/docs/faq">FAQ</a>
+                <a href="/docs/customer-faq">Customer FAQ</a>
+                <a href="/privacy">Privacy</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="doc-card">
+            <h1>Seller Training Guide</h1>
+            <p class="subtitle">Everything you need to know to manage LockerDrop orders</p>
+
+            <h2>Welcome to LockerDrop!</h2>
+            <p>LockerDrop lets your customers pick up their orders from secure smart lockers instead of waiting at home for delivery. This guide will teach you everything you need to know to manage orders and provide great customer service.</p>
+
+            <h3>What is LockerDrop?</h3>
+            <p>LockerDrop is a shipping option that lets customers pick up their orders from Harbor smart lockers. Instead of traditional home delivery:</p>
+            <ul>
+                <li><strong>Customers</strong> choose a convenient locker location at checkout</li>
+                <li><strong>You</strong> drop off packages at the locker using a secure access code</li>
+                <li><strong>Customers</strong> pick up when it's convenient for them using their own code</li>
+            </ul>
+
+            <h3>Benefits for Your Business</h3>
+            <ul class="benefit-list">
+                <li><strong>No missed deliveries</strong> - Customers pick up when they want</li>
+                <li><strong>Reduced shipping costs</strong> - Often cheaper than last-mile delivery</li>
+                <li><strong>Faster fulfillment</strong> - Drop off locally, no waiting for carriers</li>
+                <li><strong>Happy customers</strong> - Flexible pickup on their schedule</li>
+            </ul>
+
+            <h2>Understanding the Dashboard</h2>
+
+            <h3>Accessing the Dashboard</h3>
+            <ol>
+                <li>Log into your Shopify admin</li>
+                <li>Go to <strong>Apps</strong> > <strong>LockerDrop</strong></li>
+                <li>Or visit: <code>https://lockerdrop.it/admin/dashboard?shop=yourstore.myshopify.com</code></li>
+            </ol>
+
+            <h3>Dashboard Tabs</h3>
+            <table>
+                <tr>
+                    <th>Tab</th>
+                    <th>Purpose</th>
+                </tr>
+                <tr>
+                    <td><strong>Orders</strong></td>
+                    <td>Complete order list with management tools</td>
+                </tr>
+                <tr>
+                    <td><strong>My Lockers</strong></td>
+                    <td>Select which locker locations to use</td>
+                </tr>
+                <tr>
+                    <td><strong>Product Sizes</strong></td>
+                    <td>Set dimensions for products to auto-select locker sizes</td>
+                </tr>
+                <tr>
+                    <td><strong>Billing</strong></td>
+                    <td>Manage your subscription plan and view usage</td>
+                </tr>
+                <tr>
+                    <td><strong>Branding</strong></td>
+                    <td>Customize pickup success page (Enterprise only)</td>
+                </tr>
+                <tr>
+                    <td><strong>Settings</strong></td>
+                    <td>Configure pricing and processing times</td>
+                </tr>
+                <tr>
+                    <td><strong>Help</strong></td>
+                    <td>Quick reference and documentation</td>
+                </tr>
+            </table>
+
+            <h2>Order Lifecycle</h2>
+            <p>Every LockerDrop order goes through these stages:</p>
+
+            <div class="lifecycle">
+                <div class="lifecycle-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h4>Order Placed</h4>
+                        <p>Customer checks out and selects LockerDrop Pickup</p>
+                    </div>
+                </div>
+                <div class="lifecycle-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h4>Pending Drop-off <span class="status-badge status-pending">Your action needed</span></h4>
+                        <p>You receive the order with a drop-off access code</p>
+                    </div>
+                </div>
+                <div class="lifecycle-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h4>Dropped Off</h4>
+                        <p>You've placed the package in the locker</p>
+                    </div>
+                </div>
+                <div class="lifecycle-step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <h4>Ready for Pickup <span class="status-badge status-ready">Customer notified</span></h4>
+                        <p>Customer receives notification with their pickup code</p>
+                    </div>
+                </div>
+                <div class="lifecycle-step">
+                    <div class="step-number">5</div>
+                    <div class="step-content">
+                        <h4>Picked Up <span class="status-badge status-completed">Complete!</span></h4>
+                        <p>Customer has retrieved their package</p>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Order Status Colors</h3>
+            <table>
+                <tr>
+                    <th>Status</th>
+                    <th>Color</th>
+                    <th>Meaning</th>
+                </tr>
+                <tr>
+                    <td><span class="status-badge status-pending">Pending Drop-off</span></td>
+                    <td>Orange</td>
+                    <td>Waiting for you to drop off</td>
+                </tr>
+                <tr>
+                    <td><span class="status-badge status-ready">Ready for Pickup</span></td>
+                    <td>Green</td>
+                    <td>Package in locker, customer notified</td>
+                </tr>
+                <tr>
+                    <td><span class="status-badge status-completed">Completed</span></td>
+                    <td>Gray</td>
+                    <td>Customer has picked up</td>
+                </tr>
+                <tr>
+                    <td><span class="status-badge status-expired">Expired</span></td>
+                    <td>Red</td>
+                    <td>Customer didn't pick up in time</td>
+                </tr>
+            </table>
+
+            <h2>How to Drop Off a Package</h2>
+
+            <h3>Step 1: View the Order</h3>
+            <ol>
+                <li>Go to <strong>Orders</strong> tab</li>
+                <li>Find orders with <strong>"Pending Drop-off"</strong> status</li>
+                <li>Click <strong>"View"</strong> to see the order details</li>
+            </ol>
+
+            <h3>Step 2: Note the Drop-Off Information</h3>
+            <p>In the order details, you'll see:</p>
+            <ul>
+                <li><strong>Locker Location</strong> - Address where to drop off</li>
+                <li><strong>Locker Name</strong> - e.g., "Harbor Locker - Downtown Dallas"</li>
+                <li><strong>Drop-off Link</strong> - Click to open the locker</li>
+            </ul>
+
+            <h3>Step 3: Prepare the Package</h3>
+            <p>Pack the order securely and make sure it fits the assigned locker size:</p>
+            <table>
+                <tr>
+                    <th>Size</th>
+                    <th>Dimensions</th>
+                </tr>
+                <tr>
+                    <td>Small</td>
+                    <td>Up to 12" x 8" x 4"</td>
+                </tr>
+                <tr>
+                    <td>Medium</td>
+                    <td>Up to 16" x 12" x 8"</td>
+                </tr>
+                <tr>
+                    <td>Large</td>
+                    <td>Up to 20" x 16" x 12"</td>
+                </tr>
+                <tr>
+                    <td>X-Large</td>
+                    <td>Up to 24" x 20" x 16"</td>
+                </tr>
+            </table>
+
+            <h3>Step 4: Go to the Locker</h3>
+            <ol>
+                <li>Travel to the locker location</li>
+                <li>Find the Harbor Locker kiosk</li>
+                <li>Click the <strong>Drop-off Link</strong> on your phone to open the locker</li>
+            </ol>
+
+            <h3>Step 5: Place the Package</h3>
+            <ol>
+                <li>The assigned locker door will open</li>
+                <li>Place the package inside</li>
+                <li>Close the door securely</li>
+                <li>The system will confirm the drop-off</li>
+            </ol>
+
+            <div class="info-box">
+                <strong>Note:</strong> Once you complete the drop-off, the customer will automatically receive their pickup notification with a link to open the locker.
+            </div>
+
+            <h2>Managing Orders</h2>
+
+            <h3>Viewing All Orders</h3>
+            <ol>
+                <li>Go to the <strong>Orders</strong> tab</li>
+                <li>Use filters to find specific orders:
+                    <ul>
+                        <li><strong>Active</strong> - Pending and Ready orders</li>
+                        <li><strong>Pending Drop-off</strong> - Waiting for you</li>
+                        <li><strong>Ready for Pickup</strong> - In locker</li>
+                        <li><strong>Completed</strong> - Picked up</li>
+                        <li><strong>All</strong> - Everything</li>
+                    </ul>
+                </li>
+            </ol>
+
+            <h3>Resending Customer Emails</h3>
+            <p>If a customer lost their pickup code:</p>
+            <ol>
+                <li>Find the order</li>
+                <li>Click <strong>"View"</strong></li>
+                <li>Click <strong>"Resend Pickup Email"</strong></li>
+                <li>Customer will receive a new email with their link</li>
+            </ol>
+
+            <h2>Setting Up Your Lockers</h2>
+
+            <h3>Selecting Locker Locations</h3>
+            <ol>
+                <li>Go to <strong>My Lockers</strong> tab</li>
+                <li>You'll see all available Harbor Locker locations</li>
+                <li>Click on a location to select/deselect it</li>
+                <li>Selected lockers will show a checkmark</li>
+                <li>Click <strong>"Save Changes"</strong></li>
+            </ol>
+
+            <h3>Tips for Choosing Lockers</h3>
+            <ul class="benefit-list">
+                <li><strong>Choose convenient locations</strong> - Near your store or on your regular routes</li>
+                <li><strong>Consider your customers</strong> - Select lockers in areas where customers live/work</li>
+                <li><strong>Start small</strong> - Begin with 2-3 locations and expand as needed</li>
+                <li><strong>Check hours</strong> - Some locations have limited access hours</li>
+            </ul>
+
+            <h2>Setting Product Sizes</h2>
+            <p>LockerDrop automatically selects the right locker size based on your product dimensions. Set these in the <strong>Product Sizes</strong> tab for accurate sizing.</p>
+
+            <h3>Why Set Product Sizes?</h3>
+            <ul class="benefit-list">
+                <li>Ensures the correct locker size is reserved</li>
+                <li>Prevents packages from not fitting</li>
+                <li>Multi-item orders are calculated by stacking dimensions</li>
+            </ul>
+
+            <h3>How to Set Dimensions</h3>
+            <ol>
+                <li>Go to the <strong>Product Sizes</strong> tab</li>
+                <li>Find your product in the list</li>
+                <li>Enter Length, Width, and Height <strong>(all in inches)</strong></li>
+                <li>Optionally force a specific locker size from the dropdown</li>
+                <li>Click <strong>Save All Changes</strong></li>
+            </ol>
+
+            <h3>Locker Size Reference</h3>
+            <table>
+                <tr>
+                    <th>Size</th>
+                    <th>Dimensions (L x W x H)</th>
+                </tr>
+                <tr>
+                    <td>Small</td>
+                    <td>12" x 8" x 4"</td>
+                </tr>
+                <tr>
+                    <td>Medium</td>
+                    <td>16" x 12" x 8"</td>
+                </tr>
+                <tr>
+                    <td>Large</td>
+                    <td>20" x 16" x 12"</td>
+                </tr>
+                <tr>
+                    <td>X-Large</td>
+                    <td>24" x 20" x 16"</td>
+                </tr>
+            </table>
+
+            <h2>Subscription Plans</h2>
+            <p>LockerDrop offers tiered subscription plans to fit your business needs.</p>
+
+            <h3>Available Plans</h3>
+            <table>
+                <tr>
+                    <th>Plan</th>
+                    <th>Price</th>
+                    <th>Monthly Orders</th>
+                    <th>Features</th>
+                </tr>
+                <tr>
+                    <td><strong>Basic</strong></td>
+                    <td>$9/month</td>
+                    <td>25 orders</td>
+                    <td>Email notifications, Dashboard access</td>
+                </tr>
+                <tr>
+                    <td><strong>Pro</strong></td>
+                    <td>$29/month</td>
+                    <td>100 orders</td>
+                    <td>Email & SMS, Priority support, Analytics</td>
+                </tr>
+                <tr>
+                    <td><strong>Enterprise</strong></td>
+                    <td>$99/month</td>
+                    <td>Unlimited</td>
+                    <td>All features + Custom branding, Upsells, Rebuy integration</td>
+                </tr>
+            </table>
+
+            <h3>Managing Your Subscription</h3>
+            <ol>
+                <li>Go to the <strong>Billing</strong> tab</li>
+                <li>View your current plan and usage</li>
+                <li>Click a plan card to upgrade or change plans</li>
+                <li>You'll be redirected to Shopify to confirm billing</li>
+            </ol>
+
+            <div class="info-box">
+                <strong>Free Trial:</strong> All new stores get a 3-day free trial with 25 orders to test LockerDrop.
+            </div>
+
+            <h2>Enterprise Features: Custom Branding</h2>
+            <p>Enterprise subscribers can customize the pickup success page that customers see after collecting their order.</p>
+
+            <h3>Branding Options</h3>
+            <ul>
+                <li><strong>Brand Logo</strong> - Display your logo at the top of the success page</li>
+                <li><strong>Custom Colors</strong> - Match your brand's primary and secondary colors</li>
+                <li><strong>Success Message</strong> - Personalized thank-you message</li>
+                <li><strong>Upsell Products</strong> - Show recommended products with links to your store</li>
+                <li><strong>Rebuy Integration</strong> - Connect Rebuy for AI-powered recommendations</li>
+                <li><strong>Custom CSS</strong> - Advanced styling for complete control</li>
+            </ul>
+
+            <h3>Setting Up Branding</h3>
+            <ol>
+                <li>Go to the <strong>Branding</strong> tab (Enterprise only)</li>
+                <li>Upload your logo URL</li>
+                <li>Choose your brand colors using the color picker</li>
+                <li>Write a custom success message</li>
+                <li>Add upsell product IDs (found in Shopify admin)</li>
+                <li>Click <strong>Save Changes</strong></li>
+                <li>Use the <strong>Preview</strong> link to see your branded page</li>
+            </ol>
+
+            <h3>Rebuy Integration</h3>
+            <p>If you use Rebuy for product recommendations:</p>
+            <ol>
+                <li>Enable "Rebuy widget" checkbox</li>
+                <li>Enter your Rebuy Widget ID (found in Rebuy dashboard)</li>
+                <li>Save changes</li>
+                <li>Rebuy's AI recommendations will appear on the success page</li>
+            </ol>
+
+            <h2>Troubleshooting Common Issues</h2>
+
+            <div class="warning-box">
+                <strong>"Locker won't open with my link"</strong>
+                <ol>
+                    <li>Double-check you're at the correct locker location</li>
+                    <li>Make sure you're using the DROP-OFF link (not the customer pickup link)</li>
+                    <li>Try refreshing the page and clicking the link again</li>
+                    <li>Contact Harbor Locker support if the issue persists</li>
+                </ol>
+            </div>
+
+            <div class="warning-box">
+                <strong>"Customer can't find the locker"</strong>
+                <ol>
+                    <li>Send them the exact address from the order details</li>
+                    <li>Share the locker location name</li>
+                    <li>Harbor lockers are usually near entrances of partner locations</li>
+                </ol>
+            </div>
+
+            <div class="warning-box">
+                <strong>"Package doesn't fit"</strong>
+                <ol>
+                    <li>Don't drop off if the package won't fit</li>
+                    <li>Contact LockerDrop support to reassign to a larger locker</li>
+                </ol>
+            </div>
+
+            <h2>Quick Reference Card</h2>
+
+            <div class="quick-ref">
+                <h3>Your Daily Workflow</h3>
+                <ol>
+                    <li><strong>Morning:</strong> Check dashboard for new orders</li>
+                    <li><strong>Plan:</strong> Note which lockers have pending drop-offs</li>
+                    <li><strong>Prepare:</strong> Pack orders for today's drop-offs</li>
+                    <li><strong>Drop off:</strong> Visit locker locations on your route</li>
+                    <li><strong>Monitor:</strong> Watch for any pickup issues</li>
+                </ol>
+
+                <h3 style="margin-top: 20px;">Important Links</h3>
+                <ul>
+                    <li><strong>Dashboard:</strong> lockerdrop.it/admin/dashboard</li>
+                    <li><strong>LockerDrop Support:</strong> support@lockerdrop.it</li>
+                </ul>
+            </div>
+
+            <h2>Need More Help?</h2>
+            <ul>
+                <li><strong>Email:</strong> support@lockerdrop.it</li>
+                <li><strong>Knowledge Base:</strong> help.lockerdrop.it</li>
+                <li><strong>Live Chat:</strong> Available in your dashboard</li>
+            </ul>
+
+            <p style="margin-top: 32px; text-align: center; color: #6d7175;">
+                Welcome to LockerDrop - we're excited to have you!
+            </p>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>LockerDrop - Pickup on Your Schedule</p>
+        <p style="margin-top: 8px;">&copy; 2025 LockerDrop. All rights reserved.</p>
+    </div>
+</body>
+</html>

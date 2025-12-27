@@ -1,0 +1,22 @@
+# DEPRECATED: This checkout UI extension is being replaced by the
+# Pickup Point Function (lockerdrop-pickup-points) for Plus stores.
+# Keeping for backward compatibility during migration.
+# Learn more: https://shopify.dev/docs/apps/build/checkout
+
+api_version = "2025-01"
+
+[[extensions]]
+uid = "539482da-e96f-2453-1e78-c274f2e1851605b78716"
+type = "ui_extension"
+name = "LockerDrop Pickup (Legacy)"
+handle = "lockerdrop-checkout"
+
+[[extensions.targeting]]
+module = "./src/Checkout.js"
+target = "purchase.checkout.delivery-address.render-after"
+
+[extensions.capabilities]
+api_access = true
+network_access = true
+block_progress = true
+

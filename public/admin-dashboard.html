@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LockerDrop.it - Seller Dashboard</title>
+    <title>LockerDrop - Dashboard</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: #f6f6f7;
             color: #202223;
         }
-        
+
         .header {
             background: white;
             border-bottom: 1px solid #e1e3e5;
@@ -25,25 +25,25 @@
             justify-content: space-between;
             align-items: center;
         }
-        
+
         .logo {
             font-size: 20px;
             font-weight: 600;
             color: #5c6ac4;
         }
-        
+
         .user-info {
             display: flex;
             align-items: center;
             gap: 12px;
         }
-        
+
         .container {
             max-width: 1400px;
             margin: 0 auto;
             padding: 24px;
         }
-        
+
         .nav-tabs {
             display: flex;
             gap: 8px;
@@ -53,7 +53,7 @@
             border-radius: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        
+
         .tab {
             padding: 12px 24px;
             border: none;
@@ -64,24 +64,24 @@
             font-weight: 500;
             transition: all 0.2s;
         }
-        
+
         .tab:hover {
             background: #f6f6f7;
         }
-        
+
         .tab.active {
             background: #5c6ac4;
             color: white;
         }
-        
+
         .tab-content {
             display: none;
         }
-        
+
         .tab-content.active {
             display: block;
         }
-        
+
         .card {
             background: white;
             border-radius: 8px;
@@ -89,7 +89,7 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             margin-bottom: 24px;
         }
-        
+
         .card-header {
             font-size: 18px;
             font-weight: 600;
@@ -98,33 +98,33 @@
             justify-content: space-between;
             align-items: center;
         }
-        
+
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 16px;
             margin-bottom: 24px;
         }
-        
+
         .stat-card {
             background: white;
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        
+
         .stat-label {
             color: #6d7175;
             font-size: 14px;
             margin-bottom: 8px;
         }
-        
+
         .stat-value {
             font-size: 32px;
             font-weight: 600;
             color: #202223;
         }
-        
+
         .btn {
             padding: 10px 16px;
             border: none;
@@ -134,68 +134,35 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        
+
         .btn-primary {
             background: #5c6ac4;
             color: white;
         }
-        
+
         .btn-primary:hover {
             background: #4959bd;
         }
-        
+
         .btn-secondary {
             background: #f6f6f7;
             color: #202223;
         }
-        
+
         .btn-secondary:hover {
             background: #e1e3e5;
         }
-        
-        .form-group {
-            margin-bottom: 20px;
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
         }
-        
-        .form-label {
-            display: block;
-            font-size: 14px;
-            font-weight: 500;
-            margin-bottom: 8px;
-        }
-        
-        .form-input,
-        .form-select {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #c4cdd5;
-            border-radius: 6px;
-            font-size: 14px;
-        }
-        
-        .form-input:focus,
-        .form-select:focus {
-            outline: none;
-            border-color: #5c6ac4;
-        }
-        
-        .checkbox-group {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-        
-        .checkbox-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
+
         .orders-table {
             width: 100%;
             border-collapse: collapse;
         }
-        
+
         .orders-table th {
             text-align: left;
             padding: 12px;
@@ -204,41 +171,68 @@
             font-weight: 600;
             color: #6d7175;
         }
-        
+
         .orders-table td {
             padding: 16px 12px;
             border-bottom: 1px solid #e1e3e5;
             font-size: 14px;
         }
-        
+
         .status-badge {
             padding: 4px 12px;
             border-radius: 12px;
             font-size: 12px;
             font-weight: 500;
         }
-        
-        .status-pending {
+
+        .status-pending_dropoff {
             background: #fff4e6;
             color: #996300;
         }
-        
-        .status-ready {
+
+        .status-ready_for_pickup {
             background: #e3f5ef;
             color: #008060;
         }
-        
-        .status-picked-up {
+
+        .status-completed {
             background: #f0f1f2;
             color: #6d7175;
         }
-        
+
+        .status-cancelled {
+            background: #fbeae5;
+            color: #d72c0d;
+        }
+
+        .filter-btn {
+            padding: 6px 12px;
+            border: 1px solid #e1e3e5;
+            background: white;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #6d7175;
+        }
+
+        .filter-btn:hover {
+            border-color: #5c6ac4;
+            color: #5c6ac4;
+        }
+
+        .filter-btn.active {
+            background: #5c6ac4;
+            color: white;
+            border-color: #5c6ac4;
+        }
+
         .locker-selector {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 16px;
         }
-        
+
         .locker-card {
             border: 2px solid #e1e3e5;
             border-radius: 8px;
@@ -246,125 +240,40 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        
+
         .locker-card:hover {
             border-color: #5c6ac4;
         }
-        
+
         .locker-card.selected {
             border-color: #5c6ac4;
             background: #f4f5fa;
         }
-        
+
         .locker-name {
             font-weight: 600;
             margin-bottom: 8px;
         }
-        
+
         .locker-address {
             font-size: 13px;
             color: #6d7175;
             margin-bottom: 8px;
         }
-        
+
         .locker-sizes {
             display: flex;
             gap: 8px;
             margin-top: 8px;
         }
-        
+
         .size-badge {
             padding: 4px 8px;
             background: #f6f6f7;
             border-radius: 4px;
             font-size: 11px;
         }
-        
-        .order-details {
-            background: #f6f6f7;
-            padding: 16px;
-            border-radius: 6px;
-            margin-top: 12px;
-        }
-        
-        .detail-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #e1e3e5;
-        }
-        
-        .detail-row:last-child {
-            border-bottom: none;
-        }
-        
-        .detail-label {
-            font-weight: 500;
-            color: #6d7175;
-        }
-        
-        .access-code {
-            font-family: monospace;
-            font-size: 18px;
-            font-weight: 600;
-            color: #5c6ac4;
-            background: white;
-            padding: 8px 12px;
-            border-radius: 4px;
-            display: inline-block;
-        }
-        
-        .notification-settings {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-        
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 44px;
-            height: 24px;
-        }
-        
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 24px;
-        }
-        
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 16px;
-            width: 16px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-        
-        input:checked + .slider {
-            background-color: #5c6ac4;
-        }
-        
-        input:checked + .slider:before {
-            transform: translateX(20px);
-        }
-        
+
         .modal {
             display: none;
             position: fixed;
@@ -375,7 +284,7 @@
             height: 100%;
             background-color: rgba(0,0,0,0.5);
         }
-        
+
         .modal-content {
             background-color: white;
             margin: 5% auto;
@@ -386,7 +295,7 @@
             max-height: 80vh;
             overflow-y: auto;
         }
-        
+
         .close {
             float: right;
             font-size: 28px;
@@ -394,9 +303,49 @@
             cursor: pointer;
             line-height: 20px;
         }
-        
+
         .close:hover {
             color: #5c6ac4;
+        }
+
+        .order-details {
+            background: #f6f6f7;
+            padding: 16px;
+            border-radius: 6px;
+            margin-top: 12px;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e1e3e5;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: 500;
+            color: #6d7175;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6d7175;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #202223;
         }
     </style>
 </head>
@@ -404,88 +353,66 @@
     <div class="header">
         <div class="logo">🔐 LockerDrop.it</div>
         <div class="user-info">
-            <span id="store-name">ENNA Test Store</span>
-            <button class="btn btn-secondary" onclick="showSettings()">Settings</button>
+            <span id="store-name"></span>
         </div>
     </div>
 
+    <!-- Reconnect Banner - shown when Shopify token is invalid -->
+    <div id="reconnect-banner" style="display: none; background: #ffc107; color: #333; padding: 16px 24px; text-align: center; font-weight: 500;">
+        <span id="reconnect-message">⚠️ Your Shopify connection has expired. Some features may not work.</span>
+        <button onclick="reconnectToShopify()" style="margin-left: 16px; padding: 8px 20px; background: #5c6ac4; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+            🔄 Reconnect to Shopify
+        </button>
+    </div>
+
     <div class="container">
-        <!-- Navigation Tabs -->
-        <div class="nav-tabs">
-            <button class="tab active" onclick="showTab('dashboard')">Dashboard</button>
-            <button class="tab" onclick="showTab('orders')">Orders</button>
-            <button class="tab" onclick="showTab('lockers')">My Lockers</button>
-            <button class="tab" onclick="showTab('products')">Product Settings</button>
-            <button class="tab" onclick="showTab('shipping')">Shipping Rates</button>
-            <button class="tab" onclick="showTab('notifications')">Notifications</button>
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Pending Drop-offs</div>
+                <div class="stat-value" id="stat-pending">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Ready for Pickup</div>
+                <div class="stat-value" id="stat-ready">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Completed This Week</div>
+                <div class="stat-value" id="stat-completed">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Active Lockers</div>
+                <div class="stat-value" id="stat-lockers">0</div>
+            </div>
         </div>
 
-        <!-- Dashboard Tab -->
-        <div id="dashboard" class="tab-content active">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label">Pending Drop-offs</div>
-                    <div class="stat-value">3</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Ready for Pickup</div>
-                    <div class="stat-value">7</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Completed This Week</div>
-                    <div class="stat-value">24</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Active Lockers</div>
-                    <div class="stat-value">5</div>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">Recent Orders</div>
-                <table class="orders-table">
-                    <thead>
-                        <tr>
-                            <th>Order #</th>
-                            <th>Customer</th>
-                            <th>Locker</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="recent-orders">
-                        <tr>
-                            <td>#1001</td>
-                            <td>John Smith</td>
-                            <td>Dallas Downtown</td>
-                            <td><span class="status-badge status-pending">Pending Drop-off</span></td>
-                            <td><button class="btn btn-primary" onclick="viewOrder('1001')">View Details</button></td>
-                        </tr>
-                        <tr>
-                            <td>#1002</td>
-                            <td>Sarah Johnson</td>
-                            <td>North Dallas</td>
-                            <td><span class="status-badge status-ready">Ready for Pickup</span></td>
-                            <td><button class="btn btn-primary" onclick="viewOrder('1002')">View Details</button></td>
-                        </tr>
-                        <tr>
-                            <td>#1003</td>
-                            <td>Mike Wilson</td>
-                            <td>Dallas Downtown</td>
-                            <td><span class="status-badge status-picked-up">Picked Up</span></td>
-                            <td><button class="btn btn-secondary" onclick="viewOrder('1003')">View Details</button></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <button class="tab active" onclick="showTab('orders', this)">Orders</button>
+            <button class="tab" onclick="showTab('lockers', this)">My Lockers</button>
+            <button class="tab" onclick="showTab('products', this)">Product Sizes</button>
+            <button class="tab" onclick="showTab('billing', this)" style="display: none;">Billing</button> <!-- Hidden: using $1/order via shipping rate -->
+            <button class="tab" id="branding-tab" onclick="showTab('branding', this)">Branding</button>
+            <button class="tab" onclick="showTab('settings', this)">Settings</button>
+            <button class="tab" onclick="showTab('help', this)">Help</button>
         </div>
 
         <!-- Orders Tab -->
-        <div id="orders" class="tab-content">
+        <div id="orders" class="tab-content active">
             <div class="card">
                 <div class="card-header">
-                    All Orders
-                    <button class="btn btn-secondary" onclick="filterOrders()">Filter</button>
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <span>Orders</span>
+                        <div class="filter-buttons" style="display: flex; gap: 8px;">
+                            <button class="filter-btn active" data-status="active" onclick="filterOrders('active')">Active</button>
+                            <button class="filter-btn" data-status="pending_dropoff" onclick="filterOrders('pending_dropoff')">Pending Drop-off</button>
+                            <button class="filter-btn" data-status="ready_for_pickup" onclick="filterOrders('ready_for_pickup')">Ready for Pickup</button>
+                            <button class="filter-btn" data-status="completed" onclick="filterOrders('completed')">Completed</button>
+                            <button class="filter-btn" data-status="cancelled" onclick="filterOrders('cancelled')">Cancelled</button>
+                            <button class="filter-btn" data-status="all" onclick="filterOrders('all')">All</button>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="openManualOrderModal()">+ Add Manual Order</button>
                 </div>
                 <table class="orders-table">
                     <thead>
@@ -494,14 +421,18 @@
                             <th>Date</th>
                             <th>Customer</th>
                             <th>Locker</th>
-                            <th>Drop-off Code</th>
-                            <th>Pickup Code</th>
+                            <th>Drop-off Link</th>
+                            <th>Pickup Link</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="all-orders">
-                        <!-- Orders will be populated here -->
+                    <tbody id="orders-table-body">
+                        <tr>
+                            <td colspan="8" class="empty-state">
+                                <h3>Loading orders...</h3>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -514,169 +445,662 @@
                     Select Your Preferred Lockers
                     <button class="btn btn-primary" onclick="saveLockerPreferences()">Save Changes</button>
                 </div>
-                <p style="color: #6d7175; margin-bottom: 20px;">Choose which lockers you're willing to use for deliveries. You can select all products or assign specific lockers to certain products.</p>
-                
+                <p style="color: #6d7175; margin-bottom: 20px;">Choose which lockers you're willing to use for deliveries.</p>
+
                 <div class="locker-selector" id="locker-list">
-                    <!-- Lockers will be loaded from Harbor API -->
+                    <p>Loading lockers...</p>
                 </div>
             </div>
         </div>
 
-        <!-- Product Settings Tab -->
+        <!-- Product Sizes Tab -->
         <div id="products" class="tab-content">
             <div class="card">
-                <div class="card-header">Product Locker Size Settings</div>
-                <p style="color: #6d7175; margin-bottom: 20px;">Assign locker sizes to your products. This helps customers see only available lockers that can fit their order.</p>
-                
-                <div class="form-group">
-                    <label class="form-label">Product</label>
-                    <select class="form-select" id="product-select">
-                        <option>All Products (Default)</option>
-                        <option>T-Shirt - Small</option>
-                        <option>T-Shirt - Large</option>
-                        <option>Shoes - Size 10</option>
-                    </select>
+                <div class="card-header">
+                    Product Size Settings
+                    <button class="btn btn-primary" onclick="saveProductSizes()">Save All Changes</button>
+                </div>
+                <p style="color: #6d7175; margin-bottom: 20px;">
+                    Set dimensions for each product to ensure the right locker size is reserved.
+                    For multi-item orders, dimensions are combined (stacked) to calculate total package size.
+                    <strong>All measurements are in inches.</strong>
+                </p>
+                <p style="color: #637381; margin-bottom: 20px; background: #fff8e6; padding: 12px; border-radius: 6px; border-left: 3px solid #ffb800;">
+                    <strong>💡 Tip:</strong> Entering exact dimensions (L x W x H) allows multiple smaller items to share a locker.
+                    Using only the "Locker Size" dropdown assumes a default size, which may result in larger lockers being required for multi-item orders.
+                </p>
+
+                <div style="background: #f6f6f7; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
+                    <strong>Locker Sizes (L x W x H in inches):</strong>
+                    <span style="margin-left: 16px;">Small: 12" x 8" x 4"</span>
+                    <span style="margin-left: 16px;">Medium: 16" x 12" x 8"</span>
+                    <span style="margin-left: 16px;">Large: 20" x 16" x 12"</span>
+                    <span style="margin-left: 16px;">X-Large: 24" x 20" x 16"</span>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Maximum Locker Size Required</label>
-                    <select class="form-select">
-                        <option>Small (up to 12" x 12" x 12")</option>
-                        <option>Medium (up to 18" x 18" x 18")</option>
-                        <option selected>Large (up to 24" x 24" x 24")</option>
-                        <option>X-Large (up to 36" x 36" x 36")</option>
-                    </select>
+                <div style="display: grid; grid-template-columns: 1fr repeat(3, 70px) 120px; gap: 12px; padding: 8px 0; font-weight: 500; color: #6d7175; font-size: 13px;">
+                    <div>Product / Variant</div>
+                    <div style="text-align: center;">L (in)</div>
+                    <div style="text-align: center;">W (in)</div>
+                    <div style="text-align: center;">H (in)</div>
+                    <div style="text-align: center;">Locker Size</div>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Product Dimensions (Optional)</label>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
-                        <input type="text" class="form-input" placeholder="Length (in)">
-                        <input type="text" class="form-input" placeholder="Width (in)">
-                        <input type="text" class="form-input" placeholder="Height (in)">
-                    </div>
+                <div id="products-list">
+                    <p>Loading products...</p>
                 </div>
-
-                <button class="btn btn-primary">Save Product Settings</button>
             </div>
         </div>
 
-        <!-- Shipping Rates Tab -->
-        <div id="shipping" class="tab-content">
+        <!-- Help Tab -->
+        <div id="help" class="tab-content">
             <div class="card">
-                <div class="card-header">Shipping Rate Configuration</div>
-                
-                <div class="form-group">
-                    <label class="form-label">Base Rate for LockerDrop Pickup</label>
-                    <input type="number" class="form-input" value="0.00" step="0.01">
-                    <small style="color: #6d7175;">This is the shipping cost shown to customers at checkout</small>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Processing Time</label>
-                    <select class="form-select">
-                        <option>1-2 business days</option>
-                        <option selected>2-3 business days</option>
-                        <option>3-5 business days</option>
-                        <option>5-7 business days</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Locker Hold Time</label>
-                    <select class="form-select">
-                        <option>3 days</option>
-                        <option selected>5 days</option>
-                        <option>7 days</option>
-                        <option>10 days</option>
-                    </select>
-                    <small style="color: #6d7175;">How long will items be held in locker before being returned</small>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Service Availability</label>
-                    <div class="checkbox-group">
-                        <label class="checkbox-item">
-                            <input type="checkbox" checked>
-                            <span>Enable for all products</span>
-                        </label>
-                        <label class="checkbox-item">
-                            <input type="checkbox">
-                            <span>Limit to specific collections</span>
-                        </label>
+                <div class="card-header">
+                    Help & Documentation
+                    <div>
+                        <a href="/docs/training" target="_blank" class="btn btn-secondary btn-small" style="margin-right: 8px;">Open Training Guide</a>
+                        <a href="/docs/faq" target="_blank" class="btn btn-secondary btn-small">Open FAQ</a>
                     </div>
                 </div>
 
-                <button class="btn btn-primary">Save Shipping Settings</button>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+                    <!-- Quick Start -->
+                    <div style="border: 1px solid #e1e3e5; border-radius: 8px; padding: 20px;">
+                        <h3 style="margin-bottom: 12px; color: #5c6ac4;">Quick Start</h3>
+                        <ol style="margin-left: 20px; line-height: 1.8;">
+                            <li>Go to <strong>My Lockers</strong> tab and select your preferred locker location</li>
+                            <li>Go to <strong>Product Sizes</strong> tab and set dimensions for your products</li>
+                            <li>Orders with "LockerDrop Pickup" will appear in the <strong>Orders</strong> tab</li>
+                            <li>Click <strong>View</strong> to see the drop-off link</li>
+                            <li>Visit the locker and open the link on your phone to unlock</li>
+                            <li>Place package inside and close door</li>
+                            <li>Customer receives pickup notification via email/SMS automatically</li>
+                        </ol>
+                    </div>
+
+                    <!-- Order Lifecycle -->
+                    <div style="border: 1px solid #e1e3e5; border-radius: 8px; padding: 20px;">
+                        <h3 style="margin-bottom: 12px; color: #5c6ac4;">Order Lifecycle</h3>
+                        <div style="line-height: 1.8;">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                <span class="status-badge status-pending_dropoff">Pending Drop-off</span>
+                                <span>→ Waiting for you to drop off</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                <span class="status-badge status-ready_for_pickup">Ready for Pickup</span>
+                                <span>→ In locker, customer notified</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                <span class="status-badge status-completed">Completed</span>
+                                <span>→ Customer picked up</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span class="status-badge status-cancelled">Cancelled</span>
+                                <span>→ Order/locker cancelled</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Locker Sizes -->
+                    <div style="border: 1px solid #e1e3e5; border-radius: 8px; padding: 20px;">
+                        <h3 style="margin-bottom: 12px; color: #5c6ac4;">Locker Sizes</h3>
+                        <table style="width: 100%; font-size: 14px;">
+                            <tr style="border-bottom: 1px solid #e1e3e5;">
+                                <td style="padding: 8px 0; font-weight: 500;">Small</td>
+                                <td style="padding: 8px 0;">12" x 8" x 4"</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #e1e3e5;">
+                                <td style="padding: 8px 0; font-weight: 500;">Medium</td>
+                                <td style="padding: 8px 0;">16" x 12" x 8"</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #e1e3e5;">
+                                <td style="padding: 8px 0; font-weight: 500;">Large</td>
+                                <td style="padding: 8px 0;">20" x 16" x 12"</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0; font-weight: 500;">X-Large</td>
+                                <td style="padding: 8px 0;">24" x 20" x 16"</td>
+                            </tr>
+                        </table>
+                        <p style="margin-top: 12px; font-size: 13px; color: #637381;">
+                            At checkout, only lockers with the required size available will be shown.
+                        </p>
+                    </div>
+
+                    <!-- Product Size Configuration -->
+                    <div style="border: 1px solid #e1e3e5; border-radius: 8px; padding: 20px;">
+                        <h3 style="margin-bottom: 12px; color: #5c6ac4;">Product Size Tips</h3>
+                        <div style="line-height: 1.8; font-size: 14px;">
+                            <p><strong>Two ways to set product sizes:</strong></p>
+                            <p style="margin-top: 8px;">
+                                <strong>1. Exact Dimensions</strong> (Recommended)<br>
+                                Enter L x W x H in inches. Best for multi-item orders - allows items to share a locker when they fit together.
+                            </p>
+                            <p style="margin-top: 8px;">
+                                <strong>2. Locker Size Dropdown</strong><br>
+                                Quick option if you don't know exact dimensions. System assumes a default size for that locker category.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Multi-Item Orders -->
+                    <div style="border: 1px solid #e1e3e5; border-radius: 8px; padding: 20px;">
+                        <h3 style="margin-bottom: 12px; color: #5c6ac4;">Multi-Item Orders</h3>
+                        <div style="line-height: 1.8; font-size: 14px;">
+                            <p>When a customer orders multiple items:</p>
+                            <ul style="margin-left: 20px; margin-top: 8px;">
+                                <li>Dimensions are <strong>stacked</strong> (heights added together)</li>
+                                <li>System finds smallest locker that fits combined package</li>
+                                <li>Checkout only shows lockers with that size available</li>
+                            </ul>
+                            <p style="margin-top: 12px; color: #637381;">
+                                Example: Two 10"x6"x3" items = 10"x6"x6" combined → needs Medium locker
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Common Questions -->
+                    <div style="border: 1px solid #e1e3e5; border-radius: 8px; padding: 20px;">
+                        <h3 style="margin-bottom: 12px; color: #5c6ac4;">Common Questions</h3>
+                        <div style="line-height: 1.8;">
+                            <p><strong>How long do customers have to pick up?</strong><br>
+                            Default is 24 hours from when link is generated. Links expire automatically.</p>
+
+                            <p style="margin-top: 12px;"><strong>Customer lost their pickup info?</strong><br>
+                            Click View on the order, then "Resend Pickup Email" to send again.</p>
+
+                            <p style="margin-top: 12px;"><strong>Need to cancel a locker request?</strong><br>
+                            Click View on the order, then "Cancel Locker". The locker will be released when the link expires (~24 hours).</p>
+
+                            <p style="margin-top: 12px;"><strong>LockerDrop not showing at checkout?</strong><br>
+                            Check: 1) Address is verified, 2) Product has size set, 3) Required locker size is available at a nearby location.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact Support -->
+                <div style="margin-top: 24px; padding: 20px; background: #f6f6f7; border-radius: 8px;">
+                    <h3 style="margin-bottom: 12px;">Need More Help?</h3>
+                    <p style="margin-bottom: 8px;">
+                        <strong>Email:</strong> <a href="mailto:support@lockerdrop.it">support@lockerdrop.it</a>
+                    </p>
+                    <p style="margin-bottom: 8px;">
+                        <strong>Full Documentation:</strong>
+                        <a href="/docs/training" target="_blank">Training Guide</a> |
+                        <a href="/docs/faq" target="_blank">FAQ</a> |
+                        <a href="/docs/customer-faq" target="_blank">Customer FAQ</a> |
+                        <a href="/privacy" target="_blank">Privacy Policy</a>
+                    </p>
+                </div>
             </div>
         </div>
 
-        <!-- Notifications Tab -->
-        <div id="notifications" class="tab-content">
+        <!-- Billing Tab -->
+        <div id="billing" class="tab-content">
+            <!-- Current Subscription Status -->
             <div class="card">
-                <div class="card-header">Email Notifications</div>
-                <div class="notification-settings">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong>New Order Received</strong>
-                            <p style="color: #6d7175; font-size: 13px;">Get notified when a customer places a LockerDrop order</p>
+                <div class="card-header">Current Subscription</div>
+                <div id="subscription-status">
+                    <p>Loading subscription status...</p>
+                </div>
+            </div>
+
+            <!-- Usage Meter -->
+            <div class="card" id="usage-card" style="display: none;">
+                <div class="card-header">Monthly Usage</div>
+                <div id="usage-meter">
+                    <div style="margin-bottom: 12px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span>Orders this month</span>
+                            <span id="usage-count">0 / 0</span>
                         </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" checked>
-                            <span class="slider"></span>
-                        </label>
+                        <div style="background: #e1e3e5; height: 8px; border-radius: 4px; overflow: hidden;">
+                            <div id="usage-bar" style="background: #5c6ac4; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+                    <p id="usage-message" style="color: #6d7175; font-size: 13px;"></p>
+                </div>
+            </div>
+
+            <!-- Available Plans -->
+            <div class="card">
+                <div class="card-header">Available Plans</div>
+                <p style="color: #6d7175; margin-bottom: 20px;">Choose the plan that fits your business needs.</p>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                    <!-- Basic Plan -->
+                    <div class="plan-card" data-plan="basic" style="border: 2px solid #e1e3e5; border-radius: 12px; padding: 24px; position: relative;">
+                        <h3 style="font-size: 20px; margin-bottom: 8px;">Basic</h3>
+                        <div style="margin-bottom: 16px;">
+                            <span style="font-size: 36px; font-weight: 700;">$9</span>
+                            <span style="color: #6d7175;">/month</span>
+                        </div>
+                        <ul style="list-style: none; margin-bottom: 24px; line-height: 2;">
+                            <li>&#10003; 25 LockerDrop orders/month</li>
+                            <li>&#10003; Email notifications</li>
+                            <li>&#10003; Basic support</li>
+                            <li>&#10003; Dashboard access</li>
+                        </ul>
+                        <button class="btn btn-secondary plan-btn" style="width: 100%;" onclick="subscribeToPlan('basic')">Select Basic</button>
                     </div>
 
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong>Reminder: Pending Drop-off</strong>
-                            <p style="color: #6d7175; font-size: 13px;">Daily reminder for orders waiting to be dropped off</p>
+                    <!-- Pro Plan (Popular) -->
+                    <div class="plan-card" data-plan="pro" style="border: 2px solid #5c6ac4; border-radius: 12px; padding: 24px; position: relative; background: linear-gradient(135deg, #f4f5fa 0%, #fff 100%);">
+                        <span style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #5c6ac4; color: white; padding: 4px 16px; border-radius: 12px; font-size: 12px; font-weight: 600;">MOST POPULAR</span>
+                        <h3 style="font-size: 20px; margin-bottom: 8px;">Pro</h3>
+                        <div style="margin-bottom: 16px;">
+                            <span style="font-size: 36px; font-weight: 700;">$29</span>
+                            <span style="color: #6d7175;">/month</span>
                         </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" checked>
-                            <span class="slider"></span>
-                        </label>
+                        <ul style="list-style: none; margin-bottom: 24px; line-height: 2;">
+                            <li>&#10003; 100 LockerDrop orders/month</li>
+                            <li>&#10003; Email & SMS notifications</li>
+                            <li>&#10003; Priority support</li>
+                            <li>&#10003; Dashboard access</li>
+                            <li>&#10003; Analytics</li>
+                        </ul>
+                        <button class="btn btn-primary plan-btn" style="width: 100%;" onclick="subscribeToPlan('pro')">Select Pro</button>
                     </div>
 
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong>Item Picked Up</strong>
-                            <p style="color: #6d7175; font-size: 13px;">Confirmation when customer picks up their order</p>
+                    <!-- Enterprise Plan -->
+                    <div class="plan-card" data-plan="enterprise" style="border: 2px solid #e1e3e5; border-radius: 12px; padding: 24px; position: relative;">
+                        <h3 style="font-size: 20px; margin-bottom: 8px;">Enterprise</h3>
+                        <div style="margin-bottom: 16px;">
+                            <span style="font-size: 36px; font-weight: 700;">$99</span>
+                            <span style="color: #6d7175;">/month</span>
                         </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" checked>
-                            <span class="slider"></span>
-                        </label>
+                        <ul style="list-style: none; margin-bottom: 24px; line-height: 2;">
+                            <li>&#10003; <strong>Unlimited</strong> orders</li>
+                            <li>&#10003; Email & SMS notifications</li>
+                            <li>&#10003; Dedicated support</li>
+                            <li>&#10003; Checkout UI block</li>
+                            <li>&#10003; Order status page block</li>
+                            <li>&#10003; <strong>Custom branded pickup page</strong></li>
+                            <li>&#10003; Upsell widgets</li>
+                            <li>&#10003; Rebuy integration</li>
+                        </ul>
+                        <button class="btn btn-secondary plan-btn" style="width: 100%;" onclick="subscribeToPlan('enterprise')">Select Enterprise</button>
+                    </div>
+                </div>
+
+                <p style="margin-top: 20px; color: #6d7175; font-size: 13px; text-align: center;">
+                    All plans include a 3-day free trial. Cancel anytime.
+                </p>
+            </div>
+
+            <!-- Dev Mode Plan Switcher (only for test stores) -->
+            <div class="card" id="dev-mode-card" style="display: none; background: #fff4e6; border: 2px dashed #996300;">
+                <div class="card-header" style="color: #996300;">
+                    🔧 Dev Mode - Free Plan Switching
+                </div>
+                <p style="color: #6d7175; margin-bottom: 16px;">
+                    Test store detected. Switch between plans freely without billing.
+                </p>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button class="btn" style="background: #f6f6f7;" onclick="devSwitchPlan('basic')">Switch to Basic</button>
+                    <button class="btn" style="background: #f6f6f7;" onclick="devSwitchPlan('pro')">Switch to Pro</button>
+                    <button class="btn" style="background: #5c6ac4; color: white;" onclick="devSwitchPlan('enterprise')">Switch to Enterprise</button>
+                </div>
+            </div>
+
+            <!-- Cancel Subscription -->
+            <div class="card" id="cancel-card" style="display: none;">
+                <div class="card-header">Cancel Subscription</div>
+                <p style="color: #6d7175; margin-bottom: 16px;">
+                    If you cancel, your subscription will remain active until the end of the current billing period.
+                </p>
+                <button class="btn" style="background: #bf0711; color: white;" onclick="cancelSubscription()">Cancel Subscription</button>
+            </div>
+        </div>
+
+        <!-- Branding Tab (Enterprise Only) -->
+        <div id="branding" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    Pickup Success Page Branding
+                    <button class="btn btn-primary" onclick="saveBrandingSettings()">Save Changes</button>
+                </div>
+                <p style="color: #6d7175; margin-bottom: 20px;">
+                    Customize the success page that customers see after picking up their order.
+                    <a id="branding-preview-link" href="#" target="_blank" style="color: #5c6ac4;">Preview Page</a>
+                </p>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                    <!-- Left Column: Brand Settings -->
+                    <div>
+                        <h4 style="margin-bottom: 16px; color: #202223;">Brand Identity</h4>
+
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; font-weight: 500; margin-bottom: 8px;">Logo</label>
+                            <div id="logo-preview-container" style="margin-bottom: 12px; display: none;">
+                                <img id="logo-preview" src="" alt="Logo preview"
+                                     style="max-width: 200px; max-height: 80px; border: 1px solid #e1e3e5; border-radius: 6px; padding: 8px; background: #f9fafb;">
+                                <button type="button" onclick="removeLogo()"
+                                        style="display: block; margin-top: 8px; background: none; border: none; color: #bf0711; cursor: pointer; font-size: 13px;">
+                                    ✕ Remove logo
+                                </button>
+                            </div>
+                            <div id="logo-upload-container">
+                                <input type="file" id="branding-logo-file" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+                                       style="display: none;" onchange="handleLogoSelect(event)">
+                                <button type="button" onclick="document.getElementById('branding-logo-file').click()"
+                                        class="btn btn-secondary" style="width: 100%;">
+                                    📁 Choose Logo File
+                                </button>
+                                <small style="display: block; color: #6d7175; margin-top: 4px;">
+                                    PNG, JPG, GIF, WebP, or SVG. Max 2MB.
+                                </small>
+                            </div>
+                            <input type="hidden" id="branding-logo" value="">
+                        </div>
+
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; font-weight: 500; margin-bottom: 8px;">Primary Color</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="color" id="branding-primary-color" value="#5c6ac4"
+                                       style="width: 50px; height: 40px; border: 1px solid #c4cdd5; border-radius: 6px; cursor: pointer;">
+                                <input type="text" id="branding-primary-color-text" value="#5c6ac4"
+                                       style="width: 100px; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;">
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; font-weight: 500; margin-bottom: 8px;">Secondary Color</label>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="color" id="branding-secondary-color" value="#202223"
+                                       style="width: 50px; height: 40px; border: 1px solid #c4cdd5; border-radius: 6px; cursor: pointer;">
+                                <input type="text" id="branding-secondary-color-text" value="#202223"
+                                       style="width: 100px; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;">
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; font-weight: 500; margin-bottom: 8px;">Success Message</label>
+                            <textarea id="branding-success-message" rows="3" placeholder="Thank you for picking up your order!"
+                                      style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px; resize: vertical;"></textarea>
+                        </div>
                     </div>
 
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <strong>Pickup Deadline Approaching</strong>
-                            <p style="color: #6d7175; font-size: 13px;">Alert when customer hasn't picked up and deadline is near</p>
+                    <!-- Right Column: Upsell & Rebuy -->
+                    <div>
+                        <h4 style="margin-bottom: 16px; color: #202223;">Upsell Products</h4>
+
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="branding-show-upsells" checked>
+                                <span>Show upsell products on success page</span>
+                            </label>
                         </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" checked>
-                            <span class="slider"></span>
-                        </label>
+
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; font-weight: 500; margin-bottom: 8px;">Upsell Heading</label>
+                            <input type="text" id="branding-upsell-heading" value="You might also like"
+                                   style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;">
+                        </div>
+
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; font-weight: 500; margin-bottom: 8px;">Upsell Products (max 4)</label>
+
+                            <!-- Selected Products Display -->
+                            <div id="selected-upsell-products" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+                                <!-- Selected products will be rendered here -->
+                            </div>
+
+                            <!-- Product Search -->
+                            <div id="upsell-product-search-container" style="position: relative;">
+                                <input type="text" id="upsell-product-search" placeholder="Search products to add..."
+                                       style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;"
+                                       oninput="searchUpsellProducts(this.value)" onfocus="showProductDropdown()">
+                                <div id="upsell-product-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #c4cdd5; border-top: none; border-radius: 0 0 6px 6px; max-height: 250px; overflow-y: auto; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                                    <!-- Search results will be rendered here -->
+                                </div>
+                            </div>
+                            <small style="display: block; color: #6d7175; margin-top: 8px;">Search and select up to 4 products to display on the success page</small>
+
+                            <!-- Hidden input to store product IDs for form submission -->
+                            <input type="hidden" id="branding-upsell-products" value="">
+                        </div>
+
+                        <hr style="margin: 24px 0; border: none; border-top: 1px solid #e1e3e5;">
+
+                        <h4 style="margin-bottom: 16px; color: #202223;">Rebuy Integration</h4>
+
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="branding-rebuy-enabled">
+                                <span>Enable Rebuy widget</span>
+                            </label>
+                            <small style="display: block; color: #6d7175; margin-top: 4px;">
+                                Use Rebuy's AI-powered recommendations instead of manual upsells
+                            </small>
+                        </div>
+
+                        <div id="rebuy-settings" style="display: none;">
+                            <div style="margin-bottom: 16px;">
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">Rebuy Widget ID</label>
+                                <input type="text" id="branding-rebuy-widget-id" placeholder="widget_abc123"
+                                       style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;">
+                                <small style="display: block; color: #6d7175; margin-top: 4px;">
+                                    Find this in your Rebuy dashboard under Widget Settings
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Custom CSS -->
+                <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #e1e3e5;">
+                    <h4 style="margin-bottom: 16px; color: #202223;">Advanced: Custom CSS</h4>
+                    <textarea id="branding-custom-css" rows="6" placeholder="/* Add custom CSS styles here */"
+                              style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px; font-family: monospace; font-size: 13px;"></textarea>
+                    <small style="display: block; color: #6d7175; margin-top: 4px;">Optional CSS to further customize the success page appearance</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="settings" class="tab-content">
+            <!-- Checkout Mode Section -->
+            <div class="card">
+                <div class="card-header">
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 4C3 3.44772 3.44772 3 4 3H16C16.5523 3 17 3.44772 17 4V6C17 6.55228 16.5523 7 16 7H4C3.44772 7 3 6.55228 3 6V4Z" fill="#5c6ac4"/>
+                            <path d="M3 10C3 9.44772 3.44772 9 4 9H10C10.5523 9 11 9.44772 11 10V16C11 16.5523 10.5523 17 10 17H4C3.44772 17 3 16.5523 3 16V10Z" fill="#5c6ac4"/>
+                            <path d="M13 10C13 9.44772 13.4477 9 14 9H16C16.5523 9 17 9.44772 17 10V16C17 16.5523 16.5523 17 16 17H14C13.4477 17 13 16.5523 13 16V10Z" fill="#5c6ac4"/>
+                        </svg>
+                        Checkout Mode
+                    </span>
+                </div>
+                <div style="padding: 16px; background: #fff8e6; border-radius: 8px; border-left: 4px solid #ffc107;">
+                    <label style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
+                        <input type="checkbox" id="use-checkout-extension" style="width: 20px; height: 20px; cursor: pointer; margin-top: 2px;">
+                        <div>
+                            <span style="font-weight: 600; font-size: 15px;">Use Native Pickup Points</span>
+                            <span style="display: inline-block; margin-left: 8px; padding: 2px 8px; background: #5c6ac4; color: white; border-radius: 4px; font-size: 11px; font-weight: 500;">PLUS ONLY</span>
+                            <p style="color: #6d7175; margin: 8px 0 0 0; font-size: 14px; line-height: 1.5;">
+                                Shows lockers as native "Pick up" options in Shopify's delivery selector (Ship vs Pick up toggle).
+                            </p>
+                            <div style="margin-top: 12px; padding: 12px; background: white; border-radius: 6px; font-size: 13px;">
+                                <strong style="display: block; margin-bottom: 8px;">How it works:</strong>
+                                <ul style="margin: 0; padding-left: 20px; color: #6d7175; list-style: disc;">
+                                    <li style="margin-bottom: 4px;">Customers see "Ship" vs "Pick up" at checkout</li>
+                                    <li style="margin-bottom: 4px;">Selecting "Pick up" shows nearby Harbor Lockers</li>
+                                    <li style="margin-bottom: 4px;">This is Shopify's native pickup experience</li>
+                                    <li>Only available on Shopify Plus plans</li>
+                                </ul>
+                            </div>
+                            <div style="margin-top: 12px; padding: 12px; background: #e3f1e6; border-radius: 6px; font-size: 13px;">
+                                <strong style="color: #008060;">Non-Plus stores:</strong>
+                                <span style="color: #6d7175;"> Leave unchecked. Lockers will appear as shipping options instead.</span>
+                            </div>
+                        </div>
+                    </label>
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e1e3e5;">
+                        <button class="btn btn-primary" onclick="saveSettings()" style="padding: 10px 24px;">Save</button>
+                        <span id="checkout-mode-save-status" style="margin-left: 12px; color: #008060; font-size: 13px; display: none;">✓ Saved</span>
                     </div>
                 </div>
             </div>
 
-            <div class="card">
-                <div class="card-header">Customer Email Templates</div>
-                <p style="color: #6d7175; margin-bottom: 20px;">Customize the emails your customers receive</p>
-                
-                <div class="form-group">
-                    <label class="form-label">Order Confirmation Email</label>
-                    <textarea class="form-input" rows="4" placeholder="Hi {{customer_name}}, your order is being prepared..."></textarea>
+            <!-- Pricing Section -->
+            <div class="card" style="margin-top: 20px;">
+                <div class="card-header">
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2ZM10.5 14V15H9.5V14H8V13H11C11.2761 13 11.5 12.7761 11.5 12.5C11.5 12.2239 11.2761 12 11 12H9C8.17157 12 7.5 11.3284 7.5 10.5C7.5 9.67157 8.17157 9 9 9H9.5V8H10.5V9H12V10H9C8.72386 10 8.5 10.2239 8.5 10.5C8.5 10.7761 8.72386 11 9 11H11C11.8284 11 12.5 11.6716 12.5 12.5C12.5 13.3284 11.8284 14 11 14H10.5Z" fill="#5c6ac4"/>
+                        </svg>
+                        Pricing
+                    </span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                    <div>
+                        <label style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
+                            <input type="checkbox" id="free-pickup" style="width: 20px; height: 20px; cursor: pointer; margin-top: 2px;">
+                            <div>
+                                <span style="font-weight: 500; font-size: 15px;">Offer Free Locker Pickup</span>
+                                <p style="color: #6d7175; margin: 4px 0 0 0; font-size: 13px;">
+                                    Customers see $0.00 at checkout. You absorb the LockerDrop fee + Harbor locker fees.
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+                    <div id="pricing-info" style="padding: 16px; background: #f6f6f7; border-radius: 8px;">
+                        <div id="pricing-display">
+                            <strong>Customer pays:</strong> <span id="customer-price" style="color: #008060; font-size: 18px;">$1.00</span>
+                            <p style="color: #6d7175; margin: 4px 0 0 0; font-size: 13px;">LockerDrop service fee at checkout</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Locker Settings Section -->
+            <div class="card" style="margin-top: 20px;">
+                <div class="card-header">
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 4C4 2.89543 4.89543 2 6 2H14C15.1046 2 16 2.89543 16 4V16C16 17.1046 15.1046 18 14 18H6C4.89543 18 4 17.1046 4 16V4ZM6 4V8H14V4H6ZM6 10V14H9V10H6ZM11 10V14H14V10H11ZM6 16H14V15H6V16Z" fill="#5c6ac4"/>
+                        </svg>
+                        Locker Settings
+                    </span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                    <div>
+                        <label style="display: block; font-weight: 500; margin-bottom: 8px;">Hold Time</label>
+                        <select id="hold-time" style="padding: 12px; border: 1px solid #c4cdd5; border-radius: 6px; width: 100%; font-size: 14px;">
+                            <option value="3">3 days</option>
+                            <option value="5" selected>5 days</option>
+                            <option value="7">7 days</option>
+                            <option value="10">10 days</option>
+                        </select>
+                        <p style="color: #6d7175; margin: 8px 0 0 0; font-size: 13px;">How long items are held in the locker before being returned to you</p>
+                    </div>
+                    <div style="padding: 16px; background: #f6f6f7; border-radius: 8px;">
+                        <p style="margin: 0; font-size: 13px; color: #6d7175;">
+                            <strong style="color: #202223;">Tip:</strong> Longer hold times give customers more flexibility but may increase locker fees. 5 days is recommended for most stores.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fulfillment Schedule Section -->
+            <div class="card" style="margin-top: 20px;">
+                <div class="card-header">
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 2C6 1.44772 6.44772 1 7 1C7.55228 1 8 1.44772 8 2V3H12V2C12 1.44772 12.4477 1 13 1C13.5523 1 14 1.44772 14 2V3H15C16.1046 3 17 3.89543 17 5V16C17 17.1046 16.1046 18 15 18H5C3.89543 18 3 17.1046 3 16V5C3 3.89543 3.89543 3 5 3H6V2ZM5 8V16H15V8H5ZM7 10H9V12H7V10ZM11 10H13V12H11V10Z" fill="#5c6ac4"/>
+                        </svg>
+                        Fulfillment Schedule
+                    </span>
+                </div>
+                <p style="color: #6d7175; margin: 0 0 20px 0; font-size: 14px;">
+                    Configure when you can fulfill orders. This determines the pickup date shown to customers at checkout.
+                </p>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                    <div>
+                        <div style="margin-bottom: 24px;">
+                            <label style="display: block; font-weight: 500; margin-bottom: 8px;">Processing Time</label>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="number" id="processing-days" min="0" max="14" value="1" style="padding: 12px; border: 1px solid #c4cdd5; border-radius: 6px; width: 80px; font-size: 14px;">
+                                <span style="color: #6d7175;">business day(s)</span>
+                            </div>
+                            <p style="color: #6d7175; margin: 8px 0 0 0; font-size: 13px;">Time needed to prepare the order for dropoff</p>
+                        </div>
+
+                        <div>
+                            <label style="display: block; font-weight: 500; margin-bottom: 12px;">Fulfillment Days</label>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                <label style="display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #f6f6f7; border-radius: 6px; cursor: pointer; transition: all 0.15s;">
+                                    <input type="checkbox" class="fulfillment-day" value="monday" checked> Mon
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #f6f6f7; border-radius: 6px; cursor: pointer; transition: all 0.15s;">
+                                    <input type="checkbox" class="fulfillment-day" value="tuesday" checked> Tue
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #f6f6f7; border-radius: 6px; cursor: pointer; transition: all 0.15s;">
+                                    <input type="checkbox" class="fulfillment-day" value="wednesday" checked> Wed
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #f6f6f7; border-radius: 6px; cursor: pointer; transition: all 0.15s;">
+                                    <input type="checkbox" class="fulfillment-day" value="thursday" checked> Thu
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #f6f6f7; border-radius: 6px; cursor: pointer; transition: all 0.15s;">
+                                    <input type="checkbox" class="fulfillment-day" value="friday" checked> Fri
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #f6f6f7; border-radius: 6px; cursor: pointer; transition: all 0.15s;">
+                                    <input type="checkbox" class="fulfillment-day" value="saturday"> Sat
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #f6f6f7; border-radius: 6px; cursor: pointer; transition: all 0.15s;">
+                                    <input type="checkbox" class="fulfillment-day" value="sunday"> Sun
+                                </label>
+                            </div>
+                            <p style="color: #6d7175; margin: 8px 0 0 0; font-size: 13px;">Days you can drop off orders to lockers</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="margin-bottom: 24px;">
+                            <label style="display: block; font-weight: 500; margin-bottom: 8px;">Vacation Days</label>
+                            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                                <input type="date" id="vacation-date-input" style="padding: 12px; border: 1px solid #c4cdd5; border-radius: 6px; flex: 1;">
+                                <button type="button" class="btn btn-secondary" onclick="addVacationDay()" style="padding: 12px 20px;">Add</button>
+                            </div>
+                            <div id="vacation-days-list" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 36px;">
+                                <!-- Vacation days will be added here -->
+                            </div>
+                            <p style="color: #6d7175; margin: 8px 0 0 0; font-size: 13px;">One-off days when you cannot fulfill orders</p>
+                        </div>
+
+                        <div id="pickup-preview" style="padding: 16px; background: #e3f1df; border-radius: 8px; border-left: 4px solid #008060;">
+                            <strong style="color: #008060; display: block; margin-bottom: 4px;">Pickup Date Preview</strong>
+                            <span id="pickup-preview-text" style="font-size: 14px;">Customers ordering today will see pickup available <strong>Tomorrow</strong></span>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Ready for Pickup Email</label>
-                    <textarea class="form-input" rows="4" placeholder="Your order is ready! Access code: {{pickup_code}}"></textarea>
+                <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #e1e3e5;">
+                    <button class="btn btn-primary" onclick="saveSettings()" style="padding: 12px 32px;">Save Settings</button>
                 </div>
+            </div>
 
-                <button class="btn btn-primary">Save Templates</button>
+            <!-- Data Sync Section -->
+            <div class="card" style="margin-top: 20px;">
+                <div class="card-header">
+                    <span style="display: flex; align-items: center; gap: 8px;">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 10C4 6.68629 6.68629 4 10 4C12.0174 4 13.8062 5.02252 14.8542 6.58333H13V8.08333H17V4.08333H15.5V5.66468C14.1624 3.78471 11.9467 2.5 9.5 2.5C5.35786 2.5 2 5.85786 2 10H4ZM16 10C16 13.3137 13.3137 16 10 16C7.98262 16 6.19378 14.9775 5.14581 13.4167H7V11.9167H3V15.9167H4.5V14.3353C5.83762 16.2153 8.05329 17.5 10.5 17.5C14.6421 17.5 18 14.1421 18 10H16Z" fill="#5c6ac4"/>
+                        </svg>
+                        Data Sync
+                    </span>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <p style="color: #6d7175; margin: 0 0 8px 0; font-size: 14px;">
+                            Orders sync automatically via webhooks. Use manual sync only if orders are missing.
+                        </p>
+                        <small style="color: #8c9196;">Last auto-refresh: <span id="last-refresh">--</span></small>
+                    </div>
+                    <button class="btn btn-secondary" onclick="syncOrders()">Manual Sync</button>
+                </div>
             </div>
         </div>
     </div>
@@ -686,7 +1110,7 @@
         <div class="modal-content">
             <span class="close" onclick="closeModal()">&times;</span>
             <h2 style="margin-bottom: 20px;">Order Details</h2>
-            
+
             <div class="order-details">
                 <div class="detail-row">
                     <span class="detail-label">Order Number:</span>
@@ -701,31 +1125,82 @@
                     <span id="modal-email">john@example.com</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">Locker Location:</span>
-                    <span id="modal-locker">Dallas Downtown</span>
+                    <span class="detail-label">Customer Phone:</span>
+                    <span id="modal-phone">Not provided</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">Locker Address:</span>
-                    <span id="modal-address">123 Main St, Dallas, TX 75201</span>
+                    <span class="detail-label">Locker Location:</span>
+                    <span id="modal-locker">Not assigned</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span id="modal-status">Pending</span>
                 </div>
             </div>
 
-            <div style="margin-top: 24px;">
-                <h3 style="margin-bottom: 12px;">Your Drop-off Access Code</h3>
-                <div class="access-code">SELL-1234</div>
-                <p style="color: #6d7175; font-size: 13px; margin-top: 8px;">Use this code to open the locker and drop off the package</p>
+            <div id="dropoff-section" style="margin-top: 24px;">
+                <h3 style="margin-bottom: 12px;">Drop-off Link</h3>
+                <div id="dropoff-content">Loading...</div>
             </div>
 
-            <div style="margin-top: 24px;">
-                <h3 style="margin-bottom: 12px;">Customer Pickup Code</h3>
-                <div class="access-code">PICK-5678</div>
-                <p style="color: #6d7175; font-size: 13px; margin-top: 8px;">This code was sent to the customer via email</p>
+            <div id="pickup-section" style="margin-top: 24px;">
+                <h3 style="margin-bottom: 12px;">Customer Pickup Link</h3>
+                <div id="pickup-content">Loading...</div>
             </div>
 
-            <div style="margin-top: 24px; display: flex; gap: 12px;">
-                <button class="btn btn-primary" onclick="markAsDroppedOff()">Mark as Dropped Off</button>
+            <div style="margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
+                <button id="btn-mark-dropped" class="btn btn-primary" onclick="markAsDroppedOff()">Mark as Dropped Off</button>
                 <button class="btn btn-secondary" onclick="resendCustomerEmail()">Resend Pickup Email</button>
+                <button id="btn-cancel-locker" class="btn btn-danger" onclick="cancelLockerRequest()" style="background: #d72c0d; color: white;">Cancel Locker</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Manual Order Modal -->
+    <div id="manualOrderModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeManualOrderModal()">&times;</span>
+            <h2 style="margin-bottom: 20px;">Add Manual Order</h2>
+
+            <form id="manualOrderForm" onsubmit="submitManualOrder(event)">
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">Order Number / Reference *</label>
+                    <input type="text" id="manual-order-number" required placeholder="e.g., 1031 or MANUAL-001"
+                           style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;">
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">Customer Name *</label>
+                    <input type="text" id="manual-customer-name" required placeholder="John Smith"
+                           style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;">
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">Customer Email *</label>
+                    <input type="email" id="manual-customer-email" required placeholder="customer@example.com"
+                           style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;">
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">Locker Location *</label>
+                    <select id="manual-locker-select" required
+                            style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;">
+                        <option value="">Select a locker...</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="manual-send-email" checked>
+                        <span>Send pickup email to customer when item is dropped off</span>
+                    </label>
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="submit" class="btn btn-primary">Create Order</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeManualOrderModal()">Cancel</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -733,91 +1208,228 @@
         // Get shop from URL
         const urlParams = new URLSearchParams(window.location.search);
         const shop = urlParams.get('shop');
-        
+
         if (!shop) {
             alert('Shop parameter missing! Please access this page from Shopify.');
+        } else {
+            document.getElementById('store-name').textContent = shop.replace('.myshopify.com', '');
         }
 
         // Tab Navigation
-        function showTab(tabName) {
+        function showTab(tabName, clickedTab) {
             const tabs = document.querySelectorAll('.tab');
             const contents = document.querySelectorAll('.tab-content');
-            
+
             tabs.forEach(tab => tab.classList.remove('active'));
             contents.forEach(content => content.classList.remove('active'));
-            
-            event.target.classList.add('active');
+
+            if (clickedTab) {
+                clickedTab.classList.add('active');
+            }
             document.getElementById(tabName).classList.add('active');
-            
-            // Load tab-specific data
-            if (tabName === 'orders') {
-                loadAllOrders();
-            } else if (tabName === 'lockers') {
+
+            if (tabName === 'lockers') {
                 loadLockers();
+            }
+            if (tabName === 'products') {
+                loadProducts();
+            }
+            if (tabName === 'billing') {
+                loadSubscription();
+            }
+            if (tabName === 'branding') {
+                loadBrandingSettings();
             }
         }
 
         // Load Dashboard Stats
-        async function loadDashboardStats() {
+        async function loadStats() {
             try {
                 const response = await fetch(`/api/stats/${shop}`);
                 const stats = await response.json();
-                
-                document.querySelectorAll('.stat-value')[0].textContent = stats.pendingDropoffs;
-                document.querySelectorAll('.stat-value')[1].textContent = stats.readyForPickup;
-                document.querySelectorAll('.stat-value')[2].textContent = stats.completedThisWeek;
-                document.querySelectorAll('.stat-value')[3].textContent = stats.activeLockers;
+
+                document.getElementById('stat-pending').textContent = stats.pendingDropoffs || 0;
+                document.getElementById('stat-ready').textContent = stats.readyForPickup || 0;
+                document.getElementById('stat-completed').textContent = stats.completedThisWeek || 0;
+                document.getElementById('stat-lockers').textContent = stats.activeLockers || 0;
             } catch (error) {
                 console.error('Error loading stats:', error);
             }
         }
 
+        // Store all orders for filtering
+        let allOrders = [];
+        let currentFilter = 'active'; // Default filter
+
         // Load All Orders
-        async function loadAllOrders() {
+        async function loadOrders() {
             try {
                 const response = await fetch(`/api/orders/${shop}`);
-                const orders = await response.json();
-                
-                const tbody = document.getElementById('all-orders');
-                tbody.innerHTML = orders.map(order => `
-                    <tr>
-                        <td>${order.orderNumber}</td>
-                        <td>${order.date}</td>
-                        <td>${order.customerName}</td>
-                        <td>${order.locker}</td>
-                        <td><span class="access-code" style="font-size: 12px;">${order.dropOffCode}</span></td>
-                        <td><span class="access-code" style="font-size: 12px;">${order.pickupCode}</span></td>
-                        <td>
-                            <span class="status-badge status-${order.status}">
-                                ${order.status === 'pending' ? 'Pending Drop-off' : 
-                                  order.status === 'ready' ? 'Ready for Pickup' : 'Picked Up'}
-                            </span>
-                        </td>
-                        <td>
-                            <button class="btn btn-primary" onclick="viewOrderDetails('${order.orderNumber}')">
-                                View
-                            </button>
-                        </td>
-                    </tr>
-                `).join('');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const data = await response.json();
+                allOrders = Array.isArray(data) ? data : [];
+                renderOrders();
             } catch (error) {
                 console.error('Error loading orders:', error);
+                allOrders = [];
+                renderOrders();
             }
         }
 
-        // Modal Functions
-        async function viewOrder(orderId) {
-            await viewOrderDetails(orderId);
+        // Filter orders
+        function filterOrders(status) {
+            currentFilter = status;
+
+            // Update filter button styles
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.status === status) {
+                    btn.classList.add('active');
+                }
+            });
+
+            renderOrders();
         }
 
-        async function viewOrderDetails(orderId) {
+        // Render orders based on current filter
+        function renderOrders() {
+            const tbody = document.getElementById('orders-table-body');
+
+            let filteredOrders = allOrders;
+
+            if (currentFilter === 'active') {
+                // Active = pending_dropoff + ready_for_pickup (excludes completed and cancelled)
+                filteredOrders = allOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
+            } else if (currentFilter !== 'all') {
+                filteredOrders = allOrders.filter(o => o.status === currentFilter);
+            }
+
+            if (filteredOrders.length === 0) {
+                const message = currentFilter === 'active'
+                    ? 'No active orders'
+                    : currentFilter === 'all'
+                        ? 'No orders yet'
+                        : `No ${formatStatus(currentFilter).toLowerCase()} orders`;
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="empty-state">
+                            <h3>${message}</h3>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filteredOrders.map(order => `
+                <tr>
+                    <td><strong>#${order.orderNumber}</strong></td>
+                    <td>${order.date}</td>
+                    <td>${order.customerName}</td>
+                    <td>${order.lockerName || 'Not assigned'}</td>
+                    <td>${order.dropoffLink ? `<a href="${order.dropoffLink}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'pending_dropoff' ? 'Open' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
+                    <td>${order.pickupLink ? `<a href="${order.pickupLink}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'ready_for_pickup' ? 'Open' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
+                    <td><span class="status-badge status-${order.status}">${formatStatus(order.status)}</span></td>
+                    <td>
+                        <button class="btn btn-primary btn-small" onclick="viewOrder('${order.orderNumber}')">View</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function formatStatus(status) {
+            const statusMap = {
+                'pending_dropoff': 'Pending Drop-off',
+                'ready_for_pickup': 'Ready for Pickup',
+                'completed': 'Completed',
+                'cancelled': 'Cancelled'
+            };
+            return statusMap[status] || status;
+        }
+
+        // View Order Modal
+        async function viewOrder(orderNumber) {
             try {
-                // For now, use sample data
-                // In production, fetch from: /api/order/${shop}/${orderId}
-                document.getElementById('modal-order-number').textContent = orderId;
+                const response = await fetch(`/api/orders/${shop}`);
+                const orders = await response.json();
+
+                const order = orders.find(o => o.orderNumber === orderNumber);
+
+                if (!order) {
+                    alert('Order not found');
+                    return;
+                }
+
+                document.getElementById('modal-order-number').textContent = '#' + order.orderNumber;
+                document.getElementById('modal-customer').textContent = order.customerName;
+                document.getElementById('modal-email').textContent = order.customerEmail || 'Not provided';
+                document.getElementById('modal-phone').textContent = order.customerPhone || 'Not provided';
+                document.getElementById('modal-locker').textContent = order.lockerName || 'Not assigned';
+                document.getElementById('modal-status').textContent = formatStatus(order.status);
+
+                // Dropoff link section
+                const dropoffContent = document.getElementById('dropoff-content');
+                if (order.dropoffLink) {
+                    dropoffContent.innerHTML = `
+                        <a href="${order.dropoffLink}" target="_blank" class="btn btn-primary">
+                            🔓 Open Locker to Drop Off
+                        </a>
+                        <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLink('${order.orderNumber}')" style="margin-left: 8px;" title="Regenerate if link expired">
+                            🔄 Regenerate
+                        </button>
+                    `;
+                } else {
+                    dropoffContent.innerHTML = `
+                        <p style="color: #6d7175; margin-bottom: 8px;">Not generated yet.</p>
+                        <button class="btn btn-primary btn-small" onclick="regenerateDropoffLink('${order.orderNumber}')">
+                            🔗 Generate Dropoff Link
+                        </button>
+                    `;
+                }
+
+                // Pickup link section
+                const pickupContent = document.getElementById('pickup-content');
+                if (order.pickupLink) {
+                    const canResend = order.status === 'ready_for_pickup' || order.status === 'dropped_off';
+                    const canEmergencyOpen = order.status === 'ready_for_pickup' || order.status === 'dropped_off';
+                    pickupContent.innerHTML = `
+                        <a href="${order.pickupLink}" target="_blank" class="btn btn-secondary">
+                            🔓 Customer Pickup Link
+                        </a>
+                        ${canResend ? `
+                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e1e3e5;">
+                            <p style="color: #6d7175; font-size: 13px; margin-bottom: 8px;">Resend notification to customer:</p>
+                            <button class="btn btn-small" onclick="resendNotification('${order.orderNumber}', 'sms')" style="margin-right: 6px;">📱 Send SMS</button>
+                            <button class="btn btn-small" onclick="resendNotification('${order.orderNumber}', 'email')" style="margin-right: 6px;">📧 Send Email</button>
+                            <button class="btn btn-small" onclick="resendNotification('${order.orderNumber}', 'both')">📱📧 Send Both</button>
+                        </div>
+                        ` : '<p style="color: #6d7175; font-size: 13px; margin-top: 8px;">This link was sent to the customer</p>'}
+                        ${canEmergencyOpen ? `
+                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e1e3e5;">
+                            <p style="color: #b71c1c; font-size: 13px; margin-bottom: 8px;"><strong>Emergency Access</strong> - Use if customer's link doesn't work:</p>
+                            <button class="btn btn-small" onclick="emergencyOpenLocker('${order.orderNumber}')" style="background: #b71c1c; color: white; border-color: #b71c1c;">
+                                🔗 Generate New Pickup Link
+                            </button>
+                        </div>
+                        ` : ''}
+                    `;
+                } else {
+                    pickupContent.innerHTML = `<p style="color: #6d7175;">Will be generated after drop-off</p>`;
+                }
+
+                // Show/hide mark as dropped off button based on status
+                const btnMarkDropped = document.getElementById('btn-mark-dropped');
+                if (order.status === 'pending_dropoff') {
+                    btnMarkDropped.style.display = 'inline-block';
+                } else {
+                    btnMarkDropped.style.display = 'none';
+                }
+
                 document.getElementById('orderModal').style.display = 'block';
             } catch (error) {
-                console.error('Error loading order details:', error);
+                console.error('Error loading order:', error);
+                alert('Failed to load order details');
             }
         }
 
@@ -825,44 +1437,217 @@
             document.getElementById('orderModal').style.display = 'none';
         }
 
-        async function markAsDroppedOff() {
-            const orderId = document.getElementById('modal-order-number').textContent;
-            
+        // Resend notification to customer
+        async function resendNotification(orderNumber, type) {
+            const typeLabel = type === 'both' ? 'SMS and Email' : type === 'sms' ? 'SMS' : 'Email';
+            if (!confirm(`Resend ${typeLabel} notification for order #${orderNumber}?`)) return;
+
             try {
-                const response = await fetch(`/api/order/${shop}/${orderId}/status`, {
+                const response = await fetch(`/api/resend-notification/${orderNumber}`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ status: 'ready' })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type })
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (result.success) {
-                    alert('Order marked as dropped off! Customer will be notified.');
-                    closeModal();
-                    loadDashboardStats();
-                    loadAllOrders();
+                    let message = 'Notification sent!';
+                    if (result.emailSent && result.smsSent) {
+                        message = 'Email and SMS sent successfully!';
+                    } else if (result.emailSent) {
+                        message = 'Email sent successfully!';
+                    } else if (result.smsSent) {
+                        message = 'SMS sent successfully!';
+                    }
+                    alert(message);
+                } else {
+                    alert('Failed: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
-                console.error('Error updating order:', error);
-                alert('Failed to update order status');
+                console.error('Error resending notification:', error);
+                alert('Error sending notification');
             }
         }
 
+        // Emergency open locker - for when customer's link doesn't work
+        async function emergencyOpenLocker(orderNumber) {
+            const reason = prompt(
+                `EMERGENCY LOCKER OPEN\n\n` +
+                `Order: #${orderNumber}\n\n` +
+                `This will remotely unlock the locker for the customer.\n` +
+                `Please enter a reason for this action (required):`
+            );
+
+            if (!reason) {
+                alert('Emergency open cancelled - reason is required');
+                return;
+            }
+
+            if (!confirm(
+                `Are you sure you want to emergency open the locker?\n\n` +
+                `Order: #${orderNumber}\n` +
+                `Reason: ${reason}\n\n` +
+                `The locker will unlock for approximately 5 minutes.`
+            )) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/emergency-open/${shop}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        orderNumber: orderNumber,
+                        reason: reason,
+                        openType: 'pickup'
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Copy pickup link to clipboard
+                    if (result.pickupLink) {
+                        navigator.clipboard.writeText(result.pickupLink).then(() => {
+                            alert(
+                                `✅ New Pickup Link Generated!\n\n` +
+                                `The link has been copied to your clipboard.\n\n` +
+                                `Link: ${result.pickupLink}\n\n` +
+                                `Share this link with the customer - when they click it, the locker will open.\n\n` +
+                                `Locker: #${result.lockerId}`
+                            );
+                        }).catch(() => {
+                            alert(
+                                `✅ New Pickup Link Generated!\n\n` +
+                                `Link: ${result.pickupLink}\n\n` +
+                                `Share this link with the customer - when they click it, the locker will open.\n\n` +
+                                `Locker: #${result.lockerId}`
+                            );
+                        });
+                    } else {
+                        alert(
+                            `Locker action completed!\n\n` +
+                            `Location: ${result.locationName || 'N/A'}\n` +
+                            `Locker ID: ${result.lockerId}\n` +
+                            `Method: ${result.method}\n\n` +
+                            `${result.note}`
+                        );
+                    }
+                    closeModal();
+                    loadOrders();
+                } else {
+                    alert(
+                        `Failed to open locker:\n\n` +
+                        `${result.error}\n` +
+                        `${result.details ? '\nDetails: ' + result.details : ''}` +
+                        `${result.suggestion ? '\n\n' + result.suggestion : ''}`
+                    );
+                }
+            } catch (error) {
+                console.error('Error with emergency open:', error);
+                alert('Error: Failed to open locker. Please try again or contact Harbor support.');
+            }
+        }
+
+        // Regenerate dropoff link for an order (when link has expired)
+        async function regenerateDropoffLink(orderNumber) {
+            if (!confirm(`Regenerate dropoff link for order #${orderNumber}?\n\nUse this if the current link shows a 502 error or has expired.`)) return;
+
+            try {
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '⏳ Regenerating...';
+                btn.disabled = true;
+
+                const response = await fetch(`/api/regenerate-order-link/${shop}/${orderNumber}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`New dropoff link generated for order #${orderNumber}!\n\nThe page will refresh to show the new link.`);
+                    // Refresh the orders and reopen the modal
+                    await loadOrders();
+                    viewOrder(orderNumber);
+                } else {
+                    alert('Failed to regenerate link: ' + (result.details || result.error || 'Unknown error'));
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                console.error('Error regenerating dropoff link:', error);
+                alert('Error regenerating link. Please try again.');
+            }
+        }
+
+        // Sync Orders from Shopify
+        async function syncOrders() {
+            if (!confirm('Sync all LockerDrop orders from Shopify?')) return;
+
+            try {
+                const response = await fetch(`/api/sync-orders/${shop}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`Synced ${result.synced} new orders!`);
+                    loadOrders();
+                    loadStats();
+                } else {
+                    alert('Failed to sync: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error syncing:', error);
+                alert('Error syncing orders');
+            }
+        }
+
+        // Mark as Dropped Off
+        async function markAsDroppedOff() {
+            const orderId = document.getElementById('modal-order-number').textContent;
+            const encodedOrderId = encodeURIComponent(orderId);
+
+            try {
+                const response = await fetch(`/api/order/${shop}/${encodedOrderId}/status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'ready' })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Order marked as dropped off! Customer will be notified.');
+                    closeModal();
+                    loadStats();
+                    loadOrders();
+                } else {
+                    alert('Failed to update order: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error updating order:', error);
+                alert('Failed to update order status: ' + error.message);
+            }
+        }
+
+        // Resend Customer Email
         async function resendCustomerEmail() {
             const orderId = document.getElementById('modal-order-number').textContent;
-            
+            const encodedOrderId = encodeURIComponent(orderId);
+
             try {
-                const response = await fetch(`/api/order/${shop}/${orderId}/resend-email`, {
+                const response = await fetch(`/api/order/${shop}/${encodedOrderId}/resend-email`, {
                     method: 'POST'
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (result.success) {
                     alert('Pickup email resent to customer!');
+                } else {
+                    alert('Failed to resend: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error resending email:', error);
@@ -870,100 +1655,1279 @@
             }
         }
 
-        // Settings Functions
-        function showSettings() {
-            showTab('notifications');
-        }
+        async function cancelLockerRequest() {
+            const orderId = document.getElementById('modal-order-number').textContent;
 
-        async function saveLockerPreferences() {
-            const selectedLockers = Array.from(document.querySelectorAll('.locker-card.selected'))
-                .map(card => card.dataset.lockerId);
-            
+            if (!confirm(`Are you sure you want to cancel the locker for order ${orderId}? This will release the locker reservation.`)) {
+                return;
+            }
+
+            const encodedOrderId = encodeURIComponent(orderId);
+
             try {
-                const response = await fetch(`/api/lockers/${shop}/preferences`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ selectedLockers })
+                const response = await fetch(`/api/order/${shop}/${encodedOrderId}/cancel-locker`, {
+                    method: 'POST'
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (result.success) {
-                    alert('Locker preferences saved successfully!');
+                    alert('Locker request cancelled successfully');
+                    closeModal();
+                    loadOrders(); // Refresh the orders list
+                } else {
+                    alert('Failed to cancel: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
-                console.error('Error saving preferences:', error);
-                alert('Failed to save locker preferences');
+                console.error('Error cancelling locker:', error);
+                alert('Failed to cancel locker request');
             }
         }
 
-        function filterOrders() {
-            alert('Filter options will appear here');
-        }
-
-        // Load lockers from Harbor API via backend
+        // Load Lockers
         async function loadLockers() {
             const lockerList = document.getElementById('locker-list');
             lockerList.innerHTML = '<p>Loading lockers...</p>';
-            
+
             try {
+                // Load available lockers
                 const response = await fetch(`/api/lockers/${shop}`);
-                
-                if (!response.ok) {
-                    throw new Error('Failed to load lockers');
-                }
-                
-                const data = await response.json();
-                const lockers = data.data || data; // Handle different API response formats
-                
+                const lockers = await response.json();
+
+                // Load saved preferences
+                const prefsResponse = await fetch(`/api/locker-preferences/${shop}`);
+                const preferences = await prefsResponse.json();
+                const selectedIds = preferences.map(p => p.location_id.toString());
+
                 if (lockers.length === 0) {
                     lockerList.innerHTML = '<p>No lockers available in your area yet.</p>';
                     return;
                 }
 
                 lockerList.innerHTML = lockers.map(locker => `
-                    <div class="locker-card" onclick="toggleLocker(event)" data-locker-id="${locker.id}">
-                        <div class="locker-name">${locker.name || locker.location_name || 'Locker'}</div>
-                        <div class="locker-address">${locker.address || locker.street_address || 'Address not available'}</div>
+                    <div class="locker-card ${selectedIds.includes(locker.id.toString()) ? 'selected' : ''}"
+                         onclick="toggleLocker(this)"
+                         data-location-id="${locker.id}">
+                        <div class="locker-name">${locker.name || 'Locker'}</div>
+                        <div class="locker-address">${locker.address || 'Address not available'}</div>
                         <div class="locker-sizes">
-                            ${locker.available_sizes ? locker.available_sizes.map(size => 
+                            ${(locker.available_sizes || ['Standard']).map(size =>
                                 `<span class="size-badge">${size}</span>`
-                            ).join('') : '<span class="size-badge">Standard</span>'}
+                            ).join('')}
                         </div>
                     </div>
                 `).join('');
             } catch (error) {
                 console.error('Error loading lockers:', error);
-                lockerList.innerHTML = `
-                    <div class="card">
-                        <p style="color: #bf0711;">Error loading lockers. Please try again later.</p>
-                        <p style="color: #6d7175; font-size: 13px;">${error.message}</p>
-                    </div>
+                lockerList.innerHTML = `<p style="color: #bf0711;">Error loading lockers. Please try again.</p>`;
+            }
+        }
+
+        function toggleLocker(card) {
+            card.classList.toggle('selected');
+        }
+
+        // Save Locker Preferences
+        async function saveLockerPreferences() {
+            const selectedLockers = [];
+            document.querySelectorAll('.locker-card.selected').forEach(card => {
+                selectedLockers.push({
+                    id: card.dataset.locationId,
+                    name: card.querySelector('.locker-name').textContent
+                });
+            });
+
+            if (selectedLockers.length === 0) {
+                alert('Please select at least one locker location');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/locker-preferences/${shop}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ selectedLockers })
+                });
+
+                const data = await response.json();
+                alert(data.success ? 'Preferences saved!' : 'Failed to save');
+                loadStats();
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error saving preferences');
+            }
+        }
+
+        // Store vacation days in memory
+        let vacationDays = [];
+
+        // Save Settings
+        async function saveSettings() {
+            try {
+                const freePickup = document.getElementById('free-pickup').checked;
+                const useCheckoutExtension = document.getElementById('use-checkout-extension').checked;
+                const processingDays = parseInt(document.getElementById('processing-days').value) || 1;
+                const holdTimeDays = parseInt(document.getElementById('hold-time').value) || 5;
+
+                // Get selected fulfillment days
+                const fulfillmentDays = Array.from(document.querySelectorAll('.fulfillment-day:checked'))
+                    .map(cb => cb.value);
+
+                if (fulfillmentDays.length === 0) {
+                    alert('Please select at least one fulfillment day');
+                    return;
+                }
+
+                const response = await fetch(`/api/settings/${shop}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        freePickup,
+                        useCheckoutExtension,
+                        processingDays,
+                        holdTimeDays,
+                        fulfillmentDays,
+                        vacationDays
+                    })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    alert('Settings saved!');
+                } else {
+                    alert('Failed to save settings');
+                }
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                alert('Error saving settings');
+            }
+        }
+
+        // Load Settings
+        async function loadSettings() {
+            try {
+                const response = await fetch(`/api/settings/${shop}`);
+                const data = await response.json();
+
+                // Checkout extension
+                document.getElementById('use-checkout-extension').checked = data.useCheckoutExtension || false;
+
+                // Free pickup
+                const checkbox = document.getElementById('free-pickup');
+                checkbox.checked = data.freePickup || false;
+                updatePricingDisplay(data.freePickup);
+
+                // Processing days
+                document.getElementById('processing-days').value = data.processingDays || 1;
+
+                // Hold time
+                document.getElementById('hold-time').value = data.holdTimeDays || 5;
+
+                // Fulfillment days
+                const days = data.fulfillmentDays || ['monday','tuesday','wednesday','thursday','friday'];
+                document.querySelectorAll('.fulfillment-day').forEach(cb => {
+                    cb.checked = days.includes(cb.value);
+                });
+
+                // Vacation days
+                vacationDays = (data.vacationDays || []).map(d => d.split('T')[0]);
+                renderVacationDays();
+
+                // Update pickup preview
+                updatePickupPreview();
+            } catch (error) {
+                console.error('Error loading settings:', error);
+            }
+        }
+
+        // Add vacation day
+        function addVacationDay() {
+            const input = document.getElementById('vacation-date-input');
+            const date = input.value;
+
+            if (!date) {
+                alert('Please select a date');
+                return;
+            }
+
+            // Check if date is in the past
+            if (new Date(date) < new Date().setHours(0,0,0,0)) {
+                alert('Cannot add past dates');
+                return;
+            }
+
+            // Check if already added
+            if (vacationDays.includes(date)) {
+                alert('This date is already added');
+                return;
+            }
+
+            vacationDays.push(date);
+            vacationDays.sort();
+            renderVacationDays();
+            updatePickupPreview();
+            input.value = '';
+        }
+
+        // Remove vacation day
+        function removeVacationDay(date) {
+            vacationDays = vacationDays.filter(d => d !== date);
+            renderVacationDays();
+            updatePickupPreview();
+        }
+
+        // Render vacation days list
+        function renderVacationDays() {
+            const container = document.getElementById('vacation-days-list');
+            container.innerHTML = vacationDays.map(date => {
+                const formatted = new Date(date + 'T00:00:00').toLocaleDateString('en-US', {
+                    weekday: 'short', month: 'short', day: 'numeric'
+                });
+                return `
+                    <span style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: #ffd79d; border-radius: 4px; font-size: 13px;">
+                        ${formatted}
+                        <button type="button" onclick="removeVacationDay('${date}')" style="background: none; border: none; cursor: pointer; color: #666; font-size: 16px; padding: 0;">&times;</button>
+                    </span>
+                `;
+            }).join('');
+        }
+
+        // Calculate pickup date (client-side preview)
+        function calculatePickupDatePreview() {
+            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const processingDays = parseInt(document.getElementById('processing-days').value) || 1;
+            const fulfillmentDays = Array.from(document.querySelectorAll('.fulfillment-day:checked')).map(cb => cb.value);
+            const vacationSet = new Set(vacationDays);
+
+            if (fulfillmentDays.length === 0) {
+                return null;
+            }
+
+            const fulfillmentSet = new Set(fulfillmentDays);
+
+            function isFulfillmentDay(date) {
+                const dayName = dayNames[date.getDay()];
+                const dateStr = date.toISOString().split('T')[0];
+                return fulfillmentSet.has(dayName) && !vacationSet.has(dateStr);
+            }
+
+            let currentDate = new Date();
+            currentDate.setHours(0, 0, 0, 0);
+
+            let daysProcessed = 0;
+            while (daysProcessed < processingDays) {
+                currentDate.setDate(currentDate.getDate() + 1);
+                if (isFulfillmentDay(currentDate)) {
+                    daysProcessed++;
+                }
+            }
+
+            while (!isFulfillmentDay(currentDate)) {
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
+            // Pickup day is day after dropoff
+            const pickupDate = new Date(currentDate);
+            pickupDate.setDate(pickupDate.getDate() + 1);
+
+            return pickupDate;
+        }
+
+        // Format pickup date for preview
+        function formatPickupDatePreview(pickupDate) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+
+            const pickup = new Date(pickupDate);
+            pickup.setHours(0, 0, 0, 0);
+
+            if (pickup.getTime() === tomorrow.getTime()) {
+                return 'Tomorrow';
+            } else {
+                const options = { weekday: 'long', month: 'short', day: 'numeric' };
+                return pickup.toLocaleDateString('en-US', options);
+            }
+        }
+
+        // Update pickup preview
+        function updatePickupPreview() {
+            const previewText = document.getElementById('pickup-preview-text');
+            const pickupDate = calculatePickupDatePreview();
+
+            if (!pickupDate) {
+                previewText.innerHTML = '<span style="color: #bf0711;">Please select at least one fulfillment day</span>';
+                return;
+            }
+
+            const formatted = formatPickupDatePreview(pickupDate);
+            previewText.innerHTML = `Based on current settings, customers ordering today will see pickup available <strong>${formatted}</strong>`;
+        }
+
+        // Update pricing display based on free pickup toggle
+        function updatePricingDisplay(freePickup) {
+            const infoEl = document.getElementById('pricing-display');
+
+            if (freePickup) {
+                infoEl.innerHTML = `
+                    <strong>Customer pays:</strong> <span id="customer-price" style="color: #008060;">$0.00</span> at checkout<br>
+                    <small style="color: #6d7175;">You absorb the locker pickup fee</small>
+                `;
+            } else {
+                infoEl.innerHTML = `
+                    <strong>Customer pays:</strong> <span id="customer-price">Locker fee</span> at checkout<br>
+                    <small style="color: #6d7175;">Fee varies by locker size selected</small>
                 `;
             }
         }
 
-        function toggleLocker(event) {
-            const card = event.currentTarget;
-            card.classList.toggle('selected');
+        // Update last refresh timestamp
+        function updateRefreshTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            const el = document.getElementById('last-refresh');
+            if (el) el.textContent = timeStr;
+        }
+
+        // Validate Shopify token on load
+        async function validateToken() {
+            try {
+                const response = await fetch(`/api/validate-token/${shop}`);
+                const result = await response.json();
+
+                if (!result.valid) {
+                    console.warn('Shopify token invalid:', result.error);
+                    document.getElementById('reconnect-banner').style.display = 'block';
+                    if (result.error) {
+                        document.getElementById('reconnect-message').textContent =
+                            `⚠️ Shopify connection error: ${result.error}. Click to reconnect.`;
+                    }
+                    return false;
+                }
+                return true;
+            } catch (error) {
+                console.error('Error validating token:', error);
+                return false;
+            }
+        }
+
+        // Reconnect to Shopify
+        function reconnectToShopify() {
+            window.location.href = `/auth/reconnect?shop=${shop}`;
         }
 
         // Initialize
-        window.onload = function() {
-            document.getElementById('store-name').textContent = shop;
-            loadDashboardStats();
-            loadLockers();
+        window.onload = async function() {
+            // Validate token first
+            await validateToken();
+
+            loadStats();
+            loadOrders();
+            loadSubscription();
+            loadSettings();
+            updateRefreshTime();
+
+            // Add event listener for free pickup checkbox
+            const freePickupCheckbox = document.getElementById('free-pickup');
+            if (freePickupCheckbox) {
+                freePickupCheckbox.addEventListener('change', function() {
+                    updatePricingDisplay(this.checked);
+                });
+            }
+
+            // Add event listeners for fulfillment settings to update preview
+            document.getElementById('processing-days').addEventListener('change', updatePickupPreview);
+            document.querySelectorAll('.fulfillment-day').forEach(cb => {
+                cb.addEventListener('change', updatePickupPreview);
+            });
+
+            // Auto-refresh orders every 30 seconds
+            setInterval(() => {
+                loadOrders();
+                loadStats();
+                updateRefreshTime();
+            }, 30000);
         };
 
         // Close modal when clicking outside
         window.onclick = function(event) {
             const modal = document.getElementById('orderModal');
+            const manualModal = document.getElementById('manualOrderModal');
             if (event.target == modal) {
                 modal.style.display = 'none';
             }
+            if (event.target == manualModal) {
+                manualModal.style.display = 'none';
+            }
         };
+
+        // Manual Order Functions
+        async function openManualOrderModal() {
+            const modal = document.getElementById('manualOrderModal');
+            const select = document.getElementById('manual-locker-select');
+
+            // Clear form
+            document.getElementById('manualOrderForm').reset();
+
+            // Load locker options
+            select.innerHTML = '<option value="">Loading lockers...</option>';
+
+            try {
+                const response = await fetch(`/api/locker-preferences/${shop}`);
+                const preferences = await response.json();
+
+                if (preferences.length === 0) {
+                    select.innerHTML = '<option value="">No lockers configured - go to My Lockers tab</option>';
+                } else {
+                    select.innerHTML = '<option value="">Select a locker...</option>' +
+                        preferences.map(p => `<option value="${p.location_id}" data-name="${p.location_name}">${p.location_name}</option>`).join('');
+                }
+            } catch (error) {
+                console.error('Error loading lockers:', error);
+                select.innerHTML = '<option value="">Error loading lockers</option>';
+            }
+
+            modal.style.display = 'block';
+        }
+
+        function closeManualOrderModal() {
+            document.getElementById('manualOrderModal').style.display = 'none';
+        }
+
+        async function submitManualOrder(event) {
+            event.preventDefault();
+
+            const orderNumber = document.getElementById('manual-order-number').value.trim();
+            const customerName = document.getElementById('manual-customer-name').value.trim();
+            const customerEmail = document.getElementById('manual-customer-email').value.trim();
+            const lockerSelect = document.getElementById('manual-locker-select');
+            const lockerId = lockerSelect.value;
+            const lockerName = lockerSelect.options[lockerSelect.selectedIndex].dataset.name;
+            const sendEmail = document.getElementById('manual-send-email').checked;
+
+            if (!orderNumber || !customerName || !customerEmail || !lockerId) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/manual-order/${shop}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        orderNumber,
+                        customerName,
+                        customerEmail,
+                        lockerId,
+                        lockerName,
+                        sendEmail
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Manual order created successfully!');
+                    closeManualOrderModal();
+                    loadOrders();
+                    loadStats();
+                } else {
+                    alert('Failed to create order: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error creating manual order:', error);
+                alert('Error creating order: ' + error.message);
+            }
+        }
+
+        // Product Size Functions
+        let productsData = [];
+
+        async function loadProducts() {
+            const container = document.getElementById('products-list');
+            container.innerHTML = '<p>Loading products from Shopify...</p>';
+
+            try {
+                const response = await fetch(`/api/products/${shop}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    if (data.needsReauth) {
+                        container.innerHTML = `
+                            <div style="text-align: center; padding: 40px;">
+                                <p style="color: #bf0711; margin-bottom: 16px;">Access token expired or revoked.</p>
+                                <p style="color: #6d7175; margin-bottom: 20px;">Please reinstall the LockerDrop app from Shopify to reconnect.</p>
+                                <a href="/auth/install?shop=${shop}" class="btn btn-primary">Reconnect App</a>
+                            </div>
+                        `;
+                    } else {
+                        throw new Error(data.error || 'Failed to load products');
+                    }
+                    return;
+                }
+
+                productsData = data.products || [];
+
+                if (productsData.length === 0) {
+                    container.innerHTML = '<p style="color: #6d7175;">No products found in your store.</p>';
+                    return;
+                }
+
+                renderProducts();
+            } catch (error) {
+                console.error('Error loading products:', error);
+                container.innerHTML = `<p style="color: #bf0711;">Error loading products: ${error.message}</p>`;
+            }
+        }
+
+        function renderProducts() {
+            const container = document.getElementById('products-list');
+
+            const html = productsData.map(product => {
+                const hasVariants = product.variants.length > 1;
+
+                return `
+                    <div class="product-item" style="border: 1px solid #e1e3e5; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                        <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px;">
+                            ${product.image ? `<img src="${product.image}" alt="${product.title}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px;">` : '<div style="width: 50px; height: 50px; background: #f6f6f7; border-radius: 4px;"></div>'}
+                            <div style="flex: 1;">
+                                <strong style="font-size: 16px;">${product.title}</strong>
+                                ${hasVariants ? `<span style="color: #6d7175; font-size: 12px; margin-left: 8px;">(${product.variants.length} variants)</span>` : ''}
+                            </div>
+                        </div>
+                        ${product.variants.map(variant => renderVariantRow(product, variant, hasVariants)).join('')}
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
+        function renderVariantRow(product, variant, showVariantTitle) {
+            const lockerSizes = ['small', 'medium', 'large', 'x-large'];
+            const dataKey = `${product.id}-${variant.id}`;
+
+            return `
+                <div class="variant-row" style="display: grid; grid-template-columns: 1fr repeat(3, 70px) 120px; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid #f0f0f0;" data-product-id="${product.id}" data-variant-id="${variant.id}" data-product-title="${product.title}" data-variant-title="${variant.title}">
+                    <div>
+                        ${showVariantTitle ? `<span style="color: #6d7175; font-size: 14px;">${variant.title}</span>` : '<span style="color: #6d7175; font-size: 14px;">Default</span>'}
+                        ${variant.sku ? `<span style="color: #999; font-size: 12px; margin-left: 8px;">SKU: ${variant.sku}</span>` : ''}
+                    </div>
+                    <div>
+                        <input type="number" step="0.1" min="0" placeholder="L" class="dim-input dim-length"
+                               value="${variant.length_inches || ''}"
+                               style="width: 60px; padding: 6px; border: 1px solid #c4cdd5; border-radius: 4px; text-align: center;">
+                    </div>
+                    <div>
+                        <input type="number" step="0.1" min="0" placeholder="W" class="dim-input dim-width"
+                               value="${variant.width_inches || ''}"
+                               style="width: 60px; padding: 6px; border: 1px solid #c4cdd5; border-radius: 4px; text-align: center;">
+                    </div>
+                    <div>
+                        <input type="number" step="0.1" min="0" placeholder="H" class="dim-input dim-height"
+                               value="${variant.height_inches || ''}"
+                               style="width: 60px; padding: 6px; border: 1px solid #c4cdd5; border-radius: 4px; text-align: center;">
+                    </div>
+                    <div>
+                        <select class="size-select" style="width: 110px; padding: 6px; border: 1px solid #c4cdd5; border-radius: 4px;">
+                            <option value="">Auto</option>
+                            ${lockerSizes.map(size => `<option value="${size}" ${variant.locker_size === size ? 'selected' : ''}>${size.charAt(0).toUpperCase() + size.slice(1)}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function saveProductSizes() {
+            const rows = document.querySelectorAll('.variant-row');
+            const products = [];
+
+            rows.forEach(row => {
+                const productId = row.dataset.productId;
+                const variantId = row.dataset.variantId;
+                const productTitle = row.dataset.productTitle;
+                const variantTitle = row.dataset.variantTitle;
+
+                const length = parseFloat(row.querySelector('.dim-length').value) || 0;
+                const width = parseFloat(row.querySelector('.dim-width').value) || 0;
+                const height = parseFloat(row.querySelector('.dim-height').value) || 0;
+                const lockerSize = row.querySelector('.size-select').value;
+
+                // Only save if something was entered
+                if (length > 0 || width > 0 || height > 0 || lockerSize) {
+                    products.push({
+                        product_id: productId,
+                        variant_id: variantId,
+                        product_title: productTitle,
+                        variant_title: variantTitle,
+                        length,
+                        width,
+                        height,
+                        locker_size: lockerSize || 'medium'
+                    });
+                }
+            });
+
+            if (products.length === 0) {
+                alert('No product sizes to save. Enter dimensions or select a locker size for at least one product.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/product-sizes/${shop}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ products })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`Saved sizes for ${products.length} product(s)`);
+                } else {
+                    alert('Failed to save: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error saving product sizes:', error);
+                alert('Error saving: ' + error.message);
+            }
+        }
+
+        // ============================================
+        // BILLING & SUBSCRIPTION FUNCTIONS
+        // ============================================
+
+        let currentSubscription = null;
+
+        async function loadSubscription() {
+            try {
+                const response = await fetch(`/api/subscription/${shop}`);
+                const data = await response.json();
+                currentSubscription = data;
+                renderSubscriptionStatus(data);
+                renderUsageMeter(data);
+                updatePlanButtons(data);
+                updateBrandingTabVisibility(data.features);
+                checkDevMode();
+                handleBillingUrlParams();
+            } catch (error) {
+                console.error('Error loading subscription:', error);
+                document.getElementById('subscription-status').innerHTML = `
+                    <p style="color: #bf0711;">Error loading subscription status</p>
+                `;
+            }
+        }
+
+        function renderSubscriptionStatus(sub) {
+            const statusEl = document.getElementById('subscription-status');
+            let statusBadge = '';
+            let statusMessage = '';
+
+            if (sub.status === 'trial') {
+                statusBadge = '<span style="background: #fff4e6; color: #996300; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;">Trial</span>';
+                if (sub.trialDaysLeft > 0) {
+                    statusMessage = `Your free trial ends in <strong>${sub.trialDaysLeft} day${sub.trialDaysLeft !== 1 ? 's' : ''}</strong>. Subscribe to a plan to continue using LockerDrop.`;
+                } else {
+                    statusMessage = '<span style="color: #bf0711;">Your trial has expired.</span> Please subscribe to continue using LockerDrop.';
+                }
+            } else if (sub.status === 'active') {
+                statusBadge = '<span style="background: #e3f5ef; color: #008060; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;">Active</span>';
+                statusMessage = `You're on the <strong>${sub.planName}</strong> plan ($${sub.price}/month).`;
+                document.getElementById('cancel-card').style.display = 'block';
+            } else if (sub.status === 'cancelled') {
+                statusBadge = '<span style="background: #f0f1f2; color: #6d7175; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;">Cancelled</span>';
+                statusMessage = 'Your subscription has been cancelled. Subscribe to a plan to continue using LockerDrop.';
+            }
+
+            statusEl.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                    <span style="font-size: 18px; font-weight: 600;">${sub.planName} Plan</span>
+                    ${statusBadge}
+                </div>
+                <p style="color: #6d7175;">${statusMessage}</p>
+            `;
+        }
+
+        function renderUsageMeter(sub) {
+            const usageCard = document.getElementById('usage-card');
+            const usageCount = document.getElementById('usage-count');
+            const usageBar = document.getElementById('usage-bar');
+            const usageMessage = document.getElementById('usage-message');
+
+            if (sub.orderLimit === 'unlimited' || sub.orderLimit === -1) {
+                usageCard.style.display = 'block';
+                usageCount.textContent = `${sub.ordersUsed} orders used`;
+                usageBar.style.width = '0%';
+                usageMessage.textContent = 'Unlimited orders on your plan.';
+            } else {
+                usageCard.style.display = 'block';
+                const percent = Math.min(100, (sub.ordersUsed / sub.orderLimit) * 100);
+                usageCount.textContent = `${sub.ordersUsed} / ${sub.orderLimit}`;
+                usageBar.style.width = `${percent}%`;
+
+                // Change color based on usage
+                if (percent >= 90) {
+                    usageBar.style.background = '#bf0711';
+                    usageMessage.innerHTML = '<span style="color: #bf0711;">You\'re almost at your monthly limit! Consider upgrading your plan.</span>';
+                } else if (percent >= 75) {
+                    usageBar.style.background = '#996300';
+                    usageMessage.textContent = 'You\'ve used most of your monthly allowance.';
+                } else {
+                    usageBar.style.background = '#5c6ac4';
+                    usageMessage.textContent = `${sub.ordersRemaining} orders remaining this billing cycle.`;
+                }
+            }
+        }
+
+        function updatePlanButtons(sub) {
+            const planCards = document.querySelectorAll('.plan-card');
+
+            planCards.forEach(card => {
+                const planId = card.dataset.plan;
+                const btn = card.querySelector('.plan-btn');
+
+                if (sub.plan === planId && sub.status === 'active') {
+                    btn.textContent = 'Current Plan';
+                    btn.disabled = true;
+                    btn.classList.remove('btn-primary', 'btn-secondary');
+                    btn.style.background = '#e1e3e5';
+                    btn.style.cursor = 'default';
+                    card.style.borderColor = '#008060';
+                } else {
+                    btn.disabled = false;
+                    btn.style.cursor = 'pointer';
+                }
+            });
+        }
+
+        async function subscribeToPlan(planId) {
+            if (!confirm(`Subscribe to the ${planId.charAt(0).toUpperCase() + planId.slice(1)} plan?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/subscribe/${shop}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ planId })
+                });
+
+                const result = await response.json();
+
+                if (result.confirmationUrl) {
+                    // Redirect to Shopify's payment page
+                    window.top.location.href = result.confirmationUrl;
+                } else {
+                    alert('Error: ' + (result.error || 'Could not create subscription'));
+                }
+            } catch (error) {
+                console.error('Error subscribing:', error);
+                alert('Error creating subscription: ' + error.message);
+            }
+        }
+
+        async function cancelSubscription() {
+            if (!confirm('Are you sure you want to cancel your subscription? You will lose access to LockerDrop features at the end of your billing period.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/subscription/cancel/${shop}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Subscription cancelled successfully.');
+                    loadSubscription();
+                } else {
+                    alert('Error: ' + (result.error || 'Could not cancel subscription'));
+                }
+            } catch (error) {
+                console.error('Error cancelling:', error);
+                alert('Error cancelling subscription: ' + error.message);
+            }
+        }
+
+        function handleBillingUrlParams() {
+            const billing = urlParams.get('billing');
+            const plan = urlParams.get('plan');
+
+            if (billing === 'success') {
+                alert(`Successfully subscribed to the ${plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : ''} plan!`);
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname + '?shop=' + shop);
+                // Reload subscription
+                loadSubscription();
+            } else if (billing === 'cancelled') {
+                alert('Subscription was not completed. You can subscribe anytime from the Billing tab.');
+                window.history.replaceState({}, document.title, window.location.pathname + '?shop=' + shop);
+            } else if (billing === 'error') {
+                alert('There was an error processing your subscription. Please try again.');
+                window.history.replaceState({}, document.title, window.location.pathname + '?shop=' + shop);
+            }
+        }
+
+        // Dev Mode Functions
+        const DEV_STORES = ['enna-test.myshopify.com'];
+
+        function checkDevMode() {
+            if (DEV_STORES.includes(shop)) {
+                const devCard = document.getElementById('dev-mode-card');
+                if (devCard) devCard.style.display = 'block';
+            }
+        }
+
+        async function devSwitchPlan(planId) {
+            if (!DEV_STORES.includes(shop)) {
+                alert('Dev mode not available for this store');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/subscription/dev-switch/${shop}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ planId })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`Switched to ${planId.charAt(0).toUpperCase() + planId.slice(1)} plan!`);
+                    loadSubscription(); // Refresh subscription status
+                } else {
+                    alert('Error: ' + (result.error || 'Could not switch plan'));
+                }
+            } catch (error) {
+                console.error('Error switching plan:', error);
+                alert('Error switching plan: ' + error.message);
+            }
+        }
+
+        // ============================================
+        // BRANDING FUNCTIONS (Enterprise Only)
+        // ============================================
+
+        async function loadBrandingSettings() {
+            try {
+                // Set preview link
+                const previewLink = document.getElementById('branding-preview-link');
+                if (previewLink) {
+                    previewLink.href = `/pickup-success?order=PREVIEW&status=success&shop=${shop}`;
+                }
+
+                const response = await fetch(`/api/branding/${shop}`);
+                const data = await response.json();
+
+                if (!data.enabled) {
+                    // Hide branding tab for non-enterprise users
+                    return;
+                }
+
+                // Populate form fields
+                document.getElementById('branding-logo').value = data.logoUrl || '';
+
+                // Show logo preview if exists
+                if (data.logoUrl) {
+                    document.getElementById('logo-preview').src = data.logoUrl;
+                    document.getElementById('logo-preview-container').style.display = 'block';
+                    document.getElementById('logo-upload-container').style.display = 'none';
+                } else {
+                    document.getElementById('logo-preview-container').style.display = 'none';
+                    document.getElementById('logo-upload-container').style.display = 'block';
+                }
+
+                document.getElementById('branding-primary-color').value = data.primaryColor || '#5c6ac4';
+                document.getElementById('branding-primary-color-text').value = data.primaryColor || '#5c6ac4';
+                document.getElementById('branding-secondary-color').value = data.secondaryColor || '#202223';
+                document.getElementById('branding-secondary-color-text').value = data.secondaryColor || '#202223';
+                document.getElementById('branding-success-message').value = data.successMessage || '';
+                document.getElementById('branding-show-upsells').checked = data.showUpsells !== false;
+                document.getElementById('branding-upsell-heading').value = data.upsellHeading || 'You might also like';
+                document.getElementById('branding-rebuy-enabled').checked = data.rebuyEnabled || false;
+
+                // Load upsell products with full details
+                const savedProductIds = data.upsellProductIds || [];
+                if (savedProductIds.length > 0 && allProducts.length > 0) {
+                    // Match saved IDs with product details
+                    selectedUpsellProducts = savedProductIds.map(id => {
+                        const product = allProducts.find(p => p.id === id || p.id === String(id));
+                        return product ? { id: product.id, title: product.title, image: product.image } : { id, title: `Product ${id}`, image: '' };
+                    }).filter(p => p);
+                } else if (savedProductIds.length > 0) {
+                    // Products not loaded yet, store IDs and try again later
+                    selectedUpsellProducts = savedProductIds.map(id => ({ id, title: `Product ${id}`, image: '' }));
+                    // Retry after products load
+                    setTimeout(async () => {
+                        if (allProducts.length === 0) {
+                            await loadProductsForPicker();
+                        }
+                        selectedUpsellProducts = savedProductIds.map(id => {
+                            const product = allProducts.find(p => p.id === id || p.id === String(id));
+                            return product ? { id: product.id, title: product.title, image: product.image } : { id, title: `Product ${id}`, image: '' };
+                        }).filter(p => p);
+                        renderSelectedUpsellProducts();
+                        updateUpsellProductsHiddenField();
+                    }, 1000);
+                } else {
+                    selectedUpsellProducts = [];
+                }
+                renderSelectedUpsellProducts();
+                updateUpsellProductsHiddenField();
+                document.getElementById('branding-rebuy-widget-id').value = data.rebuyWidgetId || '';
+                document.getElementById('branding-custom-css').value = data.customCss || '';
+
+                // Toggle Rebuy settings visibility
+                document.getElementById('rebuy-settings').style.display = data.rebuyEnabled ? 'block' : 'none';
+
+            } catch (error) {
+                console.error('Error loading branding settings:', error);
+            }
+        }
+
+        // Handle logo file selection and upload
+        async function handleLogoSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Validate file size
+            if (file.size > 2 * 1024 * 1024) {
+                alert('File is too large. Maximum size is 2MB.');
+                event.target.value = '';
+                return;
+            }
+
+            // Show loading state
+            const uploadBtn = document.querySelector('#logo-upload-container button');
+            const originalText = uploadBtn.innerHTML;
+            uploadBtn.innerHTML = '⏳ Uploading...';
+            uploadBtn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('logo', file);
+
+                const response = await fetch(`/api/branding/${shop}/logo`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Update hidden field with URL
+                    document.getElementById('branding-logo').value = result.logoUrl;
+
+                    // Show preview
+                    document.getElementById('logo-preview').src = result.logoUrl;
+                    document.getElementById('logo-preview-container').style.display = 'block';
+                    document.getElementById('logo-upload-container').style.display = 'none';
+
+                    console.log('Logo uploaded:', result.logoUrl);
+                } else {
+                    alert('Error uploading logo: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error uploading logo:', error);
+                alert('Error uploading logo. Please try again.');
+            } finally {
+                uploadBtn.innerHTML = originalText;
+                uploadBtn.disabled = false;
+                event.target.value = ''; // Reset file input
+            }
+        }
+
+        // Remove logo
+        async function removeLogo() {
+            if (!confirm('Remove your logo?')) return;
+
+            try {
+                const response = await fetch(`/api/branding/${shop}/logo`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    document.getElementById('branding-logo').value = '';
+                    document.getElementById('logo-preview').src = '';
+                    document.getElementById('logo-preview-container').style.display = 'none';
+                    document.getElementById('logo-upload-container').style.display = 'block';
+                } else {
+                    alert('Error removing logo: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error removing logo:', error);
+                alert('Error removing logo. Please try again.');
+            }
+        }
+
+        // ============================================
+        // UPSELL PRODUCT PICKER
+        // ============================================
+
+        // Store selected upsell products with full details
+        let selectedUpsellProducts = [];
+        let allProducts = []; // Cache for all products
+        let productSearchTimeout = null;
+
+        // Search products for upsell picker
+        async function searchUpsellProducts(query) {
+            clearTimeout(productSearchTimeout);
+            const dropdown = document.getElementById('upsell-product-dropdown');
+
+            if (!query || query.length < 2) {
+                // Show all products if query is empty or short
+                productSearchTimeout = setTimeout(() => renderProductDropdown(allProducts, query), 200);
+                return;
+            }
+
+            productSearchTimeout = setTimeout(async () => {
+                // Filter from cached products
+                const filtered = allProducts.filter(p =>
+                    p.title.toLowerCase().includes(query.toLowerCase())
+                );
+                renderProductDropdown(filtered, query);
+            }, 200);
+        }
+
+        // Load all products for the picker
+        async function loadProductsForPicker() {
+            try {
+                const response = await fetch(`/api/products/${shop}`);
+                const data = await response.json();
+                allProducts = data.products || [];
+            } catch (error) {
+                console.error('Error loading products for picker:', error);
+                allProducts = [];
+            }
+        }
+
+        // Show product dropdown
+        function showProductDropdown() {
+            const dropdown = document.getElementById('upsell-product-dropdown');
+            if (selectedUpsellProducts.length >= 4) {
+                dropdown.innerHTML = '<div style="padding: 12px; color: #6d7175; text-align: center;">Maximum 4 products reached</div>';
+                dropdown.style.display = 'block';
+                return;
+            }
+            renderProductDropdown(allProducts, '');
+            dropdown.style.display = 'block';
+        }
+
+        // Hide product dropdown
+        function hideProductDropdown() {
+            setTimeout(() => {
+                document.getElementById('upsell-product-dropdown').style.display = 'none';
+            }, 200);
+        }
+
+        // Render product dropdown
+        function renderProductDropdown(products, query) {
+            const dropdown = document.getElementById('upsell-product-dropdown');
+
+            if (selectedUpsellProducts.length >= 4) {
+                dropdown.innerHTML = '<div style="padding: 12px; color: #6d7175; text-align: center;">Maximum 4 products reached</div>';
+                dropdown.style.display = 'block';
+                return;
+            }
+
+            // Filter out already selected products
+            const selectedIds = selectedUpsellProducts.map(p => p.id);
+            const available = products.filter(p => !selectedIds.includes(p.id));
+
+            if (available.length === 0) {
+                dropdown.innerHTML = '<div style="padding: 12px; color: #6d7175; text-align: center;">' +
+                    (query ? 'No matching products found' : 'No more products available') + '</div>';
+                dropdown.style.display = 'block';
+                return;
+            }
+
+            dropdown.innerHTML = available.slice(0, 10).map(product => `
+                <div onclick="addUpsellProduct('${product.id}', '${product.title.replace(/'/g, "\\'")}', '${product.image || ''}')"
+                     style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; transition: background 0.15s;"
+                     onmouseover="this.style.background='#f6f6f7'" onmouseout="this.style.background='white'">
+                    <img src="${product.image || 'https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png'}"
+                         alt="" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; background: #f6f6f7;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 500; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${product.title}</div>
+                        ${product.price ? `<div style="font-size: 12px; color: #6d7175;">$${product.price}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            dropdown.style.display = 'block';
+        }
+
+        // Add product to upsell list
+        function addUpsellProduct(id, title, image) {
+            if (selectedUpsellProducts.length >= 4) {
+                alert('Maximum 4 products allowed');
+                return;
+            }
+
+            if (selectedUpsellProducts.find(p => p.id === id)) {
+                return; // Already selected
+            }
+
+            selectedUpsellProducts.push({ id, title, image });
+            renderSelectedUpsellProducts();
+            updateUpsellProductsHiddenField();
+
+            // Clear search and hide dropdown
+            document.getElementById('upsell-product-search').value = '';
+            document.getElementById('upsell-product-dropdown').style.display = 'none';
+        }
+
+        // Remove product from upsell list
+        function removeUpsellProduct(id) {
+            selectedUpsellProducts = selectedUpsellProducts.filter(p => p.id !== id);
+            renderSelectedUpsellProducts();
+            updateUpsellProductsHiddenField();
+        }
+
+        // Render selected products
+        function renderSelectedUpsellProducts() {
+            const container = document.getElementById('selected-upsell-products');
+
+            if (selectedUpsellProducts.length === 0) {
+                container.innerHTML = '<div style="padding: 12px; background: #f6f6f7; border-radius: 6px; color: #6d7175; text-align: center; font-size: 13px;">No products selected. Search below to add upsell products.</div>';
+                return;
+            }
+
+            container.innerHTML = selectedUpsellProducts.map((product, index) => `
+                <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: #f6f6f7; border-radius: 6px;">
+                    <span style="color: #6d7175; font-size: 12px; font-weight: 500;">${index + 1}</span>
+                    <img src="${product.image || 'https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png'}"
+                         alt="" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; background: white;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="font-weight: 500; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${product.title}</div>
+                    </div>
+                    <button type="button" onclick="removeUpsellProduct('${product.id}')"
+                            style="background: none; border: none; color: #bf0711; cursor: pointer; padding: 4px 8px; font-size: 18px; line-height: 1;"
+                            title="Remove product">&times;</button>
+                </div>
+            `).join('');
+        }
+
+        // Update hidden field with product IDs
+        function updateUpsellProductsHiddenField() {
+            const ids = selectedUpsellProducts.map(p => p.id);
+            document.getElementById('branding-upsell-products').value = ids.join(', ');
+        }
+
+        // Initialize product picker on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load products for the picker
+            loadProductsForPicker();
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                const container = document.getElementById('upsell-product-search-container');
+                if (container && !container.contains(e.target)) {
+                    document.getElementById('upsell-product-dropdown').style.display = 'none';
+                }
+            });
+        });
+
+        async function saveBrandingSettings() {
+            const settings = {
+                logoUrl: document.getElementById('branding-logo').value || null,
+                primaryColor: document.getElementById('branding-primary-color').value,
+                secondaryColor: document.getElementById('branding-secondary-color').value,
+                successMessage: document.getElementById('branding-success-message').value || null,
+                showUpsells: document.getElementById('branding-show-upsells').checked,
+                upsellHeading: document.getElementById('branding-upsell-heading').value || null,
+                upsellProductIds: document.getElementById('branding-upsell-products').value
+                    .split(',')
+                    .map(id => id.trim())
+                    .filter(id => id),
+                rebuyEnabled: document.getElementById('branding-rebuy-enabled').checked,
+                rebuyWidgetId: document.getElementById('branding-rebuy-widget-id').value || null,
+                customCss: document.getElementById('branding-custom-css').value || null
+            };
+
+            try {
+                const response = await fetch(`/api/branding/${shop}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Branding settings saved successfully!');
+                } else if (result.upgrade) {
+                    alert('Custom branding requires the Enterprise plan. Please upgrade to access this feature.');
+                } else {
+                    alert('Error: ' + (result.error || 'Could not save settings'));
+                }
+            } catch (error) {
+                console.error('Error saving branding:', error);
+                alert('Error saving branding settings: ' + error.message);
+            }
+        }
+
+        // Color picker sync
+        document.addEventListener('DOMContentLoaded', function() {
+            // Primary color sync
+            const primaryColor = document.getElementById('branding-primary-color');
+            const primaryColorText = document.getElementById('branding-primary-color-text');
+            if (primaryColor && primaryColorText) {
+                primaryColor.addEventListener('input', () => primaryColorText.value = primaryColor.value);
+                primaryColorText.addEventListener('input', () => {
+                    if (/^#[0-9A-Fa-f]{6}$/.test(primaryColorText.value)) {
+                        primaryColor.value = primaryColorText.value;
+                    }
+                });
+            }
+
+            // Secondary color sync
+            const secondaryColor = document.getElementById('branding-secondary-color');
+            const secondaryColorText = document.getElementById('branding-secondary-color-text');
+            if (secondaryColor && secondaryColorText) {
+                secondaryColor.addEventListener('input', () => secondaryColorText.value = secondaryColor.value);
+                secondaryColorText.addEventListener('input', () => {
+                    if (/^#[0-9A-Fa-f]{6}$/.test(secondaryColorText.value)) {
+                        secondaryColor.value = secondaryColorText.value;
+                    }
+                });
+            }
+
+            // Rebuy toggle
+            const rebuyEnabled = document.getElementById('branding-rebuy-enabled');
+            const rebuySettings = document.getElementById('rebuy-settings');
+            if (rebuyEnabled && rebuySettings) {
+                rebuyEnabled.addEventListener('change', () => {
+                    rebuySettings.style.display = rebuyEnabled.checked ? 'block' : 'none';
+                });
+            }
+        });
+
+        // Show/hide branding tab based on subscription
+        function updateBrandingTabVisibility(features) {
+            const brandingTab = document.getElementById('branding-tab');
+            if (brandingTab && features?.customBranding) {
+                brandingTab.style.display = 'inline-block';
+            }
+        }
     </script>
+
+    <!-- Footer -->
+    <footer style="text-align: center; padding: 20px; margin-top: 40px; border-top: 1px solid #e1e3e5; color: #6d7175; font-size: 13px;">
+        <p>
+            <a href="/docs/training" style="color: #6d7175; margin: 0 8px;">Training</a> |
+            <a href="/docs/faq" style="color: #6d7175; margin: 0 8px;">FAQ</a> |
+            <a href="/privacy" style="color: #6d7175; margin: 0 8px;">Privacy Policy</a> |
+            <a href="mailto:support@lockerdrop.it" style="color: #6d7175; margin: 0 8px;">Support</a>
+        </p>
+        <p style="margin-top: 8px;">&copy; 2025 LockerDrop. All rights reserved.</p>
+    </footer>
 </body>
 </html>

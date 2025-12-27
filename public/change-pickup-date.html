@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Change Pickup Date - LockerDrop</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .order-info {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .order-info h3 {
+            color: #333;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .order-detail {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .order-detail:last-child {
+            border-bottom: none;
+        }
+
+        .order-detail label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .order-detail span {
+            color: #333;
+            font-weight: 600;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .dates-container {
+            margin-bottom: 24px;
+        }
+
+        .dates-container h3 {
+            margin-bottom: 16px;
+            color: #333;
+        }
+
+        .dates-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 12px;
+        }
+
+        .date-option {
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 16px 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+        }
+
+        .date-option:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .date-option.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .date-option .day-name {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .date-option .date {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .date-option .month {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .date-option.current {
+            background: #f0f0f0;
+        }
+
+        .date-option.current::after {
+            content: 'Current';
+            display: block;
+            font-size: 10px;
+            color: #667eea;
+            margin-top: 4px;
+        }
+
+        .date-option.selected.current::after {
+            color: white;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            margin-top: 12px;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .message {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f0f0f0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .verify-section, .dates-section, .success-section {
+            display: none;
+        }
+
+        .verify-section.active, .dates-section.active, .success-section.active {
+            display: block;
+        }
+
+        .success-section {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+
+        .success-icon svg {
+            width: 40px;
+            height: 40px;
+            fill: white;
+        }
+
+        .success-section h2 {
+            color: #333;
+            margin-bottom: 12px;
+        }
+
+        .success-section p {
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .new-date {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Change Pickup Date</h1>
+            <p>Select a new date for your locker pickup</p>
+        </div>
+
+        <div class="content">
+            <div id="loadingSection" class="loading">
+                <div class="loading-spinner"></div>
+                <p>Loading order details...</p>
+            </div>
+
+            <div id="errorSection" class="message error"></div>
+
+            <!-- Step 1: Verify Email -->
+            <div id="verifySection" class="verify-section">
+                <div class="order-info">
+                    <h3>Order Details</h3>
+                    <div class="order-detail">
+                        <label>Order Number</label>
+                        <span id="orderNumber">-</span>
+                    </div>
+                    <div class="order-detail">
+                        <label>Locker Location</label>
+                        <span id="lockerName">-</span>
+                    </div>
+                    <div class="order-detail">
+                        <label>Current Pickup Date</label>
+                        <span id="currentDate">-</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Verify Your Email</label>
+                    <input type="email" id="email" placeholder="Enter the email used for this order">
+                </div>
+
+                <button class="btn btn-primary" onclick="verifyEmail()">Continue</button>
+            </div>
+
+            <!-- Step 2: Select New Date -->
+            <div id="datesSection" class="dates-section">
+                <div class="dates-container">
+                    <h3>Select New Pickup Date</h3>
+                    <div id="datesGrid" class="dates-grid">
+                        <!-- Dates will be populated here -->
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" onclick="updateDate()" id="updateBtn" disabled>Update Pickup Date</button>
+                <button class="btn btn-secondary" onclick="goBack()">Go Back</button>
+            </div>
+
+            <!-- Step 3: Success -->
+            <div id="successSection" class="success-section">
+                <div class="success-icon">
+                    <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                </div>
+                <h2>Date Updated!</h2>
+                <p>Your pickup date has been changed to:</p>
+                <div class="new-date" id="newDateDisplay">-</div>
+                <p>You'll receive a confirmation email shortly.</p>
+                <button class="btn btn-secondary" onclick="window.close()">Close This Page</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let orderData = null;
+        let availableDates = [];
+        let selectedDate = null;
+        let verifiedEmail = null;
+
+        // Get order number from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const orderNumber = window.location.pathname.split('/').pop() || urlParams.get('order');
+        const token = urlParams.get('token');
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', loadOrderDetails);
+
+        async function loadOrderDetails() {
+            if (!orderNumber) {
+                showError('No order number provided');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/order-pickup-details/${orderNumber}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load order');
+                }
+
+                orderData = data;
+
+                // Populate order info
+                document.getElementById('orderNumber').textContent = '#' + orderNumber;
+                document.getElementById('lockerName').textContent = data.lockerName || 'Locker pickup';
+                document.getElementById('currentDate').textContent = data.currentDate
+                    ? formatDate(data.currentDate)
+                    : 'Not set';
+
+                // Hide loading, show verify section
+                document.getElementById('loadingSection').style.display = 'none';
+
+                // If token provided and valid, skip email verification
+                if (token && data.tokenValid) {
+                    verifiedEmail = data.email;
+                    await loadAvailableDates();
+                    showSection('datesSection');
+                } else {
+                    showSection('verifySection');
+                }
+
+            } catch (err) {
+                showError(err.message);
+            }
+        }
+
+        async function verifyEmail() {
+            const email = document.getElementById('email').value.trim();
+
+            if (!email) {
+                showError('Please enter your email');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/verify-order-email/${orderNumber}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.verified) {
+                    throw new Error(data.error || 'Email does not match order');
+                }
+
+                verifiedEmail = email;
+                await loadAvailableDates();
+                showSection('datesSection');
+
+            } catch (err) {
+                showError(err.message);
+            }
+        }
+
+        async function loadAvailableDates() {
+            if (!orderData?.shop) {
+                showError('Missing shop information');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/available-pickup-dates/${orderData.shop}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load dates');
+                }
+
+                availableDates = data.dates || [];
+                renderDates();
+
+            } catch (err) {
+                showError(err.message);
+            }
+        }
+
+        function renderDates() {
+            const grid = document.getElementById('datesGrid');
+            grid.innerHTML = '';
+
+            if (availableDates.length === 0) {
+                grid.innerHTML = '<p>No available dates found</p>';
+                return;
+            }
+
+            availableDates.forEach(date => {
+                const div = document.createElement('div');
+                div.className = 'date-option';
+
+                // Check if this is the current date
+                if (orderData.currentDate === date.date) {
+                    div.classList.add('current');
+                }
+
+                div.innerHTML = `
+                    <div class="day-name">${date.dayName}</div>
+                    <div class="date">${date.monthDay.split(' ')[1]}</div>
+                    <div class="month">${date.monthDay.split(' ')[0]}</div>
+                `;
+
+                div.onclick = () => selectDate(date, div);
+                grid.appendChild(div);
+            });
+        }
+
+        function selectDate(date, element) {
+            // Remove selection from all
+            document.querySelectorAll('.date-option').forEach(el => {
+                el.classList.remove('selected');
+            });
+
+            // Select this one
+            element.classList.add('selected');
+            selectedDate = date;
+
+            // Enable update button
+            document.getElementById('updateBtn').disabled = false;
+        }
+
+        async function updateDate() {
+            if (!selectedDate || !verifiedEmail) {
+                showError('Please select a date');
+                return;
+            }
+
+            const btn = document.getElementById('updateBtn');
+            btn.disabled = true;
+            btn.textContent = 'Updating...';
+
+            try {
+                const response = await fetch(`/api/update-pickup-date/${orderData.shop}/${orderNumber}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: verifiedEmail,
+                        newDate: selectedDate.date
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to update date');
+                }
+
+                // Show success
+                document.getElementById('newDateDisplay').textContent = selectedDate.display;
+                showSection('successSection');
+
+            } catch (err) {
+                showError(err.message);
+                btn.disabled = false;
+                btn.textContent = 'Update Pickup Date';
+            }
+        }
+
+        function goBack() {
+            showSection('verifySection');
+        }
+
+        function showSection(sectionId) {
+            ['verifySection', 'datesSection', 'successSection'].forEach(id => {
+                document.getElementById(id).classList.remove('active');
+            });
+            document.getElementById(sectionId).classList.add('active');
+            document.getElementById('errorSection').style.display = 'none';
+        }
+
+        function showError(message) {
+            const errorEl = document.getElementById('errorSection');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            document.getElementById('loadingSection').style.display = 'none';
+        }
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr + 'T00:00:00');
+            return date.toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        // Handle enter key on email input
+        document.getElementById('email')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') verifyEmail();
+        });
+    </script>
+</body>
+</html>

@@ -4,7 +4,7 @@ class ShopifyService {
   constructor(shop, accessToken) {
     this.shop = shop;
     this.accessToken = accessToken;
-    this.apiVersion = '2024-01';
+    this.apiVersion = '2024-10';
   }
 
   // Get API URL for this shop

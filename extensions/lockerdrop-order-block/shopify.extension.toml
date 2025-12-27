@@ -1,0 +1,15 @@
+api_version = "2025-01"
+
+[[extensions]]
+uid = "0d4b4401-5957-9a44-793d-4db4f098c149b05c292d"
+type = "ui_extension"
+name = "LockerDrop Order Details"
+handle = "lockerdrop-order-block"
+
+[extensions.capabilities]
+network_access = true
+api_access = true
+
+[[extensions.targeting]]
+module = "./src/OrderDetailsBlock.js"
+target = "admin.order-details.block.render"

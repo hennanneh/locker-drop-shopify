@@ -1,0 +1,3 @@
+# Ignore uploaded logo files
+*
+!.gitignore

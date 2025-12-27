@@ -1,0 +1,26 @@
+query Input {
+  deliveryAddress {
+    countryCode
+    provinceCode
+    city
+    zip
+    longitude
+    latitude
+  }
+  cart {
+    lines {
+      quantity
+      merchandise {
+        ... on ProductVariant {
+          id
+          product {
+            id
+          }
+        }
+      }
+    }
+  }
+  shop {
+    myshopifyDomain
+  }
+}

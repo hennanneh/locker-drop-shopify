@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer FAQ - LockerDrop</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f6f6f7;
+            color: #202223;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #e1e3e5;
+            padding: 16px 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 600;
+            color: #5c6ac4;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .nav-links a {
+            color: #6d7175;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .nav-links a:hover {
+            color: #5c6ac4;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        .doc-card {
+            background: white;
+            border-radius: 8px;
+            padding: 40px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #5c6ac4;
+            margin-bottom: 8px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            color: #6d7175;
+            margin-bottom: 32px;
+            font-size: 18px;
+        }
+
+        h2 {
+            color: #202223;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e1e3e5;
+        }
+
+        .how-it-works {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 24px;
+            margin: 24px 0;
+        }
+
+        .step {
+            text-align: center;
+            padding: 24px;
+            background: #f6f6f7;
+            border-radius: 8px;
+        }
+
+        .step-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+        }
+
+        .step-number {
+            display: inline-block;
+            background: #5c6ac4;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            line-height: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .step h3 {
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        .step p {
+            color: #6d7175;
+            font-size: 14px;
+        }
+
+        .faq-item {
+            margin-bottom: 24px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid #e1e3e5;
+        }
+
+        .faq-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .faq-question {
+            font-weight: 600;
+            color: #202223;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        .faq-answer {
+            color: #6d7175;
+        }
+
+        .faq-answer p {
+            margin-bottom: 12px;
+        }
+
+        .faq-answer p:last-child {
+            margin-bottom: 0;
+        }
+
+        .faq-answer ul, .faq-answer ol {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+
+        .faq-answer li {
+            margin-bottom: 6px;
+        }
+
+        .benefit-list {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .benefit-list li {
+            padding: 12px 0 12px 32px;
+            position: relative;
+            border-bottom: 1px solid #e1e3e5;
+        }
+
+        .benefit-list li:last-child {
+            border-bottom: none;
+        }
+
+        .benefit-list li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #008060;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .info-box {
+            background: #f4f5fa;
+            border-left: 4px solid #5c6ac4;
+            padding: 16px;
+            margin: 16px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .warning-box {
+            background: #fff4e6;
+            border-left: 4px solid #996300;
+            padding: 16px;
+            margin: 16px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .tips {
+            background: #e3f5ef;
+            padding: 24px;
+            border-radius: 8px;
+            margin: 24px 0;
+        }
+
+        .tips h3 {
+            color: #008060;
+            margin-bottom: 12px;
+        }
+
+        .tips ol {
+            padding-left: 24px;
+            margin: 0;
+        }
+
+        .tips li {
+            margin-bottom: 8px;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 40px;
+            color: #6d7175;
+            font-size: 14px;
+        }
+
+        .cta-section {
+            text-align: center;
+            padding: 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            color: white;
+            margin-top: 40px;
+        }
+
+        .cta-section h2 {
+            color: white;
+            border: none;
+            margin-top: 0;
+        }
+
+        .cta-section p {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <a href="/" class="logo">LockerDrop</a>
+            <div class="nav-links">
+                <a href="/docs/training">Training Guide</a>
+                <a href="/docs/faq">FAQ</a>
+                <a href="/docs/customer-faq">Customer FAQ</a>
+                <a href="/privacy">Privacy</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="doc-card">
+            <h1>LockerDrop Customer FAQ</h1>
+            <p class="subtitle">Everything you need to know about picking up your order from a locker</p>
+
+            <h2>What is LockerDrop?</h2>
+            <p>LockerDrop lets you pick up your order from a secure smart locker instead of waiting at home for delivery. Choose a convenient location at checkout, and we'll notify you when your package is ready to pick up!</p>
+
+            <h2>How It Works</h2>
+            <div class="how-it-works">
+                <div class="step">
+                    <div class="step-icon">🛒</div>
+                    <div class="step-number">1</div>
+                    <h3>Shop & Checkout</h3>
+                    <p>Select "LockerDrop Pickup" and choose a locker location near you</p>
+                </div>
+                <div class="step">
+                    <div class="step-icon">📦</div>
+                    <div class="step-number">2</div>
+                    <h3>We Prepare Your Order</h3>
+                    <p>The seller packages your order and drops it at your chosen locker</p>
+                </div>
+                <div class="step">
+                    <div class="step-icon">📱</div>
+                    <div class="step-number">3</div>
+                    <h3>Get Notified</h3>
+                    <p>Receive an email/text with the locker address and your pickup link</p>
+                </div>
+                <div class="step">
+                    <div class="step-icon">🔓</div>
+                    <div class="step-number">4</div>
+                    <h3>Pick Up Anytime</h3>
+                    <p>Click the link to open your locker and grab your package!</p>
+                </div>
+            </div>
+
+            <h2>Why Choose LockerDrop?</h2>
+            <ul class="benefit-list">
+                <li><strong>Convenience</strong> - Pick up when YOU want, not when the delivery truck arrives</li>
+                <li><strong>Security</strong> - No packages left on your doorstep</li>
+                <li><strong>Flexible</strong> - Located near where you live, work, or shop</li>
+                <li><strong>Free or low cost</strong> - Often cheaper than home delivery</li>
+            </ul>
+
+            <h2>Frequently Asked Questions</h2>
+
+            <h3 style="margin-top: 32px;">Ordering</h3>
+
+            <div class="faq-item">
+                <div class="faq-question">Where are the lockers located?</div>
+                <div class="faq-answer">
+                    <p>Locker locations vary by seller. Common locations include:</p>
+                    <ul>
+                        <li>Apartment building lobbies</li>
+                        <li>Retail stores</li>
+                        <li>Office buildings</li>
+                        <li>Grocery stores</li>
+                        <li>Shopping centers</li>
+                    </ul>
+                    <p>You'll see available locations during checkout based on your address.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">What size packages can the lockers hold?</div>
+                <div class="faq-answer">
+                    <p>Lockers come in different sizes:</p>
+                    <ul>
+                        <li><strong>Small</strong>: Jewelry, small accessories</li>
+                        <li><strong>Medium</strong>: Clothing, shoes</li>
+                        <li><strong>Large</strong>: Multiple items, larger boxes</li>
+                        <li><strong>X-Large</strong>: Bulk orders, big packages</li>
+                    </ul>
+                    <p>If your order is too large for lockers, LockerDrop may not be available at checkout.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Is LockerDrop available for all products?</div>
+                <div class="faq-answer">
+                    <p>Most products are available for LockerDrop! Some items may be excluded:</p>
+                    <ul>
+                        <li>Very large items</li>
+                        <li>Items requiring signature</li>
+                        <li>Temperature-sensitive products</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 32px;">Pickup</h3>
+
+            <div class="faq-item">
+                <div class="faq-question">How long do I have to pick up my package?</div>
+                <div class="faq-answer">
+                    <p>Typically <strong>5 days</strong> from when you receive the "Ready for Pickup" notification. Check your email for the exact deadline.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Can I pick up anytime?</div>
+                <div class="faq-answer">
+                    <p>Most locker locations are accessible 24/7! Some locations inside businesses may have limited hours. Your confirmation email will include any access restrictions.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">What if I can't pick up in time?</div>
+                <div class="faq-answer">
+                    <p>If you can't pick up before the deadline:</p>
+                    <ul>
+                        <li>Contact the seller as soon as possible</li>
+                        <li>They may be able to extend the hold time</li>
+                        <li>Or arrange an alternative delivery method</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Can someone else pick up for me?</div>
+                <div class="faq-answer">
+                    <p>Yes! Just share your pickup link with them. The locker opens for anyone with the correct link.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">I lost my pickup link! What do I do?</div>
+                <div class="faq-answer">
+                    <p>Contact the seller - they can resend the pickup email with your link.</p>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 32px;">At the Locker</h3>
+
+            <div class="faq-item">
+                <div class="faq-question">How do I find the locker?</div>
+                <div class="faq-answer">
+                    <p>Your confirmation email includes:</p>
+                    <ul>
+                        <li>Locker location name</li>
+                        <li>Full street address</li>
+                        <li>Sometimes specific directions (e.g., "Inside main lobby")</li>
+                    </ul>
+                    <p>Harbor Lockers are large, silver kiosks with a touchscreen display.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">My link isn't working!</div>
+                <div class="faq-answer">
+                    <p>Double-check:</p>
+                    <ol>
+                        <li>You're at the correct locker location</li>
+                        <li>You're clicking the pickup link from your email</li>
+                        <li>The pickup deadline hasn't passed</li>
+                    </ol>
+                    <p>Still not working? Contact the seller or Harbor support.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">The locker is damaged or won't open!</div>
+                <div class="faq-answer">
+                    <ul>
+                        <li>Don't try to force it open</li>
+                        <li>Contact the seller immediately</li>
+                        <li>They'll work with Harbor to resolve the issue</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 32px;">After Pickup</h3>
+
+            <div class="faq-item">
+                <div class="faq-question">My package was damaged!</div>
+                <div class="faq-answer">
+                    <p>Contact the seller with photos of the damage. Packages are insured during the locker storage period.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Something is missing from my order!</div>
+                <div class="faq-answer">
+                    <p>Contact the seller with your order number. They'll investigate and make it right.</p>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">Can I return items through the locker?</div>
+                <div class="faq-answer">
+                    <p>Not at this time. Follow the seller's standard return policy for returns.</p>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 32px;">Troubleshooting</h3>
+
+            <div class="faq-item">
+                <div class="faq-question">I never received my pickup notification</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>Check your spam/junk folder</li>
+                        <li>Make sure you entered the correct email at checkout</li>
+                        <li>Contact the seller to verify order status and resend the email</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">I arrived but there's no locker there</div>
+                <div class="faq-answer">
+                    <ol>
+                        <li>Double-check the address in your email</li>
+                        <li>Look for the Harbor Locker - it may be inside the building</li>
+                        <li>Ask building staff for help locating it</li>
+                        <li>Contact the seller if you still can't find it</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="tips">
+                <h3>Tips for a Great Experience</h3>
+                <ol>
+                    <li><strong>Choose a convenient location</strong> - Pick a locker near your home, work, or daily route</li>
+                    <li><strong>Check the deadline</strong> - Note when you need to pick up by</li>
+                    <li><strong>Save the email</strong> - Keep your confirmation email handy for the address and link</li>
+                    <li><strong>Check locker hours</strong> - Some locations have restricted access times</li>
+                    <li><strong>Pick up promptly</strong> - Don't wait until the last minute in case of issues</li>
+                </ol>
+            </div>
+
+            <h2>Contact</h2>
+            <div class="info-box">
+                <p>Having trouble? Contact the seller directly:</p>
+                <ul>
+                    <li>Check your order confirmation email for seller contact info</li>
+                    <li>Or reach out through the store's contact page</li>
+                </ul>
+                <p style="margin-top: 12px;">For locker technical issues, contact Harbor Locker support.</p>
+            </div>
+
+            <div class="cta-section">
+                <h2>LockerDrop</h2>
+                <p>Pickup on Your Schedule</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>LockerDrop - Secure Locker Pickup</p>
+        <p style="margin-top: 8px;">&copy; 2025 LockerDrop. All rights reserved.</p>
+    </div>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# LockerDrop Pickup Points Function
+# Generates Harbor Locker locations as native pickup points for Plus stores
+
+api_version = "2025-01"
+
+[[extensions]]
+name = "LockerDrop Pickup Points"
+handle = "lockerdrop-pickup-points"
+uid = "1a454f61-2030-e064-621e-ed994e3262625dee4bdb"
+type = "function"
+description = "Provides Harbor Locker locations as pickup point options at checkout"
+
+  [[extensions.targeting]]
+  target = "purchase.pickup-point-delivery-option-generator.fetch"
+  input_query = "src/fetch.graphql"
+  export = "fetch"
+
+  [[extensions.targeting]]
+  target = "purchase.pickup-point-delivery-option-generator.run"
+  input_query = "src/run.graphql"
+  export = "run"
+
+  [extensions.build]
+  command = "npm run build"
+  path = "dist/function.wasm"

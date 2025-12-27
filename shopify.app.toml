@@ -1,0 +1,27 @@
+# Shopify App Configuration
+# Learn more: https://shopify.dev/docs/apps/tools/cli/configuration
+
+name = "LockerDrop"
+client_id = "d0123a17d1e004675deaca3a4a154239"
+application_url = "https://app.lockerdrop.it"
+embedded = false
+
+[access_scopes]
+scopes = "write_shipping,read_orders,write_orders,read_products,write_products,read_shipping,read_checkouts,write_checkouts,read_fulfillments,write_fulfillments"
+
+[auth]
+redirect_urls = ["https://app.lockerdrop.it/auth/callback"]
+
+[webhooks]
+api_version = "2024-10"
+
+[pos]
+embedded = false
+
+[app_proxy]
+url = "https://app.lockerdrop.it"
+subpath = "lockerdrop"
+prefix = "apps"
+
+[build]
+automatically_update_urls_on_dev = false

@@ -1,0 +1,12 @@
+{
+  "name": "lockerdrop-checkout",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "shopify app build --extension",
+    "dev": "shopify app dev --extension"
+  },
+  "dependencies": {
+    "@shopify/ui-extensions": "2025.1.0"
+  }
+}

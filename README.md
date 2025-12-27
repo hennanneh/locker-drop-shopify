@@ -1,341 +1,225 @@
-# 🔐 LockerDrop.it - Shopify Admin Dashboard
+# LockerDrop - Shopify Smart Locker Integration
 
-**Complete Seller Portal for Harbor Locker Integration**
+**Production URL:** https://app.lockerdrop.it
+**Dashboard:** https://app.lockerdrop.it/admin/dashboard?shop=enna-test.myshopify.com
 
-Built: November 20, 2024
-
----
-
-## 📦 What's Included
-
-This package contains everything you need to add a professional admin dashboard to your LockerDrop Shopify app.
-
-### Core Files (8 total)
-
-| File | Size | Lines | Purpose |
-|------|------|-------|---------|
-| **admin-dashboard.html** | 34KB | 969 | Complete seller admin interface |
-| **server.js** | 16KB | 426 | Updated backend with all routes |
-| **routes-admin.js** | 7.5KB | 230 | Modular admin routes (optional) |
-| **package.json** | 624B | 29 | Project dependencies |
-| **BUILD_SUMMARY.md** | 13KB | 410 | What we built today |
-| **ADMIN_SETUP_GUIDE.md** | 6.1KB | 251 | Step-by-step setup |
-| **ARCHITECTURE.md** | 13KB | 252 | System design docs |
-| **QUICK_START.md** | 6.1KB | 239 | Fast-track checklist |
-
-**Total:** 97KB of production-ready code and documentation
+LockerDrop is a Shopify app that enables smart locker pickup as a shipping option. Customers select locker pickup at checkout, sellers drop off packages using secure links, and customers pick up at their convenience.
 
 ---
 
-## 🚀 Quick Start (5 Minutes)
+## Current Status (December 2025)
 
-### 1. Download All Files
-Download all 8 files from Claude to your computer.
+### Working Features
+- Shopify OAuth & app installation
+- Carrier service integration (shows at checkout)
+- Harbor Locker API integration (sandbox)
+- Locker availability checking by size
+- Multi-item order dimension stacking
+- Automatic locker reservation on order creation
+- Drop-off and pickup link generation
+- Email notifications (via Resend)
+- SMS notifications (via Twilio)
+- Admin dashboard with full order management
+- Product size configuration
+- Order cancellation (manual + Shopify webhook)
+- Zip code geocoding fallback for unverified addresses
 
-### 2. Copy to Your Project
+### Infrastructure
+- **Server:** DigitalOcean Droplet (138.197.216.202)
+- **Database:** DigitalOcean Managed PostgreSQL
+- **Domain:** lockerdrop.it (Cloudflare DNS)
+- **Process Manager:** PM2
+- **SSL:** Let's Encrypt via Certbot
+
+---
+
+## Quick Reference
+
+### Server Commands
 ```bash
-cd lockerdrop-shopify
+# SSH to server
+ssh root@138.197.216.202
 
-# Create public folder
-mkdir public
+# View logs
+pm2 logs lockerdrop --lines 100
 
-# Copy files (adjust paths to where you downloaded them)
-cp ~/Downloads/admin-dashboard.html public/
-cp ~/Downloads/server.js .
-cp ~/Downloads/package.json .
+# Restart server
+pm2 restart lockerdrop
 
-# Optional: Copy admin routes
-cp ~/Downloads/routes-admin.js routes/
+# Full restart (clears memory)
+pm2 delete lockerdrop && pm2 start server.js --name lockerdrop
 ```
 
-### 3. Install Dependencies
-```bash
-npm install
-```
+### Key Files
+| File | Purpose |
+|------|---------|
+| `server.js` | Main application (~4500 lines) |
+| `public/admin-dashboard.html` | Seller admin UI |
+| `db.js` | PostgreSQL connection pool |
+| `.env` | Environment variables |
 
-### 4. Start Server
-```bash
-npm start
-```
-
-### 5. Access Dashboard
-Open in browser:
-```
-https://your-ngrok-url.ngrok.app/admin/dashboard?shop=enna-test.myshopify.com
-```
-
-**That's it!** Your admin dashboard is now live! 🎉
+### Database Tables
+- `stores` - Shopify store credentials
+- `orders` - LockerDrop orders with status
+- `locker_preferences` - Selected locker locations per shop
+- `product_locker_sizes` - Product dimensions/size mappings
+- `shop_settings` - Per-shop configuration
+- `audit_logs` - Security audit trail
 
 ---
 
-## 📖 Documentation Guide
+## Architecture
 
-### Start Here
-👉 **BUILD_SUMMARY.md** - Overview of everything we built
+### Checkout Flow
+1. Customer enters address at Shopify checkout
+2. Shopify calls `/carrier-service/rates` endpoint
+3. We calculate required locker size from cart items
+4. Query Harbor API for nearby locations with availability
+5. Return locker options as shipping rates
+6. Customer selects LockerDrop option
 
-### For Setup
-👉 **QUICK_START.md** - Fast-track checklist  
-👉 **ADMIN_SETUP_GUIDE.md** - Detailed instructions
+### Order Flow
+1. Order placed triggers `orders/create` webhook
+2. We request dropoff link from Harbor API
+3. Store order with dropoff_link in database
+4. Send confirmation email/SMS to customer
+5. Seller visits locker, uses dropoff link
+6. Harbor notifies us when package deposited
+7. Customer receives pickup link
+8. Customer picks up, order marked complete
 
-### For Understanding
-👉 **ARCHITECTURE.md** - How everything works together
-
----
-
-## ✨ What You Get
-
-### 🎨 Beautiful Admin Interface
-- **Dashboard** - Real-time stats and recent orders
-- **Orders** - Complete order management with access codes
-- **My Lockers** - Select which Harbor lockers to use
-- **Product Settings** - Assign locker sizes to products
-- **Shipping Rates** - Configure pricing and timing
-- **Notifications** - Email settings and templates
-
-### 🔌 Complete Backend
-- Shopify OAuth integration
-- Harbor Locker API connection
-- Carrier service for checkout
-- RESTful API endpoints
-- Webhook handlers
-- Error handling
-
-### 📚 Full Documentation
-- Setup guides
-- Architecture diagrams
-- Testing checklists
-- Troubleshooting tips
-- Future roadmap
+### Size Calculation
+- Products can have exact dimensions (L x W x H) or assigned locker size
+- Multi-item orders: dimensions stacked (heights added)
+- System finds smallest locker that fits combined package
+- Checkout only shows locations with required size available
 
 ---
 
-## 🎯 Current Status
+## API Endpoints
 
-### ✅ Working Now
-- Shopify app installed
-- Carrier service registered
-- "LockerDrop Pickup" showing at checkout
-- Admin dashboard UI complete
-- Harbor API connected
-- All routes implemented
+### Shopify Integration
+- `GET /shopify/auth` - OAuth initiation
+- `GET /shopify/callback` - OAuth callback
+- `POST /carrier/rates` - Legacy carrier service
+- `POST /carrier-service/rates` - Active carrier service
+- `POST /webhooks/orders/create` - Order creation webhook
+- `POST /webhooks/orders/cancelled` - Order cancellation webhook
 
-### 🔄 Needs Implementation (Week 1-2)
-- Database setup (PostgreSQL)
-- Order storage
-- Email service (SendGrid/Mailgun)
-- Locker reservation automation
+### Admin API
+- `GET /api/orders/:shop` - List orders
+- `GET /api/order/:shop/:orderId` - Order details
+- `POST /api/order/:shop/:orderId/mark-dropped-off` - Update status
+- `POST /api/order/:shop/:orderId/cancel-locker` - Cancel locker request
+- `POST /api/order/:shop/:orderId/resend-pickup` - Resend notifications
+- `GET /api/lockers` - List Harbor locations
+- `GET /api/locker-preferences/:shop` - Get preferences
+- `POST /api/locker-preferences/:shop` - Save preferences
+- `GET /api/products/:shop` - List products
+- `POST /api/product-sizes/:shop` - Save product sizes
+- `GET /api/shop-settings/:shop` - Get settings
+- `POST /api/shop-settings/:shop` - Save settings
 
-### ⏭ Future Enhancements (Month 2+)
+---
+
+## Environment Variables
+
+```env
+# Shopify
+SHOPIFY_API_KEY=xxx
+SHOPIFY_API_SECRET=xxx
+SHOPIFY_SCOPES=write_products,write_orders,read_shipping
+
+# Harbor Locker (Sandbox)
+HARBOR_CLIENT_ID=lockerdrop
+HARBOR_CLIENT_SECRET=xxx
+HARBOR_API_URL=https://api.sandbox.harborlockers.com
+HARBOR_TOWER_ID=0100000000000175
+
+# Database
+DATABASE_URL=postgresql://...
+
+# Notifications
+RESEND_API_KEY=xxx
+EMAIL_FROM=LockerDrop <noreply@lockerdrop.it>
+TWILIO_ACCOUNT_SID=xxx
+TWILIO_AUTH_TOKEN=xxx
+TWILIO_PHONE_NUMBER=+16824297313
+
+# App
+HOST=https://lockerdrop.it
+SESSION_SECRET=xxx
+NODE_ENV=production
+```
+
+---
+
+## Locker Sizes
+
+| Size | Dimensions (L x W x H) | Harbor Type ID |
+|------|------------------------|----------------|
+| Small | 12" x 8" x 4" | 1 |
+| Medium | 16" x 12" x 8" | 2 |
+| Large | 20" x 16" x 12" | 3 |
+| X-Large | 24" x 20" x 16" | 4 |
+
+---
+
+## Known Issues / TODO
+
+### Immediate
+- [ ] Shopify REST API deprecation (migrate to GraphQL by April 2025)
+- [ ] `write_fulfillments` scope needed for auto-fulfillment
+
+### Harbor API Limitations
+- Cannot cancel locker-open-requests via API (expire after ~24 hours)
+- Locker remains "rented" until request expires even if order cancelled
+
+### Future Enhancements
 - Customer tracking portal
-- SMS notifications
 - Analytics dashboard
-- Mobile app for sellers
+- Multi-location support per order
+- Locker capacity forecasting
 
 ---
 
-## 🛠 Technology Stack
+## Testing
 
-**Frontend:**
-- HTML5 + CSS3
-- Vanilla JavaScript (no frameworks needed)
-- Shopify Polaris-inspired design
+### Test Store
+- Shop: `enna-test.myshopify.com`
+- Dashboard: https://app.lockerdrop.it/admin/dashboard?shop=enna-test.myshopify.com
 
-**Backend:**
-- Node.js v24.6.0
-- Express.js
-- Axios for API calls
+### Harbor Sandbox
+- Tower ID: `0100000000000175` (Lockerdrop tower)
+- Location ID: `329`
+- Doors: 5 (small), 6 (small), 7 (medium), 8 (large), 9 (x-large)
 
-**Integrations:**
-- Shopify API (OAuth 2.0)
-- Harbor Locker API
-- Future: SendGrid/Mailgun for emails
-
-**Infrastructure:**
-- ngrok (current) → DigitalOcean (production)
-- PostgreSQL (planned)
+### Testing Checkout
+1. Add product to cart
+2. Go to checkout
+3. Enter address near Dallas, TX (75001)
+4. "LockerDrop Pickup" should appear as shipping option
+5. If not showing, check: product size set, locker size available
 
 ---
 
-## 📊 Features Checklist
+## Deployment
 
-### Seller Portal ✅
-- [x] Dashboard with statistics
-- [x] Order list with status
-- [x] Order details modal
-- [x] Drop-off access codes
-- [x] Pickup access codes
-- [x] Locker selection from Harbor API
-- [x] Product-to-locker-size mapping
-- [x] Shipping rate configuration
-- [x] Processing time settings
-- [x] Notification preferences
-- [x] Email template editor
-
-### Checkout Integration ✅
-- [x] LockerDrop appears as shipping option
-- [x] Shows FREE pricing
-- [x] Carrier service working
-
-### To Implement 🔄
-- [ ] Database storage
-- [ ] Actual locker reservation
-- [ ] Email sending
-- [ ] Webhook order processing
-- [ ] Customer tracking portal
-
----
-
-## 🎓 Learning Resources
-
-### Included Documentation
-- **BUILD_SUMMARY.md** - Everything we built
-- **ADMIN_SETUP_GUIDE.md** - How to set it up
-- **ARCHITECTURE.md** - How it all works
-- **QUICK_START.md** - Get started fast
-
-### External APIs
-- [Harbor Locker Docs](https://docs.harborlockers.com/)
-- [Shopify API Docs](https://shopify.dev/docs/api)
-- [Express.js Guide](https://expressjs.com/en/guide/routing.html)
-
----
-
-## 🎉 What's Different from Yesterday
-
-### Yesterday We Had:
-- Basic server running
-- Shopify OAuth working
-- Carrier service registered
-- Simple checkout integration
-
-### Today We Added:
-- **Complete admin dashboard** with 6 functional tabs
-- **Professional UI** matching Shopify's design system
-- **Order management** interface
-- **Locker selection** from Harbor API
-- **Product configuration** system
-- **Settings management** interface
-- **Email notification** controls
-- **Complete documentation** package
-
-### We Went From:
-```
-[██████░░░░] 60% Complete
+```bash
+# On server
+cd /root/locker-drop-shopify
+git pull origin main
+npm install
+pm2 restart lockerdrop
 ```
 
-### To:
-```
-[████████░░] 80% Complete
-```
+---
 
-**Just need database + email service to launch!** 🚀
+## Support
+
+- **Email:** support@lockerdrop.it
+- **Harbor Support:** https://docs.harborlockers.com
 
 ---
 
-## 📝 Next Actions
-
-### Today
-1. ✅ Download all 8 files
-2. ✅ Copy to your project
-3. ✅ Test the dashboard
-4. ✅ Verify all tabs work
-
-### This Week
-1. [ ] Set up PostgreSQL database
-2. [ ] Create database tables
-3. [ ] Update API endpoints to use DB
-4. [ ] Test order storage
-
-### Next Week
-1. [ ] Add SendGrid for emails
-2. [ ] Implement locker reservation
-3. [ ] Test with real orders
-4. [ ] Prepare for launch
-
----
-
-## 💬 Getting Help
-
-### Issue: Dashboard won't load?
-→ Check **QUICK_START.md** Troubleshooting section
-
-### Issue: API errors?
-→ Check **ADMIN_SETUP_GUIDE.md** debugging tips
-
-### Question: How does X work?
-→ See **ARCHITECTURE.md** for system design
-
-### Need step-by-step help?
-→ Follow **QUICK_START.md** checklist
-
----
-
-## 🏆 Success Criteria
-
-You'll know everything is working when:
-
-✅ Dashboard loads at `/admin/dashboard?shop=enna-test.myshopify.com`  
-✅ All 6 tabs are visible and clickable  
-✅ Lockers load in "My Lockers" tab  
-✅ Orders show in table (sample data)  
-✅ Modal opens when clicking "View Details"  
-✅ "LockerDrop Pickup" appears at checkout  
-
----
-
-## 📞 Support
-
-If you get stuck:
-1. Check the documentation files
-2. Look at server logs (terminal)
-3. Check browser console (F12)
-4. Test API endpoints with curl/Postman
-5. Review the architecture diagrams
-
----
-
-## 🎊 Congratulations!
-
-You now have a production-ready admin dashboard for LockerDrop!
-
-**What you've accomplished:**
-- Built a full Shopify carrier service ✅
-- Integrated with Harbor Lockers API ✅
-- Created a professional admin interface ✅
-- Set up complete order management ✅
-- Implemented locker selection ✅
-- Designed notification system ✅
-
-**What's left:**
-- Connect to a database (2-3 days)
-- Add email service (1 day)
-- Test with real orders (1 day)
-- Deploy to production (1 day)
-
-**You're about 1 week away from launching!** 🚀
-
----
-
-Built with ❤️ using Claude 4.5  
-November 20, 2024
-
----
-
-## 📁 File Structure Summary
-
-```
-lockerdrop-shopify/
-├── 📄 server.js (NEW) ...................... Updated backend
-├── 📄 package.json (NEW) .................. Dependencies
-├── 📁 public/
-│   └── 📄 admin-dashboard.html (NEW) ...... Seller portal
-├── 📁 routes/
-│   └── 📄 routes-admin.js (OPTIONAL) ...... Modular routes
-└── 📁 docs/ (suggested)
-    ├── 📄 BUILD_SUMMARY.md ................ What we built
-    ├── 📄 ADMIN_SETUP_GUIDE.md ............ Setup instructions  
-    ├── 📄 ARCHITECTURE.md ................. System design
-    └── 📄 QUICK_START.md .................. Fast checklist
-```
-
-**Happy building! Let's get this launched! 🎉**
+Last updated: December 22, 2025

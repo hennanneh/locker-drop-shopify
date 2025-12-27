@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Drop-off Complete!</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #008060 0%, #006e52 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            color: white;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        .success-icon {
+            width: 120px;
+            height: 120px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 32px;
+            animation: scaleIn 0.5s ease-out;
+        }
+
+        .success-icon svg {
+            width: 60px;
+            height: 60px;
+        }
+
+        .checkmark {
+            stroke: #008060;
+            stroke-width: 3;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+            animation: drawCheck 0.6s ease-out 0.3s forwards;
+            stroke-dasharray: 100;
+            stroke-dashoffset: 100;
+        }
+
+        @keyframes scaleIn {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes drawCheck {
+            to { stroke-dashoffset: 0; }
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            animation: fadeInUp 0.5s ease-out 0.2s both;
+        }
+
+        .subtitle {
+            font-size: 18px;
+            opacity: 0.9;
+            margin-bottom: 32px;
+            animation: fadeInUp 0.5s ease-out 0.3s both;
+        }
+
+        .order-info {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 32px;
+            backdrop-filter: blur(10px);
+            animation: fadeInUp 0.5s ease-out 0.4s both;
+        }
+
+        .order-number {
+            font-size: 14px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .order-value {
+            font-size: 32px;
+            font-weight: 700;
+        }
+
+        .message {
+            font-size: 16px;
+            line-height: 1.6;
+            opacity: 0.9;
+            margin-bottom: 32px;
+            animation: fadeInUp 0.5s ease-out 0.5s both;
+        }
+
+        .next-steps {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: left;
+            animation: fadeInUp 0.5s ease-out 0.6s both;
+        }
+
+        .next-steps h3 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            opacity: 0.8;
+        }
+
+        .next-steps ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .next-steps li {
+            padding: 8px 0;
+            padding-left: 28px;
+            position: relative;
+            font-size: 15px;
+        }
+
+        .next-steps li::before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: rgba(255,255,255,0.7);
+        }
+
+        .status-update {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px;
+            font-size: 14px;
+            opacity: 0.8;
+            margin-top: 20px;
+            animation: fadeInUp 0.5s ease-out 0.7s both;
+        }
+
+        .status-update.success {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .footer {
+            margin-top: 48px;
+            font-size: 12px;
+            opacity: 0.6;
+            animation: fadeInUp 0.5s ease-out 0.8s both;
+        }
+
+        .footer a {
+            color: white;
+            text-decoration: none;
+        }
+
+        .btn {
+            display: inline-block;
+            background: white;
+            color: #008060;
+            padding: 14px 28px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 24px;
+            animation: fadeInUp 0.5s ease-out 0.8s both;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">
+            <svg viewBox="0 0 24 24">
+                <path class="checkmark" d="M4 12l6 6L20 6"/>
+            </svg>
+        </div>
+
+        <h1>Drop-off Complete! 📦</h1>
+        <p class="subtitle">Package secured in locker</p>
+
+        <div class="order-info">
+            <div class="order-number">Order Number</div>
+            <div class="order-value" id="order-number">#---</div>
+        </div>
+
+        <div class="next-steps">
+            <h3>What happens next?</h3>
+            <ul>
+                <li>Customer will be notified via email</li>
+                <li>They'll receive a link to open the locker</li>
+                <li>You'll be notified when they pick up</li>
+            </ul>
+        </div>
+
+        <div class="status-update" id="status-update">
+            <span class="spinner"></span>
+            Updating order status...
+        </div>
+
+        <div class="footer">
+            Powered by <a href="https://lockerdrop.it">LockerDrop.it</a>
+        </div>
+    </div>
+
+    <script>
+        // Get order info from URL - Harbor includes lockerId and towerId in callback
+        const urlParams = new URLSearchParams(window.location.search);
+        const orderNumber = urlParams.get('order');
+        const requestId = urlParams.get('open_locker_request');
+        const status = urlParams.get('status');
+        const lockerId = urlParams.get('locker_id') || urlParams.get('lockerId');
+        const towerId = urlParams.get('tower_id') || urlParams.get('towerId');
+
+        // Display order number
+        if (orderNumber) {
+            document.getElementById('order-number').textContent = '#' + orderNumber;
+        }
+
+        // Notify the server that dropoff is complete
+        async function notifyDropoffComplete() {
+            const statusDiv = document.getElementById('status-update');
+
+            try {
+                const response = await fetch('/api/dropoff-complete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        orderNumber: orderNumber,
+                        requestId: requestId,
+                        status: status,
+                        lockerId: lockerId,
+                        towerId: towerId
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    statusDiv.innerHTML = '✓ Customer has been notified';
+                    statusDiv.classList.add('success');
+                } else {
+                    statusDiv.innerHTML = '✓ Drop-off recorded';
+                    statusDiv.classList.add('success');
+                }
+            } catch (error) {
+                console.error('Error notifying server:', error);
+                statusDiv.innerHTML = '✓ Drop-off complete';
+                statusDiv.classList.add('success');
+            }
+        }
+
+        // Call notification on page load
+        if (orderNumber && status === 'success') {
+            notifyDropoffComplete();
+        } else {
+            document.getElementById('status-update').innerHTML = '✓ Drop-off complete';
+            document.getElementById('status-update').classList.add('success');
+        }
+    </script>
+</body>
+</html>
