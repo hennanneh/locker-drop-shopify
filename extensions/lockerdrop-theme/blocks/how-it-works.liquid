@@ -1,0 +1,188 @@
+{% comment %}
+  LockerDrop - How It Works Block
+  Simple 3-step explanation of locker pickup
+{% endcomment %}
+
+{% style %}
+  .lockerdrop-how-it-works {
+    padding: 40px 20px;
+    background-color: #f8fafc;
+  }
+
+  .lockerdrop-how-it-works__container {
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+
+  .lockerdrop-how-it-works__header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .lockerdrop-how-it-works__title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 8px;
+  }
+
+  .lockerdrop-how-it-works__subtitle {
+    font-size: 16px;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .lockerdrop-how-it-works__steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+
+  .lockerdrop-how-it-works__step {
+    text-align: center;
+    padding: 24px 16px;
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    position: relative;
+  }
+
+  .lockerdrop-how-it-works__step-number {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 24px;
+    background: {{ block.settings.accent_color }};
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .lockerdrop-how-it-works__step-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+  }
+
+  .lockerdrop-how-it-works__step-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 6px;
+  }
+
+  .lockerdrop-how-it-works__step-desc {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .lockerdrop-how-it-works__cta {
+    text-align: center;
+  }
+
+  .lockerdrop-how-it-works__button {
+    display: inline-block;
+    padding: 12px 28px;
+    background: {{ block.settings.accent_color }};
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 8px;
+    transition: opacity 0.2s;
+  }
+
+  .lockerdrop-how-it-works__button:hover {
+    opacity: 0.9;
+  }
+
+  @media (max-width: 600px) {
+    .lockerdrop-how-it-works__steps {
+      grid-template-columns: 1fr;
+    }
+  }
+{% endstyle %}
+
+<div class="lockerdrop-how-it-works">
+  <div class="lockerdrop-how-it-works__container">
+    <div class="lockerdrop-how-it-works__header">
+      <h2 class="lockerdrop-how-it-works__title">{{ block.settings.title }}</h2>
+      <p class="lockerdrop-how-it-works__subtitle">{{ block.settings.subtitle }}</p>
+    </div>
+
+    <div class="lockerdrop-how-it-works__steps">
+      <div class="lockerdrop-how-it-works__step">
+        <div class="lockerdrop-how-it-works__step-number">1</div>
+        <div class="lockerdrop-how-it-works__step-icon">🛒</div>
+        <h3 class="lockerdrop-how-it-works__step-title">Select LockerDrop</h3>
+        <p class="lockerdrop-how-it-works__step-desc">Choose locker pickup at checkout and select a nearby location.</p>
+      </div>
+
+      <div class="lockerdrop-how-it-works__step">
+        <div class="lockerdrop-how-it-works__step-number">2</div>
+        <div class="lockerdrop-how-it-works__step-icon">📱</div>
+        <h3 class="lockerdrop-how-it-works__step-title">Get Your Link</h3>
+        <p class="lockerdrop-how-it-works__step-desc">When ready, you'll receive a text and email with your pickup link.</p>
+      </div>
+
+      <div class="lockerdrop-how-it-works__step">
+        <div class="lockerdrop-how-it-works__step-number">3</div>
+        <div class="lockerdrop-how-it-works__step-icon">🔓</div>
+        <h3 class="lockerdrop-how-it-works__step-title">Tap & Grab</h3>
+        <p class="lockerdrop-how-it-works__step-desc">Visit the locker, tap your link, and the door opens!</p>
+      </div>
+    </div>
+
+    {% if block.settings.button_url != blank %}
+      <div class="lockerdrop-how-it-works__cta">
+        <a href="{{ block.settings.button_url }}" class="lockerdrop-how-it-works__button">{{ block.settings.button_text }}</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "LockerDrop How It Works",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title",
+      "default": "How Locker Pickup Works"
+    },
+    {
+      "type": "text",
+      "id": "subtitle",
+      "label": "Subtitle",
+      "default": "Pick up your order from a secure locker at your convenience."
+    },
+    {
+      "type": "url",
+      "id": "button_url",
+      "label": "Button URL"
+    },
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Button text",
+      "default": "Start Shopping"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent color",
+      "default": "#5c6ac4"
+    }
+  ]
+}
+{% endschema %}

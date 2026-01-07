@@ -100,7 +100,7 @@ async function sendEmail(to, subject, html) {
 }
 
 // Shopify GraphQL Admin API helper
-const SHOPIFY_API_VERSION = '2024-10';
+const SHOPIFY_API_VERSION = '2025-10';
 
 async function shopifyGraphQL(shop, accessToken, query, variables = {}) {
     const response = await axios.post(
@@ -482,7 +482,7 @@ app.get('/api/validate-token/:shop', async (req, res) => {
 
         // Test the token with a simple API call
         const testResponse = await axios.get(
-            `https://${shop}/admin/api/2024-01/shop.json`,
+            `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/shop.json`,
             { headers: { 'X-Shopify-Access-Token': accessToken } }
         );
 
@@ -748,7 +748,7 @@ app.post('/carrier/rates', async (req, res) => {
                     }));
 
                     console.log(`📦 Calculating dimensions for ${lineItems.length} line items...`);
-                    const productDimensions = await getProductDimensions(shopDomain, shopAccessToken, lineItems);
+                    const productDimensions = await getProductDimensionsFromOrder(shopDomain, shopAccessToken, lineItems);
                     console.log(`📦 Got ${productDimensions.length} product dimensions`);
                     requiredLockerTypeId = calculateRequiredLockerSize(productDimensions);
                     requiredSizeName = LOCKER_SIZES.find(s => s.id === requiredLockerTypeId)?.name?.toLowerCase() || 'medium';
@@ -897,13 +897,18 @@ app.post('/carrier/rates', async (req, res) => {
         console.log(`💰 Price: ${freePickup ? 'FREE (seller absorbs fee)' : '$1.00'}`);
         console.log(`✅ Returning ${availableLocations.length} available locker options (pickup: ${pickupDateFormatted})`);
 
-        const rates = availableLocations.map(location => ({
-            service_name: `LockerDrop - ${location.name} (Pickup ${pickupDateFormatted})`,
-            service_code: `lockerdrop_${location.id}`,
-            total_price: price,
-            currency: 'USD',
-            description: `${location.address || location.street_address} (${location.distance.toFixed(1)} mi)`
-        }));
+        const rates = availableLocations.map(location => {
+            const address = location.address || location.street_address || '';
+            return {
+                // Format: LockerDrop @ Name | Address (Pickup Date)
+                // This allows Shopify email templates to parse location and address
+                service_name: `LockerDrop @ ${location.name} | ${address} (Pickup ${pickupDateFormatted})`,
+                service_code: `lockerdrop_${location.id}`,
+                total_price: price,
+                currency: 'USD',
+                description: `${address} (${location.distance.toFixed(1)} mi away)`
+            };
+        });
 
         res.json({ rates });
     } catch (error) {
@@ -2979,6 +2984,123 @@ app.get('/api/checkout/lockers', async (req, res) => {
     } catch (error) {
         console.error('Error fetching checkout lockers:', error.response?.data || error.message);
         res.status(500).json({ error: 'Failed to fetch lockers', lockers: [] });
+    }
+});
+
+// ============================================
+// PUBLIC LOCKER FINDER API
+// ============================================
+
+// Public endpoint for theme locker finder section
+// No authentication required - for customer-facing locker discovery
+app.get('/api/public/lockers', async (req, res) => {
+    try {
+        const { lat, lon, limit = 6 } = req.query;
+
+        console.log(`📍 Public locker finder request: lat=${lat}, lon=${lon}, limit=${limit}`);
+
+        // Validate coordinates
+        if (!lat || !lon) {
+            return res.status(400).json({ error: 'Latitude and longitude are required', locations: [] });
+        }
+
+        const latitude = parseFloat(lat);
+        const longitude = parseFloat(lon);
+        const resultLimit = Math.min(parseInt(limit) || 6, 20); // Max 20 results
+
+        if (isNaN(latitude) || isNaN(longitude)) {
+            return res.status(400).json({ error: 'Invalid coordinates', locations: [] });
+        }
+
+        // Get Harbor token
+        const tokenResponse = await axios.post(
+            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
+        );
+
+        const harborAccessToken = tokenResponse.data.access_token;
+
+        // Get all locations from Harbor
+        const locationsResponse = await axios.get(
+            'https://api.sandbox.harborlockers.com/api/v1/locations/',
+            {
+                headers: { 'Authorization': `Bearer ${harborAccessToken}` },
+                params: { limit: 100 }
+            }
+        );
+
+        const allLocations = locationsResponse.data;
+
+        // Calculate distances and check availability
+        const locationsWithDistance = [];
+
+        for (const location of allLocations) {
+            // Calculate distance
+            let distance = null;
+            if (location.lat && location.lon) {
+                distance = calculateDistance(latitude, longitude, location.lat, location.lon);
+            }
+
+            // Get availability for this location
+            let availability = [];
+            try {
+                const availabilityResponse = await axios.get(
+                    `https://api.sandbox.harborlockers.com/api/v1/locations/${location.id}/availability`,
+                    { headers: { 'Authorization': `Bearer ${harborAccessToken}` }}
+                );
+
+                const availData = availabilityResponse.data;
+
+                if (availData.byType && Array.isArray(availData.byType)) {
+                    availability = availData.byType.map(t => ({
+                        size: t.lockerType?.name || 'Unknown',
+                        available: t.lockerAvailability?.availableLockers || 0
+                    }));
+                }
+            } catch (availError) {
+                console.log(`⚠️ Could not check availability for ${location.name}`);
+            }
+
+            locationsWithDistance.push({
+                id: location.id,
+                name: location.name || location.location_name,
+                address: location.address || `${location.street_address || ''}, ${location.city || ''}, ${location.state || ''} ${location.zip || ''}`.replace(/^, /, '').trim(),
+                street_address: location.street_address,
+                city: location.city,
+                state: location.state,
+                zip: location.zip,
+                lat: location.lat,
+                lon: location.lon,
+                distance: distance,
+                availability: availability
+            });
+        }
+
+        // Sort by distance
+        locationsWithDistance.sort((a, b) => {
+            if (a.distance !== null && b.distance !== null) {
+                return a.distance - b.distance;
+            }
+            if (a.distance === null) return 1;
+            if (b.distance === null) return -1;
+            return 0;
+        });
+
+        // Limit results
+        const results = locationsWithDistance.slice(0, resultLimit);
+
+        console.log(`✅ Public locker finder returning ${results.length} locations`);
+
+        // Add CORS headers for theme extension
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Methods', 'GET');
+        res.header('Access-Control-Allow-Headers', 'Content-Type');
+
+        res.json({ locations: results });
+    } catch (error) {
+        console.error('Error in public locker finder:', error.response?.data || error.message);
+        res.status(500).json({ error: 'Failed to fetch lockers', locations: [] });
     }
 });
 
@@ -5138,7 +5260,7 @@ async function registerCarrierService(shop, accessToken) {
     try {
         console.log('🚚 Registering carrier service...');
         const response = await axios.post(
-            `https://${shop}/admin/api/2024-10/carrier_services.json`,
+            `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/carrier_services.json`,
             {
                 carrier_service: {
                     name: 'LockerDrop',
@@ -5179,7 +5301,7 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
 
         // First, get the fulfillment orders for this order
         const fulfillmentOrdersResponse = await axios.get(
-            `https://${shop}/admin/api/2024-10/orders/${shopifyOrderId}/fulfillment_orders.json`,
+            `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/orders/${shopifyOrderId}/fulfillment_orders.json`,
             {
                 headers: {
                     'X-Shopify-Access-Token': accessToken,
@@ -5208,7 +5330,7 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
         // Create fulfillment for each open fulfillment order
         for (const fo of openFulfillmentOrders) {
             const fulfillmentResponse = await axios.post(
-                `https://${shop}/admin/api/2024-10/fulfillments.json`,
+                `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/fulfillments.json`,
                 {
                     fulfillment: {
                         line_items_by_fulfillment_order: [
@@ -5490,15 +5612,20 @@ app.post('/carrier-service/rates', async (req, res) => {
         console.log(`💰 Price: ${freePickup ? 'FREE (seller absorbs fee)' : '$1.00'}`);
 
         // Create shipping rates only for locations with available lockers
-        const rates = availableLocations.map(location => ({
-            service_name: `LockerDrop - ${location.name} (Pickup ${pickupDateFormatted})`,
-            service_code: `lockerdrop_${location.id}`,
-            total_price: price,
-            currency: 'USD',
-            description: `${location.address || location.street_address} (${location.distance.toFixed(1)} mi)`,
-            min_delivery_date: pickupDateISO,
-            max_delivery_date: pickupDateISO
-        }));
+        const rates = availableLocations.map(location => {
+            const address = location.address || location.street_address || '';
+            return {
+                // Format: LockerDrop @ Name | Address (Pickup Date)
+                // This allows Shopify email templates to parse location and address
+                service_name: `LockerDrop @ ${location.name} | ${address} (Pickup ${pickupDateFormatted})`,
+                service_code: `lockerdrop_${location.id}`,
+                total_price: price,
+                currency: 'USD',
+                description: `${address} (${location.distance.toFixed(1)} mi away)`,
+                min_delivery_date: pickupDateISO,
+                max_delivery_date: pickupDateISO
+            };
+        });
 
         console.log(`✅ Returning ${rates.length} available locker options (pickup: ${pickupDateFormatted})`);
 

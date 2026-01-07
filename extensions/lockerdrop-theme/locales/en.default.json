@@ -1,0 +1,28 @@
+{
+  "lockerdrop": {
+    "badge": {
+      "title": "Available for Locker Pickup",
+      "description": "Skip the wait! Pick up your order from a secure locker at your convenience."
+    },
+    "cart_reminder": {
+      "title": "Try Locker Pickup!",
+      "description": "Select \"LockerDrop\" at checkout to pick up your order from a secure locker — available 24/7!"
+    },
+    "how_it_works": {
+      "title": "How Locker Pickup Works",
+      "subtitle": "Pick up your order from a secure locker at your convenience. No waiting, no missed deliveries."
+    },
+    "locker_finder": {
+      "title": "Find a Locker Near You",
+      "subtitle": "Enter your zip code to find available pickup locations",
+      "button": "Find Lockers",
+      "use_location": "Use my current location",
+      "loading": "Finding nearby lockers...",
+      "no_results": "No locker locations found nearby"
+    },
+    "promo": {
+      "title": "Now Offering Locker Pickup!",
+      "description": "Pick up your orders from secure lockers 24/7 — no waiting for deliveries!"
+    }
+  }
+}

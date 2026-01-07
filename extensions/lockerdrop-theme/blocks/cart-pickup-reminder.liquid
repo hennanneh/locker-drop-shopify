@@ -1,0 +1,145 @@
+{% comment %}
+  LockerDrop - Cart Pickup Reminder
+  Remind customers about locker pickup on cart page
+{% endcomment %}
+
+{% style %}
+  .lockerdrop-cart-reminder {
+    padding: 14px 16px;
+    background: {{ block.settings.background_color }};
+    border-radius: 10px;
+    border: 1px solid #fde047;
+    margin: 16px 0;
+  }
+
+  .lockerdrop-cart-reminder__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .lockerdrop-cart-reminder__icon {
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .lockerdrop-cart-reminder__title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #854d0e;
+    margin: 0;
+  }
+
+  .lockerdrop-cart-reminder__text {
+    font-size: 13px;
+    color: #a16207;
+    margin: 0 0 12px;
+    line-height: 1.4;
+  }
+
+  .lockerdrop-cart-reminder__steps {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+
+  .lockerdrop-cart-reminder__step {
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
+    padding: 10px;
+    background: #ffffff;
+    border-radius: 6px;
+  }
+
+  .lockerdrop-cart-reminder__step-icon {
+    font-size: 20px;
+    margin-bottom: 4px;
+  }
+
+  .lockerdrop-cart-reminder__step-text {
+    font-size: 11px;
+    color: #a16207;
+    margin: 0;
+    line-height: 1.3;
+  }
+
+  .lockerdrop-cart-reminder__link {
+    display: inline-block;
+    font-size: 12px;
+    color: #854d0e;
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .lockerdrop-cart-reminder__link:hover {
+    text-decoration: underline;
+  }
+{% endstyle %}
+
+<div class="lockerdrop-cart-reminder">
+  <div class="lockerdrop-cart-reminder__header">
+    <span class="lockerdrop-cart-reminder__icon">📦</span>
+    <h3 class="lockerdrop-cart-reminder__title">{{ block.settings.title }}</h3>
+  </div>
+  <p class="lockerdrop-cart-reminder__text">{{ block.settings.description }}</p>
+
+  <div class="lockerdrop-cart-reminder__steps">
+    <div class="lockerdrop-cart-reminder__step">
+      <div class="lockerdrop-cart-reminder__step-icon">🛒</div>
+      <p class="lockerdrop-cart-reminder__step-text">Select LockerDrop at checkout</p>
+    </div>
+    <div class="lockerdrop-cart-reminder__step">
+      <div class="lockerdrop-cart-reminder__step-icon">📱</div>
+      <p class="lockerdrop-cart-reminder__step-text">Get pickup link via text</p>
+    </div>
+    <div class="lockerdrop-cart-reminder__step">
+      <div class="lockerdrop-cart-reminder__step-icon">🔓</div>
+      <p class="lockerdrop-cart-reminder__step-text">Tap to open & grab</p>
+    </div>
+  </div>
+
+  {% if block.settings.link_url != blank %}
+    <a href="{{ block.settings.link_url }}" class="lockerdrop-cart-reminder__link">{{ block.settings.link_text }} →</a>
+  {% endif %}
+</div>
+
+{% schema %}
+{
+  "name": "LockerDrop Cart Reminder",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title",
+      "default": "Try Locker Pickup!"
+    },
+    {
+      "type": "text",
+      "id": "description",
+      "label": "Description",
+      "default": "Select \"LockerDrop\" at checkout to pick up from a secure locker — available 24/7!"
+    },
+    {
+      "type": "url",
+      "id": "link_url",
+      "label": "Link URL"
+    },
+    {
+      "type": "text",
+      "id": "link_text",
+      "label": "Link text",
+      "default": "How it works"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background",
+      "default": "#fefce8"
+    }
+  ]
+}
+{% endschema %}

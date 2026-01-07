@@ -1,0 +1,577 @@
+{% comment %}
+  LockerDrop - How It Works Full Page
+  Complete page section for explaining locker pickup
+{% endcomment %}
+
+{% style %}
+  .ld-page {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  /* Hero Section */
+  .ld-hero {
+    text-align: center;
+    padding: 60px 20px;
+    background: linear-gradient(135deg, {{ block.settings.accent_color }} 0%, #4338ca 100%);
+    color: #ffffff;
+  }
+
+  .ld-hero__icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+
+  .ld-hero__title {
+    font-size: 32px;
+    font-weight: 700;
+    margin: 0 0 12px;
+  }
+
+  .ld-hero__subtitle {
+    font-size: 18px;
+    opacity: 0.9;
+    margin: 0;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+
+  /* Steps Section */
+  .ld-steps {
+    padding: 60px 20px;
+    background: #f8fafc;
+  }
+
+  .ld-steps__container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .ld-steps__header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .ld-steps__title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 8px;
+  }
+
+  .ld-steps__grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  .ld-step {
+    text-align: center;
+    padding: 32px 20px;
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid #e2e8f0;
+    position: relative;
+  }
+
+  .ld-step__number {
+    position: absolute;
+    top: -14px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 28px;
+    height: 28px;
+    background: {{ block.settings.accent_color }};
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ld-step__icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+
+  .ld-step__title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 8px;
+  }
+
+  .ld-step__desc {
+    font-size: 14px;
+    color: #64748b;
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  /* Benefits Section */
+  .ld-benefits {
+    padding: 60px 20px;
+    background: #ffffff;
+  }
+
+  .ld-benefits__container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .ld-benefits__header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+
+  .ld-benefits__title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+  }
+
+  .ld-benefits__grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .ld-benefit {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 24px;
+    background: #f8fafc;
+    border-radius: 12px;
+  }
+
+  .ld-benefit__icon {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    background: {{ block.settings.accent_color }};
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+  }
+
+  .ld-benefit__title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 4px;
+  }
+
+  .ld-benefit__desc {
+    font-size: 14px;
+    color: #64748b;
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  /* Finder Section */
+  .ld-finder {
+    padding: 60px 20px;
+    background: #f8fafc;
+  }
+
+  .ld-finder__container {
+    max-width: 500px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .ld-finder__title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 8px;
+  }
+
+  .ld-finder__subtitle {
+    font-size: 15px;
+    color: #64748b;
+    margin: 0 0 24px;
+  }
+
+  .ld-finder__form {
+    display: flex;
+    gap: 10px;
+    max-width: 400px;
+    margin: 0 auto 24px;
+  }
+
+  .ld-finder__input {
+    flex: 1;
+    padding: 14px 18px;
+    font-size: 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    outline: none;
+  }
+
+  .ld-finder__input:focus {
+    border-color: {{ block.settings.accent_color }};
+  }
+
+  .ld-finder__button {
+    padding: 14px 24px;
+    background: {{ block.settings.accent_color }};
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .ld-finder__button:hover {
+    opacity: 0.9;
+  }
+
+  .ld-finder__results {
+    text-align: left;
+  }
+
+  .ld-finder__loading {
+    text-align: center;
+    padding: 30px;
+    color: #64748b;
+  }
+
+  .ld-finder__spinner {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+    border: 3px solid #e2e8f0;
+    border-radius: 50%;
+    border-top-color: {{ block.settings.accent_color }};
+    animation: ld-spin 0.8s linear infinite;
+  }
+
+  @keyframes ld-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .ld-finder__empty {
+    text-align: center;
+    padding: 24px;
+    background: #ffffff;
+    border-radius: 10px;
+    color: #64748b;
+  }
+
+  .ld-finder__list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .ld-finder__location {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .ld-finder__loc-icon {
+    width: 40px;
+    height: 40px;
+    background: {{ block.settings.accent_color }};
+    color: #ffffff;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .ld-finder__loc-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ld-finder__loc-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 2px;
+  }
+
+  .ld-finder__loc-address {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .ld-finder__loc-distance {
+    padding: 4px 10px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 12px;
+    white-space: nowrap;
+  }
+
+  /* CTA Section */
+  .ld-cta {
+    padding: 60px 20px;
+    background: #1e293b;
+    text-align: center;
+  }
+
+  .ld-cta__title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 0 0 12px;
+  }
+
+  .ld-cta__subtitle {
+    font-size: 16px;
+    color: #94a3b8;
+    margin: 0 0 24px;
+  }
+
+  .ld-cta__button {
+    display: inline-block;
+    padding: 16px 32px;
+    background: {{ block.settings.accent_color }};
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 10px;
+  }
+
+  .ld-cta__button:hover {
+    opacity: 0.9;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .ld-hero {
+      padding: 40px 20px;
+    }
+    .ld-hero__title {
+      font-size: 26px;
+    }
+    .ld-steps__grid {
+      grid-template-columns: 1fr;
+    }
+    .ld-benefits__grid {
+      grid-template-columns: 1fr;
+    }
+    .ld-finder__form {
+      flex-direction: column;
+    }
+  }
+{% endstyle %}
+
+<div class="ld-page">
+  <!-- Hero -->
+  <div class="ld-hero">
+    <div class="ld-hero__icon">📦</div>
+    <h1 class="ld-hero__title">{{ block.settings.hero_title }}</h1>
+    <p class="ld-hero__subtitle">{{ block.settings.hero_subtitle }}</p>
+  </div>
+
+  <!-- Steps -->
+  <div class="ld-steps">
+    <div class="ld-steps__container">
+      <div class="ld-steps__header">
+        <h2 class="ld-steps__title">How It Works</h2>
+      </div>
+      <div class="ld-steps__grid">
+        <div class="ld-step">
+          <div class="ld-step__number">1</div>
+          <div class="ld-step__icon">🛒</div>
+          <h3 class="ld-step__title">Choose LockerDrop</h3>
+          <p class="ld-step__desc">At checkout, select "LockerDrop" as your delivery method and pick a locker location near you.</p>
+        </div>
+        <div class="ld-step">
+          <div class="ld-step__number">2</div>
+          <div class="ld-step__icon">📱</div>
+          <h3 class="ld-step__title">Get Notified</h3>
+          <p class="ld-step__desc">When your order is ready, you'll receive a text message and email with your unique pickup link.</p>
+        </div>
+        <div class="ld-step">
+          <div class="ld-step__number">3</div>
+          <div class="ld-step__icon">🔓</div>
+          <h3 class="ld-step__title">Tap & Collect</h3>
+          <p class="ld-step__desc">Visit the locker, tap your link, and the door opens automatically. Grab your package and go!</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Benefits -->
+  <div class="ld-benefits">
+    <div class="ld-benefits__container">
+      <div class="ld-benefits__header">
+        <h2 class="ld-benefits__title">Why Choose Locker Pickup?</h2>
+      </div>
+      <div class="ld-benefits__grid">
+        <div class="ld-benefit">
+          <div class="ld-benefit__icon">🕐</div>
+          <div>
+            <h3 class="ld-benefit__title">24/7 Access</h3>
+            <p class="ld-benefit__desc">Pick up your order whenever it suits you, day or night. No waiting for delivery windows.</p>
+          </div>
+        </div>
+        <div class="ld-benefit">
+          <div class="ld-benefit__icon">🔒</div>
+          <div>
+            <h3 class="ld-benefit__title">Secure & Safe</h3>
+            <p class="ld-benefit__desc">Your package stays protected in a locked compartment until you're ready to collect it.</p>
+          </div>
+        </div>
+        <div class="ld-benefit">
+          <div class="ld-benefit__icon">⚡</div>
+          <div>
+            <h3 class="ld-benefit__title">Quick & Easy</h3>
+            <p class="ld-benefit__desc">No lines, no signatures. Just tap your link and the locker opens instantly.</p>
+          </div>
+        </div>
+        <div class="ld-benefit">
+          <div class="ld-benefit__icon">📍</div>
+          <div>
+            <h3 class="ld-benefit__title">Convenient Locations</h3>
+            <p class="ld-benefit__desc">Find lockers in convenient spots near work, home, or your daily commute.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Locker Finder -->
+  <div class="ld-finder">
+    <div class="ld-finder__container">
+      <h2 class="ld-finder__title">Find a Locker Near You</h2>
+      <p class="ld-finder__subtitle">Enter your zip code to see available pickup locations</p>
+      <form class="ld-finder__form" onsubmit="ldPageSearch(event)">
+        <input type="text" class="ld-finder__input" id="ld-page-zip" placeholder="Enter zip code" autocomplete="postal-code">
+        <button type="submit" class="ld-finder__button">Search</button>
+      </form>
+      <div class="ld-finder__results" id="ld-page-results"></div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="ld-cta">
+    <h2 class="ld-cta__title">Ready to Try Locker Pickup?</h2>
+    <p class="ld-cta__subtitle">Select LockerDrop at checkout on your next order</p>
+    <a href="{{ block.settings.cta_url | default: '/collections/all' }}" class="ld-cta__button">{{ block.settings.cta_text }}</a>
+  </div>
+</div>
+
+<script>
+  const LD_PAGE_API = 'https://app.lockerdrop.it';
+
+  async function ldPageSearch(e) {
+    e.preventDefault();
+    const zip = document.getElementById('ld-page-zip').value.trim();
+    if (!zip) return;
+
+    ldPageShowLoading();
+
+    try {
+      const geoRes = await fetch('https://nominatim.openstreetmap.org/search?postalcode=' + encodeURIComponent(zip) + '&country=US&format=json&limit=1');
+      const geoData = await geoRes.json();
+
+      if (!geoData.length) {
+        ldPageShowEmpty('No locations found for this zip code');
+        return;
+      }
+
+      const lat = parseFloat(geoData[0].lat);
+      const lon = parseFloat(geoData[0].lon);
+
+      const res = await fetch(LD_PAGE_API + '/api/public/lockers?lat=' + lat + '&lon=' + lon + '&limit=4');
+      const data = await res.json();
+
+      if (!data.locations || !data.locations.length) {
+        ldPageShowEmpty('No locker locations found nearby');
+        return;
+      }
+
+      ldPageShowResults(data.locations);
+    } catch (err) {
+      ldPageShowEmpty('Unable to search. Please try again.');
+    }
+  }
+
+  function ldPageShowLoading() {
+    document.getElementById('ld-page-results').innerHTML = '<div class="ld-finder__loading"><div class="ld-finder__spinner"></div><p>Finding nearby lockers...</p></div>';
+  }
+
+  function ldPageShowEmpty(msg) {
+    document.getElementById('ld-page-results').innerHTML = '<div class="ld-finder__empty"><p>' + msg + '</p></div>';
+  }
+
+  function ldPageShowResults(locations) {
+    var html = '<div class="ld-finder__list">';
+    for (var i = 0; i < locations.length; i++) {
+      var loc = locations[i];
+      html += '<div class="ld-finder__location">';
+      html += '<div class="ld-finder__loc-icon">📦</div>';
+      html += '<div class="ld-finder__loc-info">';
+      html += '<h3 class="ld-finder__loc-name">' + loc.name + '</h3>';
+      html += '<p class="ld-finder__loc-address">' + (loc.address || '') + '</p>';
+      html += '</div>';
+      if (loc.distance) {
+        html += '<span class="ld-finder__loc-distance">' + loc.distance.toFixed(1) + ' mi</span>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    document.getElementById('ld-page-results').innerHTML = html;
+  }
+</script>
+
+{% schema %}
+{
+  "name": "LockerDrop How It Works",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "hero_title",
+      "label": "Hero title",
+      "default": "LockerDrop Pickup"
+    },
+    {
+      "type": "text",
+      "id": "hero_subtitle",
+      "label": "Hero subtitle",
+      "default": "Skip the delivery wait. Pick up from a secure locker anytime."
+    },
+    {
+      "type": "url",
+      "id": "cta_url",
+      "label": "Button URL"
+    },
+    {
+      "type": "text",
+      "id": "cta_text",
+      "label": "Button text",
+      "default": "Start Shopping"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent color",
+      "default": "#5c6ac4"
+    }
+  ]
+}
+{% endschema %}

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shipping Confirmation - {{ shop.name }}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f5; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding: 32px 40px; text-align: center; background-color: {{ shop.email_accent_color | default: '#5c6ac4' }};">
+              {% if shop.email_logo_url %}
+                <img src="{{ shop.email_logo_url }}" alt="{{ shop.name }}" style="max-height: 60px; max-width: 200px;">
+              {% else %}
+                <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">{{ shop.name }}</h1>
+              {% endif %}
+            </td>
+          </tr>
+
+          {% comment %} Parse LockerDrop shipping details {% endcomment %}
+          {% assign is_lockerdrop = false %}
+          {% assign lockerdrop_location = "" %}
+          {% assign lockerdrop_address = "" %}
+          {% for shipping_method in order.shipping_lines %}
+            {% assign title_lower = shipping_method.title | downcase %}
+            {% if title_lower contains "lockerdrop" %}
+              {% assign is_lockerdrop = true %}
+              {% if shipping_method.title contains " | " %}
+                {% assign after_at = shipping_method.title | split: "@ " | last %}
+                {% assign parts = after_at | split: " | " %}
+                {% assign lockerdrop_location = parts[0] %}
+                {% assign address_date = parts[1] | split: " (Pickup " %}
+                {% assign lockerdrop_address = address_date[0] %}
+              {% else %}
+                {% assign lockerdrop_location = shipping_method.title | remove: "LockerDrop - " | split: " (Pickup" | first %}
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+
+          {% if is_lockerdrop %}
+          <!-- LockerDrop: Ready for Pickup -->
+          <tr>
+            <td style="padding: 40px 40px 20px; text-align: center;">
+              <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+                <table cellpadding="0" cellspacing="0"><tr>
+                  <td style="width: 64px; height: 64px; background-color: #dbeafe; border-radius: 50%; text-align: center; vertical-align: middle; font-size: 28px; line-height: 64px;">&#128230;</td>
+                </tr></table>
+              </td></tr></table>
+              <h1 style="margin: 16px 0 8px; color: #1a1a1a; font-size: 28px; font-weight: 600;">Ready for Pickup!</h1>
+              <p style="margin: 0; color: #6b7280; font-size: 16px;">Your order has been dropped off at the locker</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 0 40px 30px; text-align: center;">
+              <p style="margin: 0; color: #6b7280; font-size: 14px;">Order {{ order_name }}</p>
+            </td>
+          </tr>
+
+          <!-- Pickup Location Card -->
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #5c6ac4; border-radius: 12px;">
+                <tr>
+                  <td style="padding: 24px; text-align: center;">
+                    <p style="margin: 0 0 4px; color: #c7d2fe; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Pickup Location</p>
+                    <h2 style="margin: 0 0 8px; color: #ffffff; font-size: 22px; font-weight: 600;">{{ lockerdrop_location }}</h2>
+                    {% if lockerdrop_address != blank and lockerdrop_address != "" %}
+                      <p style="margin: 0; color: #e0e7ff; font-size: 15px;">{{ lockerdrop_address }}</p>
+                    {% endif %}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- What To Do -->
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #ecfdf5; border-radius: 8px; border-left: 4px solid #10b981;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <h3 style="margin: 0 0 12px; color: #065f46; font-size: 16px; font-weight: 600;">&#127881; Your package is waiting!</h3>
+                    <p style="margin: 0 0 16px; color: #047857; font-size: 14px; line-height: 1.6;">
+                      Head to the locker location and use the pickup link we sent you (check your text messages or previous email) to open the locker.
+                    </p>
+                    <p style="margin: 0; color: #047857; font-size: 13px;">
+                      <strong>Didn't get the link?</strong> Contact {{ shop.email }} for assistance.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          {% else %}
+          <!-- Standard Shipping -->
+          <tr>
+            <td style="padding: 40px 40px 20px; text-align: center;">
+              <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+                <table cellpadding="0" cellspacing="0"><tr>
+                  <td style="width: 64px; height: 64px; background-color: #dbeafe; border-radius: 50%; text-align: center; vertical-align: middle; font-size: 28px; line-height: 64px;">&#128666;</td>
+                </tr></table>
+              </td></tr></table>
+              <h1 style="margin: 16px 0 8px; color: #1a1a1a; font-size: 28px; font-weight: 600;">Your Order is On Its Way!</h1>
+              <p style="margin: 0; color: #6b7280; font-size: 16px;">Your order has been shipped</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 0 40px 30px; text-align: center;">
+              <p style="margin: 0; color: #6b7280; font-size: 14px;">Order {{ order_name }}</p>
+            </td>
+          </tr>
+
+          <!-- Tracking Info -->
+          {% if fulfillment.tracking_url %}
+          <tr>
+            <td style="padding: 0 40px 30px; text-align: center;">
+              <table cellpadding="0" cellspacing="0" style="margin: 0 auto;"><tr>
+                <td style="background-color: {{ shop.email_accent_color | default: '#5c6ac4' }}; border-radius: 6px;">
+                  <a href="{{ fulfillment.tracking_url }}" style="display: inline-block; color: #ffffff; padding: 14px 32px; text-decoration: none; font-size: 14px; font-weight: 600;">Track Your Package</a>
+                </td>
+              </tr></table>
+              {% if fulfillment.tracking_number %}
+                <p style="margin: 16px 0 0; color: #6b7280; font-size: 13px;">Tracking: {{ fulfillment.tracking_number }}</p>
+              {% endif %}
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- Shipping Address -->
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <h3 style="margin: 0 0 12px; color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Shipping To</h3>
+                    <p style="margin: 0; color: #1e293b; font-size: 14px; line-height: 1.6;">
+                      {{ shipping_address.name }}<br>
+                      {{ shipping_address.street }}<br>
+                      {{ shipping_address.city }}, {{ shipping_address.province_code }} {{ shipping_address.zip }}<br>
+                      {{ shipping_address.country }}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- Order Items -->
+          <tr>
+            <td style="padding: 0 40px 16px;">
+              <h2 style="margin: 0; color: #1e293b; font-size: 18px; font-weight: 600; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">Items in This Shipment</h2>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                {% for line_item in line_items %}
+                <tr>
+                  <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9;">
+                    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                      <td width="60" style="vertical-align: top;">
+                        {% if line_item.image %}
+                          <img src="{{ line_item.image | img_url: 'compact_cropped' }}" alt="{{ line_item.title }}" style="width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0;">
+                        {% else %}
+                          <div style="width: 56px; height: 56px; background-color: #f1f5f9; border-radius: 6px;"></div>
+                        {% endif %}
+                      </td>
+                      <td style="vertical-align: top; padding-left: 12px;">
+                        <p style="margin: 0 0 4px; color: #1e293b; font-size: 14px; font-weight: 500;">{{ line_item.title }}</p>
+                        {% if line_item.variant_title != "Default Title" %}
+                          <p style="margin: 0 0 4px; color: #64748b; font-size: 13px;">{{ line_item.variant_title }}</p>
+                        {% endif %}
+                        <p style="margin: 0; color: #64748b; font-size: 13px;">Qty: {{ line_item.quantity }}</p>
+                      </td>
+                    </tr></table>
+                  </td>
+                </tr>
+                {% endfor %}
+              </table>
+            </td>
+          </tr>
+
+          <!-- View Order Button -->
+          <tr>
+            <td style="padding: 0 40px 40px; text-align: center;">
+              <table cellpadding="0" cellspacing="0" style="margin: 0 auto;"><tr>
+                <td style="background-color: #f1f5f9; border-radius: 6px;">
+                  <a href="{{ order_status_url }}" style="display: inline-block; color: #475569; padding: 14px 32px; text-decoration: none; font-size: 14px; font-weight: 600;">View Order Details</a>
+                </td>
+              </tr></table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 24px 40px; background-color: #f8fafc; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="margin: 0 0 8px; color: #64748b; font-size: 13px;">Questions? Contact us at {{ shop.email }}</p>
+              <p style="margin: 0; color: #94a3b8; font-size: 12px;">&copy; {{ 'now' | date: '%Y' }} {{ shop.name }}. All rights reserved.</p>
+              {% if is_lockerdrop %}<p style="margin: 12px 0 0; color: #94a3b8; font-size: 11px;">Locker pickup powered by LockerDrop</p>{% endif %}
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

@@ -394,6 +394,7 @@
             <button class="tab" onclick="showTab('billing', this)" style="display: none;">Billing</button> <!-- Hidden: using $1/order via shipping rate -->
             <button class="tab" id="branding-tab" onclick="showTab('branding', this)">Branding</button>
             <button class="tab" onclick="showTab('settings', this)">Settings</button>
+            <button class="tab" onclick="showTab('theme', this)">Theme Blocks</button>
             <button class="tab" onclick="showTab('help', this)">Help</button>
         </div>
 
@@ -488,6 +489,81 @@
 
                 <div id="products-list">
                     <p>Loading products...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Theme Blocks Tab -->
+        <div id="theme" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    Theme Blocks for Your Store
+                </div>
+                <p style="color: #6d7175; margin-bottom: 20px;">
+                    LockerDrop includes theme blocks you can add to your store to promote locker pickup to customers.
+                    These blocks are available in your theme customizer.
+                </p>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+                    <!-- Available Blocks -->
+                    <div style="border: 1px solid #e1e3e5; border-radius: 8px; padding: 20px;">
+                        <h3 style="margin-bottom: 16px; color: #5c6ac4;">Available Blocks</h3>
+                        <div style="line-height: 1.8;">
+                            <div style="margin-bottom: 12px; padding: 12px; background: #f6f6f7; border-radius: 6px;">
+                                <strong>LockerDrop Badge</strong>
+                                <p style="font-size: 13px; color: #6d7175; margin: 4px 0 0;">Shows "Available for Locker Pickup" on product pages</p>
+                            </div>
+                            <div style="margin-bottom: 12px; padding: 12px; background: #f6f6f7; border-radius: 6px;">
+                                <strong>LockerDrop Cart Reminder</strong>
+                                <p style="font-size: 13px; color: #6d7175; margin: 4px 0 0;">Reminds customers about locker pickup on cart page</p>
+                            </div>
+                            <div style="margin-bottom: 12px; padding: 12px; background: #f6f6f7; border-radius: 6px;">
+                                <strong>LockerDrop How It Works</strong>
+                                <p style="font-size: 13px; color: #6d7175; margin: 4px 0 0;">Full-page section with steps, benefits, and locker finder</p>
+                            </div>
+                            <div style="margin-bottom: 12px; padding: 12px; background: #f6f6f7; border-radius: 6px;">
+                                <strong>LockerDrop Locker Finder</strong>
+                                <p style="font-size: 13px; color: #6d7175; margin: 4px 0 0;">Zip code search to find nearby locker locations</p>
+                            </div>
+                            <div style="margin-bottom: 12px; padding: 12px; background: #f6f6f7; border-radius: 6px;">
+                                <strong>LockerDrop Promo Banner</strong>
+                                <p style="font-size: 13px; color: #6d7175; margin: 4px 0 0;">Eye-catching banner to promote locker pickup</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- How to Add Blocks -->
+                    <div style="border: 1px solid #e1e3e5; border-radius: 8px; padding: 20px;">
+                        <h3 style="margin-bottom: 16px; color: #5c6ac4;">How to Add Blocks</h3>
+                        <ol style="margin-left: 20px; line-height: 2;">
+                            <li>Go to <strong>Online Store → Themes</strong> in Shopify Admin</li>
+                            <li>Click <strong>Customize</strong> on your active theme</li>
+                            <li>Navigate to the page where you want the block (e.g., Product page, Cart, Home)</li>
+                            <li>Click <strong>+ Add block</strong> or <strong>+ Add section</strong></li>
+                            <li>Find LockerDrop blocks under <strong>Apps</strong></li>
+                            <li>Configure colors and text as needed</li>
+                            <li>Click <strong>Save</strong></li>
+                        </ol>
+                    </div>
+
+                    <!-- Creating How It Works Page -->
+                    <div style="border: 1px solid #e1e3e5; border-radius: 8px; padding: 20px;">
+                        <h3 style="margin-bottom: 16px; color: #5c6ac4;">Create a "How It Works" Page</h3>
+                        <p style="margin-bottom: 12px; line-height: 1.6;">We recommend creating a dedicated page to explain locker pickup:</p>
+                        <ol style="margin-left: 20px; line-height: 2;">
+                            <li>Go to <strong>Online Store → Pages</strong></li>
+                            <li>Click <strong>Add page</strong></li>
+                            <li>Title: <strong>LockerDrop How It Works</strong></li>
+                            <li>Save the page</li>
+                            <li>Go to <strong>Themes → Customize</strong></li>
+                            <li>Select <strong>Pages → LockerDrop How It Works</strong></li>
+                            <li>Add the <strong>LockerDrop How It Works</strong> block</li>
+                            <li>Save</li>
+                        </ol>
+                        <p style="margin-top: 12px; padding: 10px; background: #e3f5ef; border-radius: 6px; font-size: 13px; color: #008060;">
+                            <strong>Tip:</strong> Link to this page from product badges and cart reminders using their Link URL settings.
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>

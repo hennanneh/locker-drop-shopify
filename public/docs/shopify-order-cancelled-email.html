@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Cancelled - {{ shop.name }}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f5; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding: 32px 40px; text-align: center; background-color: {{ shop.email_accent_color | default: '#5c6ac4' }};">
+              {% if shop.email_logo_url %}
+                <img src="{{ shop.email_logo_url }}" alt="{{ shop.name }}" style="max-height: 60px; max-width: 200px;">
+              {% else %}
+                <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">{{ shop.name }}</h1>
+              {% endif %}
+            </td>
+          </tr>
+
+          <!-- Order Cancelled -->
+          <tr>
+            <td style="padding: 40px 40px 20px; text-align: center;">
+              <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+                <table cellpadding="0" cellspacing="0"><tr>
+                  <td style="width: 64px; height: 64px; background-color: #fee2e2; border-radius: 50%; text-align: center; vertical-align: middle; font-size: 28px; line-height: 64px;">&#10005;</td>
+                </tr></table>
+              </td></tr></table>
+              <h1 style="margin: 16px 0 8px; color: #1a1a1a; font-size: 28px; font-weight: 600;">Order Cancelled</h1>
+              <p style="margin: 0; color: #6b7280; font-size: 16px;">Your order has been cancelled</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 0 40px 30px; text-align: center;">
+              <p style="margin: 0; color: #6b7280; font-size: 14px;">Order {{ name }}</p>
+            </td>
+          </tr>
+
+          {% comment %} Check if this was a LockerDrop order {% endcomment %}
+          {% assign is_lockerdrop = false %}
+          {% for shipping_method in shipping_lines %}
+            {% assign title_lower = shipping_method.title | downcase %}
+            {% if title_lower contains "lockerdrop" %}
+              {% assign is_lockerdrop = true %}
+            {% endif %}
+          {% endfor %}
+
+          {% if is_lockerdrop %}
+          <!-- LockerDrop Notice -->
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <h3 style="margin: 0 0 8px; color: #92400e; font-size: 15px; font-weight: 600;">&#128230; LockerDrop Reservation Cancelled</h3>
+                    <p style="margin: 0; color: #a16207; font-size: 14px; line-height: 1.5;">
+                      The locker reservation for this order has been released. You don't need to take any action.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- Cancellation Details -->
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <h3 style="margin: 0 0 16px; color: #1e293b; font-size: 16px; font-weight: 600;">Cancellation Details</h3>
+
+                    {% if cancel_reason %}
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 12px;">
+                      <tr>
+                        <td style="color: #64748b; font-size: 13px; padding-bottom: 4px;">Reason</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #1e293b; font-size: 14px;">{{ cancel_reason }}</td>
+                      </tr>
+                    </table>
+                    {% endif %}
+
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="color: #64748b; font-size: 13px; padding-bottom: 4px;">Refund Status</td>
+                      </tr>
+                      <tr>
+                        <td style="color: #1e293b; font-size: 14px;">
+                          {% if financial_status == "refunded" or financial_status == "partially_refunded" %}
+                            Your refund of <strong>{{ refunded_amount | money }}</strong> has been processed. It may take 5-10 business days to appear on your statement.
+                          {% elsif financial_status == "voided" %}
+                            Your payment has been voided and will not be charged.
+                          {% else %}
+                            If you were charged, a refund will be processed shortly.
+                          {% endif %}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Order Summary -->
+          <tr>
+            <td style="padding: 0 40px 16px;">
+              <h2 style="margin: 0; color: #1e293b; font-size: 18px; font-weight: 600; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">Cancelled Items</h2>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                {% for line_item in line_items %}
+                <tr>
+                  <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9;">
+                    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                      <td width="60" style="vertical-align: top;">
+                        {% if line_item.image %}
+                          <img src="{{ line_item.image | img_url: 'compact_cropped' }}" alt="{{ line_item.title }}" style="width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0; opacity: 0.6;">
+                        {% else %}
+                          <div style="width: 56px; height: 56px; background-color: #f1f5f9; border-radius: 6px;"></div>
+                        {% endif %}
+                      </td>
+                      <td style="vertical-align: top; padding-left: 12px;">
+                        <p style="margin: 0 0 4px; color: #64748b; font-size: 14px; font-weight: 500; text-decoration: line-through;">{{ line_item.title }}</p>
+                        {% if line_item.variant_title != "Default Title" %}
+                          <p style="margin: 0 0 4px; color: #94a3b8; font-size: 13px;">{{ line_item.variant_title }}</p>
+                        {% endif %}
+                        <p style="margin: 0; color: #94a3b8; font-size: 13px;">Qty: {{ line_item.quantity }}</p>
+                      </td>
+                      <td style="vertical-align: top; text-align: right;">
+                        <p style="margin: 0; color: #94a3b8; font-size: 14px; text-decoration: line-through;">{{ line_item.final_line_price | money }}</p>
+                      </td>
+                    </tr></table>
+                  </td>
+                </tr>
+                {% endfor %}
+              </table>
+            </td>
+          </tr>
+
+          <!-- Questions -->
+          <tr>
+            <td style="padding: 0 40px 40px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #eff6ff; border-radius: 8px;">
+                <tr>
+                  <td style="padding: 20px; text-align: center;">
+                    <p style="margin: 0 0 12px; color: #1e40af; font-size: 14px; font-weight: 500;">Have questions about this cancellation?</p>
+                    <table cellpadding="0" cellspacing="0" style="margin: 0 auto;"><tr>
+                      <td style="background-color: #3b82f6; border-radius: 6px;">
+                        <a href="mailto:{{ shop.email }}" style="display: inline-block; color: #ffffff; padding: 12px 24px; text-decoration: none; font-size: 14px; font-weight: 600;">Contact Us</a>
+                      </td>
+                    </tr></table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 24px 40px; background-color: #f8fafc; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="margin: 0 0 8px; color: #64748b; font-size: 13px;">We're sorry to see this order cancelled.</p>
+              <p style="margin: 0; color: #94a3b8; font-size: 12px;">&copy; {{ 'now' | date: '%Y' }} {{ shop.name }}. All rights reserved.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

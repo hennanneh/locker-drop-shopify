@@ -1,0 +1,134 @@
+{% comment %}
+  LockerDrop - Promo Banner Block
+  Promotional banner for locker pickup
+{% endcomment %}
+
+{% style %}
+  .lockerdrop-promo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 20px;
+    background: {{ block.settings.background_color }};
+    border-radius: 10px;
+    margin: 16px 0;
+  }
+
+  .lockerdrop-promo__content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .lockerdrop-promo__icon {
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .lockerdrop-promo__text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .lockerdrop-promo__title {
+    font-size: 15px;
+    font-weight: 600;
+    color: {{ block.settings.text_color }};
+    margin: 0 0 2px;
+  }
+
+  .lockerdrop-promo__desc {
+    font-size: 13px;
+    color: {{ block.settings.text_color }};
+    opacity: 0.85;
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .lockerdrop-promo__button {
+    display: inline-block;
+    padding: 10px 18px;
+    background: {{ block.settings.text_color }};
+    color: {{ block.settings.background_color }};
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: 6px;
+    white-space: nowrap;
+    transition: opacity 0.2s;
+  }
+
+  .lockerdrop-promo__button:hover {
+    opacity: 0.9;
+  }
+
+  @media (max-width: 500px) {
+    .lockerdrop-promo {
+      flex-direction: column;
+      text-align: center;
+    }
+    .lockerdrop-promo__content {
+      flex-direction: column;
+    }
+  }
+{% endstyle %}
+
+<div class="lockerdrop-promo">
+  <div class="lockerdrop-promo__content">
+    <span class="lockerdrop-promo__icon">📦</span>
+    <div class="lockerdrop-promo__text">
+      <p class="lockerdrop-promo__title">{{ block.settings.title }}</p>
+      <p class="lockerdrop-promo__desc">{{ block.settings.description }}</p>
+    </div>
+  </div>
+  {% if block.settings.button_url != blank %}
+    <a href="{{ block.settings.button_url }}" class="lockerdrop-promo__button">{{ block.settings.button_text }}</a>
+  {% endif %}
+</div>
+
+{% schema %}
+{
+  "name": "LockerDrop Promo Banner",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title",
+      "default": "Now Offering Locker Pickup!"
+    },
+    {
+      "type": "text",
+      "id": "description",
+      "label": "Description",
+      "default": "Pick up your orders from secure lockers 24/7 — no waiting!"
+    },
+    {
+      "type": "url",
+      "id": "button_url",
+      "label": "Button URL"
+    },
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Button text",
+      "default": "Learn More"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background",
+      "default": "#5c6ac4"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text color",
+      "default": "#ffffff"
+    }
+  ]
+}
+{% endschema %}

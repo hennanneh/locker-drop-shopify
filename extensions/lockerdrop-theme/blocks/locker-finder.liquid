@@ -1,0 +1,274 @@
+{% comment %}
+  LockerDrop - Locker Finder Block
+  Find nearby locker locations
+{% endcomment %}
+
+{% style %}
+  .lockerdrop-finder {
+    padding: 40px 20px;
+    background-color: #f8fafc;
+  }
+
+  .lockerdrop-finder__container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .lockerdrop-finder__header {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  .lockerdrop-finder__title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 8px;
+  }
+
+  .lockerdrop-finder__subtitle {
+    font-size: 15px;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .lockerdrop-finder__search {
+    max-width: 400px;
+    margin: 0 auto 24px;
+  }
+
+  .lockerdrop-finder__form {
+    display: flex;
+    gap: 10px;
+  }
+
+  .lockerdrop-finder__input {
+    flex: 1;
+    padding: 12px 16px;
+    font-size: 15px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    outline: none;
+  }
+
+  .lockerdrop-finder__input:focus {
+    border-color: {{ block.settings.accent_color }};
+  }
+
+  .lockerdrop-finder__button {
+    padding: 12px 20px;
+    background: {{ block.settings.accent_color }};
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .lockerdrop-finder__button:hover {
+    opacity: 0.9;
+  }
+
+  .lockerdrop-finder__results {
+    margin-top: 24px;
+  }
+
+  .lockerdrop-finder__loading {
+    text-align: center;
+    padding: 30px;
+    color: #64748b;
+  }
+
+  .lockerdrop-finder__spinner {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+    border: 3px solid #e2e8f0;
+    border-radius: 50%;
+    border-top-color: {{ block.settings.accent_color }};
+    animation: ld-spin 0.8s linear infinite;
+    margin-bottom: 10px;
+  }
+
+  @keyframes ld-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .lockerdrop-finder__empty {
+    text-align: center;
+    padding: 30px;
+    background: #ffffff;
+    border-radius: 10px;
+    color: #64748b;
+  }
+
+  .lockerdrop-finder__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  .lockerdrop-finder__location {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .lockerdrop-finder__loc-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .lockerdrop-finder__loc-icon {
+    width: 36px;
+    height: 36px;
+    background: {{ block.settings.accent_color }};
+    color: #ffffff;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .lockerdrop-finder__loc-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 2px;
+  }
+
+  .lockerdrop-finder__loc-address {
+    font-size: 13px;
+    color: #64748b;
+    margin: 0;
+  }
+
+  .lockerdrop-finder__loc-distance {
+    display: inline-block;
+    padding: 3px 8px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 12px;
+    margin-top: 8px;
+  }
+
+  @media (max-width: 500px) {
+    .lockerdrop-finder__form {
+      flex-direction: column;
+    }
+    .lockerdrop-finder__list {
+      grid-template-columns: 1fr;
+    }
+  }
+{% endstyle %}
+
+<div class="lockerdrop-finder">
+  <div class="lockerdrop-finder__container">
+    <div class="lockerdrop-finder__header">
+      <h2 class="lockerdrop-finder__title">{{ block.settings.title }}</h2>
+      <p class="lockerdrop-finder__subtitle">{{ block.settings.subtitle }}</p>
+    </div>
+
+    <div class="lockerdrop-finder__search">
+      <form class="lockerdrop-finder__form" onsubmit="lockerdropSearch(event)">
+        <input type="text" class="lockerdrop-finder__input" id="lockerdrop-zip" placeholder="Enter zip code" autocomplete="postal-code">
+        <button type="submit" class="lockerdrop-finder__button">Find Lockers</button>
+      </form>
+    </div>
+
+    <div class="lockerdrop-finder__results" id="lockerdrop-results"></div>
+  </div>
+</div>
+
+<script>
+  const LOCKERDROP_API = 'https://app.lockerdrop.it';
+
+  async function lockerdropSearch(e) {
+    e.preventDefault();
+    const zip = document.getElementById('lockerdrop-zip').value.trim();
+    if (!zip) return;
+
+    showLoading();
+
+    try {
+      const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?postalcode=${encodeURIComponent(zip)}&country=US&format=json&limit=1`);
+      const geoData = await geoRes.json();
+
+      if (!geoData.length) {
+        showEmpty('No locations found for this zip code');
+        return;
+      }
+
+      const { lat, lon } = geoData[0];
+      await findLockers(parseFloat(lat), parseFloat(lon));
+    } catch (err) {
+      showEmpty('Unable to search. Please try again.');
+    }
+  }
+
+  async function findLockers(lat, lon) {
+    try {
+      const res = await fetch(`${LOCKERDROP_API}/api/public/lockers?lat=${lat}&lon=${lon}&limit=6`);
+      const data = await res.json();
+
+      if (!data.locations || !data.locations.length) {
+        showEmpty('No locker locations found nearby');
+        return;
+      }
+
+      showResults(data.locations);
+    } catch (err) {
+      showEmpty('Unable to find lockers. Please try again.');
+    }
+  }
+
+  function showLoading() {
+    document.getElementById('lockerdrop-results').innerHTML = '<div class="lockerdrop-finder__loading"><div class="lockerdrop-finder__spinner"></div><p>Finding nearby lockers...</p></div>';
+  }
+
+  function showEmpty(message) {
+    document.getElementById('lockerdrop-results').innerHTML = '<div class="lockerdrop-finder__empty"><p>' + message + '</p></div>';
+  }
+
+  function showResults(locations) {
+    const html = '<div class="lockerdrop-finder__list">' + locations.map(function(loc) {
+      return '<div class="lockerdrop-finder__location"><div class="lockerdrop-finder__loc-header"><div class="lockerdrop-finder__loc-icon">📦</div><div><h3 class="lockerdrop-finder__loc-name">' + loc.name + '</h3><p class="lockerdrop-finder__loc-address">' + (loc.address || '') + '</p></div></div>' + (loc.distance ? '<span class="lockerdrop-finder__loc-distance">' + loc.distance.toFixed(1) + ' miles away</span>' : '') + '</div>';
+    }).join('') + '</div>';
+    document.getElementById('lockerdrop-results').innerHTML = html;
+  }
+</script>
+
+{% schema %}
+{
+  "name": "LockerDrop Locker Finder",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title",
+      "default": "Find a Locker Near You"
+    },
+    {
+      "type": "text",
+      "id": "subtitle",
+      "label": "Subtitle",
+      "default": "Enter your zip code to find available pickup locations"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent color",
+      "default": "#5c6ac4"
+    }
+  ]
+}
+{% endschema %}

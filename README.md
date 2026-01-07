@@ -7,7 +7,7 @@ LockerDrop is a Shopify app that enables smart locker pickup as a shipping optio
 
 ---
 
-## Current Status (December 2025)
+## Current Status (January 2026)
 
 ### Working Features
 - Shopify OAuth & app installation
@@ -23,6 +23,7 @@ LockerDrop is a Shopify app that enables smart locker pickup as a shipping optio
 - Product size configuration
 - Order cancellation (manual + Shopify webhook)
 - Zip code geocoding fallback for unverified addresses
+- **Theme App Extension** with promotional blocks for non-Plus stores
 
 ### Infrastructure
 - **Server:** DigitalOcean Droplet (138.197.216.202)
@@ -57,6 +58,7 @@ pm2 delete lockerdrop && pm2 start server.js --name lockerdrop
 | `public/admin-dashboard.html` | Seller admin UI |
 | `db.js` | PostgreSQL connection pool |
 | `.env` | Environment variables |
+| `extensions/lockerdrop-theme/` | Theme app extension blocks |
 
 ### Database Tables
 - `stores` - Shopify store credentials
@@ -96,6 +98,43 @@ pm2 delete lockerdrop && pm2 start server.js --name lockerdrop
 
 ---
 
+## Theme App Extension
+
+The app includes a theme extension with promotional blocks that merchants can add to their stores via the theme customizer. This works on all Shopify stores (not just Plus).
+
+### Available Blocks
+| Block | Purpose |
+|-------|---------|
+| `LockerDrop Badge` | "Available for Locker Pickup" badge for product pages |
+| `LockerDrop Cart Reminder` | Reminder with steps on cart page |
+| `LockerDrop How It Works` | Full-page section with hero, steps, benefits, locker finder |
+| `LockerDrop Locker Finder` | Standalone zip code search for nearby lockers |
+| `LockerDrop Promo Banner` | Eye-catching promotional banner |
+
+### Block Files
+Located in `extensions/lockerdrop-theme/blocks/`:
+- `product-pickup-badge.liquid`
+- `cart-pickup-reminder.liquid`
+- `how-it-works-page.liquid`
+- `how-it-works.liquid`
+- `locker-finder.liquid`
+- `promo-banner.liquid`
+
+### Public API Endpoint
+The locker finder blocks use a public API endpoint:
+```
+GET /api/public/lockers?lat={latitude}&lon={longitude}&limit={count}
+```
+Returns nearby locker locations with availability info. Has CORS headers for cross-origin theme requests.
+
+### Deployment
+Theme extension is deployed via Shopify CLI:
+```bash
+shopify app deploy --force
+```
+
+---
+
 ## API Endpoints
 
 ### Shopify Integration
@@ -119,6 +158,9 @@ pm2 delete lockerdrop && pm2 start server.js --name lockerdrop
 - `POST /api/product-sizes/:shop` - Save product sizes
 - `GET /api/shop-settings/:shop` - Get settings
 - `POST /api/shop-settings/:shop` - Save settings
+
+### Public API (for Theme Extension)
+- `GET /api/public/lockers` - Find nearby lockers (CORS enabled)
 
 ---
 
@@ -167,8 +209,11 @@ NODE_ENV=production
 
 ## Known Issues / TODO
 
-### Immediate
-- [ ] Shopify REST API deprecation (migrate to GraphQL by April 2025)
+### Completed
+- [x] Shopify GraphQL migration (completed January 2026)
+- [x] Theme App Extension for non-Plus stores
+
+### Pending
 - [ ] `write_fulfillments` scope needed for auto-fulfillment
 
 ### Harbor API Limitations
@@ -222,4 +267,4 @@ pm2 restart lockerdrop
 
 ---
 
-Last updated: December 22, 2025
+Last updated: January 7, 2026
