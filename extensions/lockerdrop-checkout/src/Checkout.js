@@ -16,7 +16,7 @@ import {
 export default extension(
   'purchase.checkout.delivery-address.render-after',
   (root, api) => {
-    const { shop, sessionToken, shippingAddress, lines } = api;
+    const { shop, sessionToken, shippingAddress, lines, buyerJourney } = api;
 
     // State
     let lockers = [];
@@ -26,6 +26,135 @@ export default extension(
     let useLockerPickup = false;
     let requiredSize = null;
     let cartProducts = [];
+    let availabilityError = null;
+
+    // State for reservation
+    let currentReservation = null;
+
+    // Intercept checkout to RESERVE locker before payment (not just check availability)
+    // This prevents pending_allocation by actually reserving the locker
+    buyerJourney.intercept(async ({ canBlockProgress }) => {
+      // Only intercept if user selected locker pickup
+      if (!useLockerPickup || !selectedLocker) {
+        return { behavior: 'allow' };
+      }
+
+      // If we can't block progress, just allow
+      if (!canBlockProgress) {
+        return { behavior: 'allow' };
+      }
+
+      try {
+        const token = await sessionToken.get();
+        const address = shippingAddress.current;
+
+        // CRITICAL: Actually reserve the locker, not just check availability
+        // This creates a Harbor dropoff link and blocks the locker
+        const reserveResponse = await fetch(
+          'https://app.lockerdrop.it/api/checkout/reserve-locker',
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              locationId: selectedLocker.id,
+              lockerTypeId: requiredSize ? (
+                requiredSize === 'small' ? 1 :
+                requiredSize === 'medium' ? 2 :
+                requiredSize === 'large' ? 3 : 4
+              ) : 2,
+              shop: shop.myshopifyDomain,
+              customerEmail: address?.email || null,
+              customerPhone: address?.phone || null,
+              pickupDate: null
+            })
+          }
+        );
+
+        const reserveData = await reserveResponse.json();
+
+        if (!reserveResponse.ok || !reserveData.success) {
+          // Reservation failed - locker not available
+          console.error('Locker reservation failed:', reserveData);
+
+          availabilityError = reserveData.message || 'No lockers available at this location. Please select a different pickup location.';
+
+          // Clear selection and refresh lockers
+          selectedLocker = null;
+          render();
+
+          // Re-fetch available lockers
+          const addressQuery = encodeURIComponent(
+            `${address?.address1 || ''} ${address?.city || ''} ${address?.provinceCode || ''} ${address?.zip || ''}`
+          );
+          cartProducts = getCartProducts();
+          const productsParam = cartProducts.length > 0
+            ? `&products=${encodeURIComponent(JSON.stringify(cartProducts))}`
+            : '';
+
+          const lockersResponse = await fetch(
+            `https://app.lockerdrop.it/api/checkout/lockers?address=${addressQuery}&shop=${shop.myshopifyDomain}${productsParam}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+
+          if (lockersResponse.ok) {
+            const lockersData = await lockersResponse.json();
+            lockers = lockersData.lockers || [];
+            render();
+          }
+
+          return {
+            behavior: 'block',
+            reason: 'Locker not available',
+            errors: [
+              {
+                message: 'The selected locker is no longer available. Please select a different pickup location or use regular shipping.',
+              }
+            ]
+          };
+        }
+
+        // Reservation successful! Store reference and update address
+        currentReservation = reserveData;
+        availabilityError = null;
+
+        // Update shipping address with reservation reference
+        const sizeInfo = reserveData.lockerSize ? ` [Size: ${reserveData.lockerSize}]` : '';
+        await api.applyShippingAddressChange({
+          type: 'updateShippingAddress',
+          address: {
+            ...address,
+            address2: `LockerDrop: ${selectedLocker.name} (ID: ${selectedLocker.id}) [Res: ${reserveData.reservationRef}]${sizeInfo}`
+          }
+        });
+
+        console.log('Locker reserved successfully:', reserveData.reservationRef);
+        return { behavior: 'allow' };
+
+      } catch (err) {
+        console.error('Error reserving locker:', err);
+        // On error, block checkout to prevent pending_allocation
+        availabilityError = 'Failed to reserve locker. Please try again.';
+        render();
+
+        return {
+          behavior: 'block',
+          reason: 'Reservation error',
+          errors: [
+            {
+              message: 'Unable to reserve locker. Please try again or select a different pickup location.',
+            }
+          ]
+        };
+      }
+    });
 
     // Create main container
     const container = root.createComponent(BlockStack, { spacing: 'loose', padding: 'base' });
@@ -66,6 +195,15 @@ export default extension(
         header.appendChild(
           root.createComponent(Text, { appearance: 'subdued', size: 'small' },
             `Your order requires a ${requiredSize} locker or larger`
+          )
+        );
+      }
+
+      // Show availability error if locker became unavailable
+      if (availabilityError) {
+        container.appendChild(
+          root.createComponent(Banner, { status: 'critical' },
+            root.createComponent(Text, null, availabilityError)
           )
         );
       }

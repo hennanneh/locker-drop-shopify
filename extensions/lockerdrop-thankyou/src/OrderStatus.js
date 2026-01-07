@@ -17,51 +17,32 @@ export default extension(
   (root, api) => {
     const { order, sessionToken } = api;
 
-    // Check if order used LockerDrop shipping
-    const isLockerDropOrder = order?.shippingLines?.some(line =>
-      line.title?.toLowerCase().includes('lockerdrop') ||
-      line.title?.toLowerCase().includes('locker pickup') ||
-      line.title?.toLowerCase().includes('locker drop')
-    );
+    // order is a subscribable - actual data is in order.current
+    const orderData = order?.current || order;
 
-    // If not a LockerDrop order, don't render anything
-    if (!isLockerDropOrder) {
-      return;
-    }
+    // Get order ID/name for API lookup
+    const orderId = orderData?.id;
+    const orderName = orderData?.name; // e.g., "#1011"
 
-    // Main container
+    // Main container - always create it, we'll populate after API call
     const container = root.createComponent(BlockStack, { spacing: 'loose', padding: 'base' });
     root.appendChild(container);
 
-    // Card container
-    const card = root.createComponent(BlockStack, {
-      spacing: 'tight',
-      padding: 'base',
-      background: 'subdued',
-      borderRadius: 'base'
-    });
-    container.appendChild(card);
-
-    // Header with icon
-    const headerRow = root.createComponent(InlineStack, { spacing: 'tight', blockAlignment: 'center' });
-    headerRow.appendChild(root.createComponent(Text, { size: 'extraLarge' }, '📦'));
-    headerRow.appendChild(root.createComponent(Heading, { level: 2 }, 'LockerDrop Pickup'));
-    card.appendChild(headerRow);
-
-    // Show loading skeleton initially
+    // Show loading initially
     const loadingBlock = root.createComponent(SkeletonText, { lines: 3 });
-    card.appendChild(loadingBlock);
+    container.appendChild(loadingBlock);
 
-    // Fetch locker status
-    fetchLockerStatus();
+    // Fetch from our API to check if this is a LockerDrop order
+    checkLockerDropOrder();
 
-    async function fetchLockerStatus() {
+    async function checkLockerDropOrder() {
       try {
         const token = await sessionToken.get();
-        const orderId = order?.id?.split('/')?.pop() || order?.id;
+        // Use order name (e.g., "#1011" -> "1011")
+        const orderNumber = orderName?.replace('#', '') || orderId?.split('/')?.pop();
 
         const response = await fetch(
-          `https://app.lockerdrop.it/api/customer/order-status/${orderId}`,
+          `https://app.lockerdrop.it/api/customer/order-status/${orderNumber}`,
           {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -70,24 +51,46 @@ export default extension(
           }
         );
 
-        let lockerStatus = null;
-        if (response.ok) {
-          lockerStatus = await response.json();
+        // Remove loading
+        container.removeChild(loadingBlock);
+
+        if (!response.ok) {
+          // Not a LockerDrop order or not found - don't render anything
+          container.removeChild(container);
+          return;
         }
 
-        // Remove loading skeleton
-        card.removeChild(loadingBlock);
+        const lockerStatus = await response.json();
 
-        // Render status
-        renderStatus(lockerStatus);
+        // If no locker data, this isn't a LockerDrop order
+        if (!lockerStatus || !lockerStatus.isLockerDropOrder) {
+          return;
+        }
+
+        // Render the LockerDrop status UI
+        renderLockerDropStatus(lockerStatus);
       } catch (err) {
-        console.error('Failed to fetch locker status:', err);
-        card.removeChild(loadingBlock);
-        renderStatus(null);
+        console.error('Failed to check LockerDrop status:', err);
+        container.removeChild(loadingBlock);
       }
     }
 
-    function renderStatus(lockerStatus) {
+    function renderLockerDropStatus(lockerStatus) {
+      // Card container
+      const card = root.createComponent(BlockStack, {
+        spacing: 'tight',
+        padding: 'base',
+        background: 'subdued',
+        borderRadius: 'base'
+      });
+      container.appendChild(card);
+
+      // Header with icon
+      const headerRow = root.createComponent(InlineStack, { spacing: 'tight', blockAlignment: 'center' });
+      headerRow.appendChild(root.createComponent(Text, { size: 'extraLarge' }, '📦'));
+      headerRow.appendChild(root.createComponent(Heading, { level: 2 }, 'LockerDrop Pickup'));
+      card.appendChild(headerRow);
+
       const status = lockerStatus?.status || 'pending_dropoff';
       const statusConfig = getStatusConfig(status);
 

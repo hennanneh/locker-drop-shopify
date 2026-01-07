@@ -13,9 +13,10 @@ LockerDrop is a Shopify app that adds smart locker pickup as a shipping option. 
 ### How does it work?
 
 1. Customer selects "LockerDrop Pickup" at checkout
-2. You receive the order with a drop-off code
-3. You drop the package at the assigned locker
-4. Customer gets notified and picks up with their code
+2. A locker is **reserved immediately** when they complete payment
+3. You receive the order with a drop-off link
+4. You drop the package at the assigned locker using your phone
+5. Customer gets notified automatically and picks up using their link
 
 ### What are Harbor Lockers?
 
@@ -27,6 +28,14 @@ That depends on your settings! You can configure LockerDrop to be:
 - **Free** (most common) - as a delivery alternative
 - **Discounted** - cheaper than home delivery
 - **Standard rate** - same as other shipping options
+
+### What happens if lockers are full?
+
+If no lockers of the required size are available, checkout will **not allow** the customer to select LockerDrop. This prevents situations where an order is placed but no locker can be assigned. The customer will need to choose regular shipping or wait until lockers become available.
+
+### Can lockers get "oversold"?
+
+No! Unlike some systems that just check availability, LockerDrop actually **reserves the locker during checkout** before the customer pays. This guarantees a locker is available for every LockerDrop order.
 
 ---
 
@@ -81,6 +90,16 @@ Contact us for current pricing. Typically includes:
 ### Can I use multiple locker locations?
 
 Yes! In the "My Lockers" tab, you can select any Harbor Locker locations you want to use. Most sellers choose 3-10 locations that are convenient for them and their customers.
+
+### How do I check real-time locker availability?
+
+Go to the **Availability** tab in your dashboard. You'll see:
+- Each enabled locker location
+- Available lockers by size (small, medium, large)
+- Total capacity and current usage
+- Last updated timestamp
+
+Click "Refresh" to get the latest availability from Harbor Lockers.
 
 ---
 
@@ -308,5 +327,5 @@ When contacting support, please include:
 
 ---
 
-*Last updated: December 2025*
+*Last updated: January 2026*
 *Questions not answered here? Email support@lockerdrop.it*

@@ -12,16 +12,24 @@ import {
 export default extension(
   'purchase.thank-you.block.render',
   (root, api) => {
-    const { order } = api;
+    // order is a subscribable - actual data is in order.current
+    const orderData = api.order?.current || api.order;
 
-    // Get shipping address from order
-    const shippingAddress = order?.shippingAddress;
+    // Get shipping address - it's nested in the order data
+    const shippingAddress = orderData?.shippingAddress;
     const address2 = shippingAddress?.address2 || '';
 
-    // Check if this is a LockerDrop order by looking at address2
-    const isLockerDropOrder = address2.toLowerCase().includes('lockerdrop');
+    // Get delivery groups which contain shipping info
+    const deliveryGroups = orderData?.deliveryGroups || [];
 
-    // If not a LockerDrop order, don't render
+    const hasLockerDropShipping = deliveryGroups.some(group =>
+      group.selectedDeliveryOption?.title?.toLowerCase().includes('lockerdrop')
+    );
+
+    // Check if this is a LockerDrop order (check address2 for LockerDrop marker)
+    const isLockerDropOrder = address2.toLowerCase().includes('lockerdrop') || hasLockerDropShipping;
+
+    // If not a LockerDrop order, don't render anything
     if (!isLockerDropOrder) {
       return;
     }

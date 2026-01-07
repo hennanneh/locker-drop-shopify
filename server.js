@@ -2747,6 +2747,104 @@ app.get('/api/locker-preferences/:shop', async (req, res) => {
     }
 });
 
+// Get real-time locker availability for dashboard
+app.get('/api/locker-availability/:shop', async (req, res) => {
+    try {
+        const { shop } = req.params;
+
+        // Get shop's enabled lockers (columns: location_id, location_name)
+        const prefsResult = await db.query(
+            'SELECT location_id, location_name FROM locker_preferences WHERE shop = $1',
+            [shop]
+        );
+
+        if (prefsResult.rows.length === 0) {
+            return res.json({ locations: [], message: 'No lockers enabled for this shop' });
+        }
+
+        // Get Harbor token
+        const tokenResponse = await axios.post(
+            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+        );
+        const accessToken = tokenResponse.data.access_token;
+
+        // Fetch all locations to get addresses
+        const locationsResponse = await axios.get(
+            'https://api.sandbox.harborlockers.com/api/v1/locations/',
+            { headers: { 'Authorization': `Bearer ${accessToken}` }, params: { limit: 100 } }
+        );
+        const allLocations = locationsResponse.data || [];
+
+        // Fetch availability for each enabled locker
+        const locationsWithAvailability = [];
+
+        for (const pref of prefsResult.rows) {
+            // Find location details from Harbor API
+            const locationDetails = allLocations.find(l => l.id === pref.location_id);
+            const address = locationDetails
+                ? `${locationDetails.street_address || ''}, ${locationDetails.city || ''}, ${locationDetails.state || ''} ${locationDetails.zip || ''}`.replace(/^, /, '')
+                : '';
+
+            try {
+                const availabilityResponse = await axios.get(
+                    `https://api.sandbox.harborlockers.com/api/v1/locations/${pref.location_id}/availability`,
+                    { headers: { 'Authorization': `Bearer ${accessToken}` } }
+                );
+
+                const availability = availabilityResponse.data;
+                let sizeBreakdown = [];
+                let totalAvailable = 0;
+                let totalCapacity = 0;
+
+                if (availability.byType && Array.isArray(availability.byType)) {
+                    // Harbor API format: byType[].lockerType.name, byType[].lockerAvailability.availableLockers/totalLockers
+                    sizeBreakdown = availability.byType.map(type => ({
+                        size: type.lockerType?.displayName || type.lockerType?.name || type.type || type.name || 'Unknown',
+                        available: type.lockerAvailability?.availableLockers || type.availableCount || 0,
+                        total: type.lockerAvailability?.totalLockers || type.totalCount || 0,
+                        inUse: (type.lockerAvailability?.totalLockers || type.totalCount || 0) - (type.lockerAvailability?.availableLockers || type.availableCount || 0)
+                    }));
+                    totalAvailable = sizeBreakdown.reduce((sum, t) => sum + t.available, 0);
+                    totalCapacity = sizeBreakdown.reduce((sum, t) => sum + t.total, 0);
+                } else if (availability.lockerAvailability) {
+                    totalAvailable = availability.lockerAvailability.availableLockers || 0;
+                    totalCapacity = availability.lockerAvailability.totalLockers || totalAvailable;
+                }
+
+                locationsWithAvailability.push({
+                    id: pref.location_id,
+                    name: pref.location_name,
+                    address: address,
+                    totalAvailable,
+                    totalCapacity,
+                    sizeBreakdown,
+                    lastUpdated: new Date().toISOString()
+                });
+            } catch (availError) {
+                console.error(`Failed to get availability for locker ${pref.location_id}:`, availError.message);
+                locationsWithAvailability.push({
+                    id: pref.location_id,
+                    name: pref.location_name,
+                    address: address,
+                    error: 'Failed to fetch availability',
+                    lastUpdated: new Date().toISOString()
+                });
+            }
+        }
+
+        res.json({
+            locations: locationsWithAvailability,
+            fetchedAt: new Date().toISOString(),
+            minAvailableBuffer: MIN_AVAILABLE_BUFFER
+        });
+    } catch (error) {
+        console.error('Error fetching locker availability:', error);
+        res.status(500).json({ error: 'Failed to fetch availability', details: error.message });
+    }
+});
+
 // ============================================
 // CHECKOUT UI EXTENSION API
 // ============================================
@@ -2994,6 +3092,140 @@ app.get('/api/checkout/lockers', async (req, res) => {
 });
 
 // ============================================
+// LOCKER RESERVATION API (for checkout)
+// ============================================
+
+// Reserve a locker during checkout - creates actual Harbor dropoff link
+// This prevents pending_allocation by reserving before payment
+app.post('/api/checkout/reserve-locker', async (req, res) => {
+    try {
+        const { locationId, lockerTypeId, shop, customerEmail, customerPhone, pickupDate } = req.body;
+
+        console.log(`🔒 Checkout reservation request: location=${locationId}, size=${lockerTypeId}, shop=${shop}`);
+
+        // Validate required fields
+        if (!locationId || !lockerTypeId || !shop) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required fields: locationId, lockerTypeId, shop'
+            });
+        }
+
+        // Create a temporary order reference for the reservation
+        const reservationRef = `CHECKOUT_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+        // Try to create a dropoff link with Harbor (this actually reserves the locker)
+        const allSizes = [
+            { id: 1, name: 'small' },
+            { id: 2, name: 'medium' },
+            { id: 3, name: 'large' },
+            { id: 4, name: 'x-large' }
+        ];
+        const sizesToTry = allSizes.filter(s => s.id >= lockerTypeId);
+
+        let dropoffLink = null;
+        let usedSize = null;
+
+        for (const size of sizesToTry) {
+            try {
+                console.log(`🔗 Trying ${size.name} locker (type ${size.id}) for reservation...`);
+                dropoffLink = await generateDropoffLink(
+                    locationId,
+                    size.id,
+                    reservationRef, // Use temp reference
+                    reservationRef
+                );
+                usedSize = size.name;
+                console.log(`✅ Reservation success with ${size.name} locker!`);
+                break;
+            } catch (sizeError) {
+                const errorDetail = sizeError.response?.data?.detail || sizeError.message;
+                console.log(`   ❌ ${size.name} failed: ${errorDetail}`);
+                if (!errorDetail.includes('No locker available')) {
+                    throw sizeError;
+                }
+            }
+        }
+
+        if (!dropoffLink) {
+            console.log(`❌ No lockers available for reservation at location ${locationId}`);
+            return res.status(409).json({
+                success: false,
+                error: 'no_availability',
+                message: 'No lockers available at this location. Please select a different pickup location.'
+            });
+        }
+
+        // Store the reservation in database
+        await db.query(
+            `INSERT INTO locker_reservations (
+                reservation_ref, shop, location_id, locker_id, tower_id,
+                dropoff_link, dropoff_request_id, locker_size,
+                customer_email, customer_phone, pickup_date,
+                created_at, expires_at, status
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW() + INTERVAL '30 minutes', 'pending')
+            ON CONFLICT (reservation_ref) DO UPDATE SET
+                dropoff_link = $6, dropoff_request_id = $7, expires_at = NOW() + INTERVAL '30 minutes'`,
+            [
+                reservationRef,
+                shop,
+                locationId,
+                dropoffLink.lockerId,
+                dropoffLink.towerId,
+                dropoffLink.linkToken,
+                dropoffLink.id,
+                usedSize,
+                customerEmail || null,
+                customerPhone || null,
+                pickupDate || null
+            ]
+        );
+
+        console.log(`✅ Reservation created: ${reservationRef} (expires in 30 min)`);
+
+        res.json({
+            success: true,
+            reservationRef,
+            lockerSize: usedSize,
+            lockerId: dropoffLink.lockerId,
+            expiresIn: 30 * 60 // seconds
+        });
+    } catch (error) {
+        console.error('Error creating locker reservation:', error.response?.data || error.message);
+        res.status(500).json({
+            success: false,
+            error: 'reservation_failed',
+            message: 'Failed to reserve locker. Please try again.'
+        });
+    }
+});
+
+// Check if a reservation is still valid
+app.get('/api/checkout/reservation/:ref', async (req, res) => {
+    try {
+        const { ref } = req.params;
+
+        const result = await db.query(
+            `SELECT * FROM locker_reservations
+             WHERE reservation_ref = $1 AND status = 'pending' AND expires_at > NOW()`,
+            [ref]
+        );
+
+        if (result.rows.length === 0) {
+            return res.json({ valid: false });
+        }
+
+        res.json({
+            valid: true,
+            reservation: result.rows[0]
+        });
+    } catch (error) {
+        console.error('Error checking reservation:', error.message);
+        res.status(500).json({ valid: false, error: 'Failed to check reservation' });
+    }
+});
+
+// ============================================
 // PUBLIC LOCKER FINDER API
 // ============================================
 
@@ -3128,11 +3360,11 @@ app.get('/api/customer/order-status/:orderId', async (req, res) => {
         res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
         // Find order in our database
-        const orderResult = await pool.query(
-            `SELECT o.*, lp.locker_name, lp.locker_address, lp.street_address, lp.city, lp.state, lp.zip
+        const orderResult = await db.query(
+            `SELECT o.*, lp.location_name as locker_name, lp.street_address, lp.city, lp.state, lp.zip
              FROM orders o
-             LEFT JOIN locker_preferences lp ON o.locker_location_id::text = lp.locker_id::text AND o.shop = lp.shop
-             WHERE o.shopify_order_id = $1 OR o.shopify_order_number = $1 OR o.id::text = $1`,
+             LEFT JOIN locker_preferences lp ON o.location_id::text = lp.location_id::text AND o.shop = lp.shop
+             WHERE o.shopify_order_id = $1 OR o.order_number = $1 OR o.id::text = $1`,
             [orderId]
         );
 
@@ -3148,6 +3380,7 @@ app.get('/api/customer/order-status/:orderId', async (req, res) => {
 
         // Build response
         const response = {
+            isLockerDropOrder: true,
             status: order.status,
             lockerName: order.locker_name || order.locker_location_name,
             lockerAddress: order.locker_address ||
@@ -4184,7 +4417,7 @@ async function processNewOrder(order, shopDomain) {
             return;
         }
 
-        console.log('✅ Order uses LockerDrop! Creating dropoff link...');
+        console.log('✅ Order uses LockerDrop! Processing...');
 
         // Get shop from webhook header, fallback to order URL parsing
         const shop = shopDomain || order.order_status_url?.match(/https:\/\/([^\/]+)/)?.[1];
@@ -4193,6 +4426,89 @@ async function processNewOrder(order, shopDomain) {
             return;
         }
         console.log('🏪 Using shop:', shop);
+
+        // Check for existing reservation from checkout
+        // Reservation ref is stored in address2 like: "LockerDrop: Name (ID: xxx) [Res: CHECKOUT_xxx]"
+        const address2 = order.shipping_address?.address2 || '';
+        const reservationMatch = address2.match(/\[Res:\s*([^\]]+)\]/);
+        const reservationRef = reservationMatch ? reservationMatch[1].trim() : null;
+
+        if (reservationRef) {
+            console.log(`🔒 Found reservation reference: ${reservationRef}`);
+
+            // Look up the reservation
+            const reservationResult = await db.query(
+                `SELECT * FROM locker_reservations
+                 WHERE reservation_ref = $1 AND status = 'pending' AND expires_at > NOW()`,
+                [reservationRef]
+            );
+
+            if (reservationResult.rows.length > 0) {
+                const reservation = reservationResult.rows[0];
+                console.log(`✅ Using pre-reserved locker: ${reservation.locker_id} (${reservation.locker_size})`);
+
+                // Mark reservation as used
+                await db.query(
+                    `UPDATE locker_reservations
+                     SET status = 'used', used_by_order_id = $1, used_at = NOW()
+                     WHERE reservation_ref = $2`,
+                    [order.id.toString(), reservationRef]
+                );
+
+                // Get customer phone
+                const customerPhone = order.phone ||
+                    order.shipping_address?.phone ||
+                    order.billing_address?.phone ||
+                    order.customer?.phone ||
+                    null;
+
+                // Extract pickup date if present
+                let preferredPickupDate = null;
+                const pickupMatch = address2.match(/Pickup:\s*(\d{4}-\d{2}-\d{2})/);
+                if (pickupMatch) {
+                    preferredPickupDate = pickupMatch[1];
+                }
+
+                // Save order using the reservation's dropoff link
+                await db.query(
+                    `INSERT INTO orders (
+                        shop, shopify_order_id, order_number,
+                        customer_email, customer_name, customer_phone,
+                        location_id, locker_id, tower_id,
+                        dropoff_link, dropoff_request_id, status, preferred_pickup_date
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                    [
+                        shop,
+                        order.id.toString(),
+                        order.order_number.toString(),
+                        order.email,
+                        order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : 'Guest',
+                        customerPhone,
+                        reservation.location_id,
+                        reservation.locker_id,
+                        reservation.tower_id,
+                        reservation.dropoff_link,
+                        reservation.dropoff_request_id,
+                        'pending_dropoff',
+                        preferredPickupDate
+                    ]
+                );
+
+                // Increment order count for billing
+                const canProcess = await canProcessOrder(shop);
+                if (canProcess.allowed) {
+                    await incrementOrderCount(shop);
+                }
+
+                console.log(`✅ Order saved with pre-reserved locker! Link: ${reservation.dropoff_link}`);
+                return; // Done - no need to allocate a new locker
+            } else {
+                console.log(`⚠️ Reservation ${reservationRef} not found or expired, falling back to new allocation`);
+            }
+        }
+
+        // No reservation found - proceed with normal allocation
+        console.log('📦 No reservation found, attempting new locker allocation...');
 
         // Check subscription status before processing
         const canProcess = await canProcessOrder(shop);
@@ -4396,6 +4712,7 @@ async function generateDropoffLink(locationId, lockerTypeId, orderId, orderNumbe
     console.log(`   ✅ Got Harbor access token`);
 
     // Create dropoff request
+    // Note: requireLowLocker removed to allow all available lockers
     const dropoffResponse = await axios.post(
         'https://api.sandbox.harborlockers.com/api/v1/locker-open-requests/dropoff-locker-request',
         {
@@ -4403,7 +4720,6 @@ async function generateDropoffLink(locationId, lockerTypeId, orderId, orderNumbe
             lockerTypeId,
             keypadIntent: 'pickup',
             persistKeypadCode: false,
-            requireLowLocker: true,
             returnUrl: `https://app.lockerdrop.it/dropoff-success?order=${orderNumber}`,
             clientInfo: `order-${orderNumber}`,
             payload: { order_id: orderId, order_number: orderNumber }
@@ -4751,6 +5067,42 @@ async function initAuditLog() {
         console.log('📋 Audit log table ready');
     } catch (error) {
         console.error('Error creating audit log table:', error);
+    }
+}
+
+// Create locker reservations table for checkout reservations
+async function initLockerReservations() {
+    try {
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS locker_reservations (
+                id SERIAL PRIMARY KEY,
+                reservation_ref VARCHAR(100) UNIQUE NOT NULL,
+                shop VARCHAR(255) NOT NULL,
+                location_id INTEGER NOT NULL,
+                locker_id INTEGER,
+                tower_id VARCHAR(50),
+                dropoff_link VARCHAR(500),
+                dropoff_request_id INTEGER,
+                locker_size VARCHAR(20),
+                customer_email VARCHAR(255),
+                customer_phone VARCHAR(50),
+                pickup_date DATE,
+                created_at TIMESTAMP DEFAULT NOW(),
+                expires_at TIMESTAMP NOT NULL,
+                status VARCHAR(20) DEFAULT 'pending',
+                used_by_order_id VARCHAR(100),
+                used_at TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_reservations_shop ON locker_reservations(shop);
+            CREATE INDEX IF NOT EXISTS idx_reservations_status ON locker_reservations(status);
+            CREATE INDEX IF NOT EXISTS idx_reservations_expires ON locker_reservations(expires_at);
+            CREATE INDEX IF NOT EXISTS idx_reservations_email ON locker_reservations(customer_email);
+        `);
+        // Fix tower_id column type if table already exists with wrong type
+        await db.query(`ALTER TABLE locker_reservations ALTER COLUMN tower_id TYPE VARCHAR(50)`).catch(() => {});
+        console.log('🔒 Locker reservations table ready');
+    } catch (error) {
+        console.error('Error creating locker reservations table:', error);
     }
 }
 
@@ -5732,6 +6084,9 @@ function toRad(degrees) {
 app.listen(PORT, async () => {
     // Initialize audit logging table
     await initAuditLog();
+
+    // Initialize locker reservations table
+    await initLockerReservations();
 
     // Ensure notes column exists on orders table
     await ensureOrdersNotesColumn();
