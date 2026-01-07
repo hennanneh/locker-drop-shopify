@@ -107,18 +107,19 @@ The app includes a theme extension with promotional blocks that merchants can ad
 |-------|---------|
 | `LockerDrop Badge` | "Available for Locker Pickup" badge for product pages |
 | `LockerDrop Cart Reminder` | Reminder with steps on cart page |
-| `LockerDrop How It Works` | Full-page section with hero, steps, benefits, locker finder |
+| `LockerDrop Steps Banner` | Simple 3-step explanation section |
+| `LockerDrop Info Page` | Full-page section with hero, steps, benefits, locker finder |
 | `LockerDrop Locker Finder` | Standalone zip code search for nearby lockers |
 | `LockerDrop Promo Banner` | Eye-catching promotional banner |
 
 ### Block Files
 Located in `extensions/lockerdrop-theme/blocks/`:
-- `product-pickup-badge.liquid`
-- `cart-pickup-reminder.liquid`
-- `how-it-works-page.liquid`
-- `how-it-works.liquid`
-- `locker-finder.liquid`
-- `promo-banner.liquid`
+- `product-pickup-badge.liquid` → LockerDrop Badge
+- `cart-pickup-reminder.liquid` → LockerDrop Cart Reminder
+- `how-it-works.liquid` → LockerDrop Steps Banner
+- `how-it-works-page.liquid` → LockerDrop Info Page
+- `locker-finder.liquid` → LockerDrop Locker Finder
+- `promo-banner.liquid` → LockerDrop Promo Banner
 
 ### Public API Endpoint
 The locker finder blocks use a public API endpoint:
