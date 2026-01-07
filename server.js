@@ -662,6 +662,10 @@ app.get('/', (req, res) => {
 // Legacy carrier rates endpoint - now includes availability check
 // Returns locker options as shipping rates for non-Plus stores
 // Plus stores use the Pickup Point Function instead (native pickup UI)
+
+// Minimum available lockers required to show a location (prevents race conditions)
+const MIN_AVAILABLE_BUFFER = 2;
+
 app.post('/carrier/rates', async (req, res) => {
     try {
         const { rate } = req.body;
@@ -866,19 +870,20 @@ app.post('/carrier/rates', async (req, res) => {
                 } else if (availability.lockerAvailability) {
                     // Fallback: just check total availability (less accurate but better than nothing)
                     const totalAvailable = availability.lockerAvailability.availableLockers || 0;
-                    hasRequiredSizeAvailable = totalAvailable > 0;
+                    hasRequiredSizeAvailable = totalAvailable >= MIN_AVAILABLE_BUFFER;
                     availableForRequiredSize = totalAvailable;
                 } else if (Array.isArray(availability)) {
                     // Old API format
-                    hasRequiredSizeAvailable = availability.some(type => type.availableCount > 0);
+                    hasRequiredSizeAvailable = availability.some(type => type.availableCount >= MIN_AVAILABLE_BUFFER);
                     availableForRequiredSize = availability.reduce((sum, type) => sum + (type.availableCount || 0), 0);
                 }
 
-                if (hasRequiredSizeAvailable) {
-                    console.log(`✅ Location ${location.name}: ${availableForRequiredSize} lockers available (${requiredSizeName}+)`);
+                // Only show locations with enough buffer to prevent race conditions
+                if (hasRequiredSizeAvailable && availableForRequiredSize >= MIN_AVAILABLE_BUFFER) {
+                    console.log(`✅ Location ${location.name}: ${availableForRequiredSize} lockers available (${requiredSizeName}+, min ${MIN_AVAILABLE_BUFFER})`);
                     availableLocations.push({ ...location, availableCount: availableForRequiredSize });
                 } else {
-                    console.log(`❌ Location ${location.name}: No ${requiredSizeName}+ lockers available`);
+                    console.log(`❌ Location ${location.name}: Only ${availableForRequiredSize} ${requiredSizeName}+ lockers (need ${MIN_AVAILABLE_BUFFER}+)`);
                 }
             } catch (availError) {
                 console.log(`⚠️ Could not check availability for ${location.name}:`, availError.message);
@@ -2924,15 +2929,16 @@ app.get('/api/checkout/lockers', async (req, res) => {
                 } else if (availability.lockerAvailability) {
                     // Fallback: just check total availability (less accurate)
                     const totalAvailable = availability.lockerAvailability.availableLockers || 0;
-                    hasRequiredSizeAvailable = totalAvailable > 0;
+                    hasRequiredSizeAvailable = totalAvailable >= MIN_AVAILABLE_BUFFER;
                     availableForRequiredSize = totalAvailable;
                 } else if (Array.isArray(availability)) {
                     // Old API format
-                    hasRequiredSizeAvailable = availability.some(type => type.availableCount > 0);
+                    hasRequiredSizeAvailable = availability.some(type => type.availableCount >= MIN_AVAILABLE_BUFFER);
                     availableForRequiredSize = availability.reduce((sum, type) => sum + (type.availableCount || 0), 0);
                 }
 
-                if (hasRequiredSizeAvailable) {
+                // Only show locations with enough buffer to prevent race conditions
+                if (hasRequiredSizeAvailable && availableForRequiredSize >= MIN_AVAILABLE_BUFFER) {
                     // Calculate distance if we have coordinates
                     let distance = null;
                     if (customerLat && customerLon && location.lat && location.lon) {
@@ -2954,7 +2960,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
                         availability: availability
                     });
                 } else {
-                    console.log(`📦 Location ${location.name} skipped - no ${requiredSizeName} or larger lockers available`);
+                    console.log(`📦 Location ${location.name} skipped - only ${availableForRequiredSize} ${requiredSizeName}+ lockers (need ${MIN_AVAILABLE_BUFFER}+)`);
                 }
             } catch (availError) {
                 console.log(`⚠️ Could not check availability for ${location.name}`);
@@ -5639,23 +5645,24 @@ app.post('/carrier-service/rates', async (req, res) => {
                 } else if (availability.lockerAvailability) {
                     // Fallback: just check total availability
                     const totalAvailable = availability.lockerAvailability.availableLockers || 0;
-                    hasRequiredSizeAvailable = totalAvailable > 0;
+                    hasRequiredSizeAvailable = totalAvailable >= MIN_AVAILABLE_BUFFER;
                     availableForRequiredSize = totalAvailable;
                 } else if (Array.isArray(availability)) {
                     // Old API format
-                    hasRequiredSizeAvailable = availability.some(type => type.availableCount > 0);
+                    hasRequiredSizeAvailable = availability.some(type => type.availableCount >= MIN_AVAILABLE_BUFFER);
                     availableForRequiredSize = availability.reduce((sum, type) => sum + (type.availableCount || 0), 0);
                 }
 
-                if (hasRequiredSizeAvailable) {
-                    console.log(`✅ Location ${location.name}: ${availableForRequiredSize} lockers available (${requiredSizeName}+)`);
+                // Only show locations with enough buffer to prevent race conditions
+                if (hasRequiredSizeAvailable && availableForRequiredSize >= MIN_AVAILABLE_BUFFER) {
+                    console.log(`✅ Location ${location.name}: ${availableForRequiredSize} lockers available (${requiredSizeName}+, min ${MIN_AVAILABLE_BUFFER})`);
                     availableLocations.push({
                         ...location,
                         availableCount: availableForRequiredSize,
                         availability: availability
                     });
                 } else {
-                    console.log(`❌ Location ${location.name}: No ${requiredSizeName}+ lockers available`);
+                    console.log(`❌ Location ${location.name}: Only ${availableForRequiredSize} ${requiredSizeName}+ lockers (need ${MIN_AVAILABLE_BUFFER}+)`);
                 }
             } catch (availError) {
                 // If availability check fails, skip this location

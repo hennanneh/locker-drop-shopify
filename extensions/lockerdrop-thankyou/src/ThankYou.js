@@ -14,17 +14,32 @@ export default extension(
   (root, api) => {
     const { order } = api;
 
-    // Check if order used LockerDrop shipping
-    const isLockerDropOrder = order?.shippingLines?.some(line =>
-      line.title?.toLowerCase().includes('lockerdrop') ||
-      line.title?.toLowerCase().includes('locker pickup') ||
-      line.title?.toLowerCase().includes('locker drop')
-    );
+    // Get shipping address from order
+    const shippingAddress = order?.shippingAddress;
+    const address2 = shippingAddress?.address2 || '';
 
-    // If not a LockerDrop order, don't render anything
+    // Check if this is a LockerDrop order by looking at address2
+    const isLockerDropOrder = address2.toLowerCase().includes('lockerdrop');
+
+    // If not a LockerDrop order, don't render
     if (!isLockerDropOrder) {
       return;
     }
+
+    // Extract locker name from address2 (format: "LockerDrop: Name (ID: xxx)")
+    let lockerName = 'Your selected locker';
+    const lockerMatch = address2.match(/LockerDrop:\s*([^(]+)/i);
+    if (lockerMatch) {
+      lockerName = lockerMatch[1].trim();
+    }
+
+    // Build locker address from shipping address fields
+    const lockerAddress = [
+      shippingAddress?.address1,
+      shippingAddress?.city,
+      shippingAddress?.provinceCode,
+      shippingAddress?.zip
+    ].filter(Boolean).join(', ');
 
     // Main container
     const container = root.createComponent(BlockStack, { spacing: 'loose', padding: 'base' });
@@ -33,7 +48,7 @@ export default extension(
     // Success Banner
     const banner = root.createComponent(Banner, {
       status: 'success',
-      title: 'Locker Pickup Selected!'
+      title: 'Locker Pickup Confirmed!'
     });
     banner.appendChild(root.createComponent(Text, {},
       'Your order will be delivered to a secure locker for convenient pickup.'
@@ -54,6 +69,17 @@ export default extension(
     headerRow.appendChild(root.createComponent(Text, { size: 'extraLarge' }, '📦'));
     headerRow.appendChild(root.createComponent(Heading, { level: 2 }, 'LockerDrop Pickup'));
     card.appendChild(headerRow);
+
+    card.appendChild(root.createComponent(Divider));
+
+    // Locker Location
+    const locationBlock = root.createComponent(BlockStack, { spacing: 'extraTight' });
+    locationBlock.appendChild(root.createComponent(Text, { emphasis: 'bold' }, 'Pickup Location:'));
+    locationBlock.appendChild(root.createComponent(Text, {}, lockerName));
+    if (lockerAddress) {
+      locationBlock.appendChild(root.createComponent(Text, { size: 'small', appearance: 'subdued' }, lockerAddress));
+    }
+    card.appendChild(locationBlock);
 
     card.appendChild(root.createComponent(Divider));
 
@@ -115,10 +141,5 @@ export default extension(
       'Your package is secured until you pick it up'
     ));
     infoFooter.appendChild(lockRow);
-
-    // Help text at bottom
-    container.appendChild(root.createComponent(Text, { size: 'small', appearance: 'subdued' },
-      'Questions about your locker pickup? Check your email for tracking updates or contact the store.'
-    ));
   }
 );
