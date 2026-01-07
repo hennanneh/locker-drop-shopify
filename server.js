@@ -3105,6 +3105,70 @@ app.get('/api/public/lockers', async (req, res) => {
 });
 
 // ============================================
+// CUSTOMER ORDER STATUS API
+// ============================================
+
+// Public endpoint for checkout extension to get order locker status
+// Used by Thank You and Order Status pages
+app.get('/api/customer/order-status/:orderId', async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        console.log(`📦 Customer order status request for order: ${orderId}`);
+
+        // Add CORS headers
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Methods', 'GET');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+        // Find order in our database
+        const orderResult = await pool.query(
+            `SELECT o.*, lp.locker_name, lp.locker_address, lp.street_address, lp.city, lp.state, lp.zip
+             FROM orders o
+             LEFT JOIN locker_preferences lp ON o.locker_location_id::text = lp.locker_id::text AND o.shop = lp.shop
+             WHERE o.shopify_order_id = $1 OR o.shopify_order_number = $1 OR o.id::text = $1`,
+            [orderId]
+        );
+
+        if (orderResult.rows.length === 0) {
+            // Order not found in our system - might not be a LockerDrop order
+            return res.json({
+                status: 'not_found',
+                message: 'This order is not using locker pickup'
+            });
+        }
+
+        const order = orderResult.rows[0];
+
+        // Build response
+        const response = {
+            status: order.status,
+            lockerName: order.locker_name || order.locker_location_name,
+            lockerAddress: order.locker_address ||
+                (order.street_address ? `${order.street_address}, ${order.city}, ${order.state} ${order.zip}` : null),
+            pickupUrl: order.status === 'ready_for_pickup' ? order.pickup_link : null,
+            dropoffDate: order.dropoff_date,
+            createdAt: order.created_at
+        };
+
+        console.log(`✅ Returning order status: ${order.status} for order ${orderId}`);
+
+        res.json(response);
+    } catch (error) {
+        console.error('Error fetching customer order status:', error.message);
+        res.status(500).json({ error: 'Failed to fetch order status' });
+    }
+});
+
+// CORS preflight for customer order status
+app.options('/api/customer/order-status/:orderId', (req, res) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.sendStatus(200);
+});
+
+// ============================================
 // PICKUP POINTS FUNCTION API
 // ============================================
 

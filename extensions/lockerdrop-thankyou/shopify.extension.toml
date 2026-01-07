@@ -1,0 +1,19 @@
+api_version = "2025-01"
+
+[[extensions]]
+uid = "lockerdrop-thankyou-block"
+type = "ui_extension"
+name = "LockerDrop Pickup Info"
+handle = "lockerdrop-thankyou"
+
+[extensions.capabilities]
+network_access = true
+api_access = true
+
+[[extensions.targeting]]
+module = "./src/ThankYou.js"
+target = "purchase.thank-you.block.render"
+
+[[extensions.targeting]]
+module = "./src/OrderStatus.js"
+target = "customer-account.order-status.block.render"
