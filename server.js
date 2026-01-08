@@ -903,15 +903,19 @@ app.post('/carrier/rates', async (req, res) => {
         console.log(`✅ Returning ${availableLocations.length} available locker options (pickup: ${pickupDateFormatted})`);
 
         const rates = availableLocations.map(location => {
-            const address = location.address || location.street_address || '';
+            // Build full address from Harbor location fields
+            const address = location.address ||
+                [location.address1 || location.street_address, location.city, location.state, location.zip]
+                    .filter(Boolean).join(', ') || '';
+            const shortAddress = [location.city, location.state].filter(Boolean).join(', ');
+
             return {
-                // Format: LockerDrop @ Name | Address (Pickup Date)
-                // This allows Shopify email templates to parse location and address
-                service_name: `LockerDrop @ ${location.name} | ${address} (Pickup ${pickupDateFormatted})`,
+                // Format: LockerDrop @ Name (City, State) - shows full address in description
+                service_name: `LockerDrop @ ${location.name}${shortAddress ? ` (${shortAddress})` : ''} - Pickup ${pickupDateFormatted}`,
                 service_code: `lockerdrop_${location.id}`,
                 total_price: price,
                 currency: 'USD',
-                description: `${address} (${location.distance.toFixed(1)} mi away)`
+                description: `📍 ${address} • ${location.distance.toFixed(1)} mi away • Available 24/7`
             };
         });
 
@@ -6140,15 +6144,19 @@ app.post('/carrier-service/rates', async (req, res) => {
 
         // Create shipping rates only for locations with available lockers
         const rates = availableLocations.map(location => {
-            const address = location.address || location.street_address || '';
+            // Build full address from Harbor location fields
+            const address = location.address ||
+                [location.address1 || location.street_address, location.city, location.state, location.zip]
+                    .filter(Boolean).join(', ') || '';
+            const shortAddress = [location.city, location.state].filter(Boolean).join(', ');
+
             return {
-                // Format: LockerDrop @ Name | Address (Pickup Date)
-                // This allows Shopify email templates to parse location and address
-                service_name: `LockerDrop @ ${location.name} | ${address} (Pickup ${pickupDateFormatted})`,
+                // Format: LockerDrop @ Name (City, State) - shows full address in description
+                service_name: `LockerDrop @ ${location.name}${shortAddress ? ` (${shortAddress})` : ''} - Pickup ${pickupDateFormatted}`,
                 service_code: `lockerdrop_${location.id}`,
                 total_price: price,
                 currency: 'USD',
-                description: `${address} (${location.distance.toFixed(1)} mi away)`,
+                description: `📍 ${address} • ${location.distance.toFixed(1)} mi away • Available 24/7`,
                 min_delivery_date: pickupDateISO,
                 max_delivery_date: pickupDateISO
             };
