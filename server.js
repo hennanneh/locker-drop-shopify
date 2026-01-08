@@ -612,15 +612,98 @@ app.get('/auth/register-carrier/:shop', async (req, res) => {
         `);
     }
 });
-// Homepage - redirect to dashboard with shop param
+// Homepage - open dashboard in new tab when coming from Shopify admin
 app.get('/', (req, res) => {
     const shop = req.query.shop;
     const host = req.query.host;
 
-    // If shop param exists (coming from Shopify), redirect to dashboard
+    // If shop param exists (coming from Shopify), serve interstitial that opens dashboard in new tab
     if (shop) {
-        const redirectUrl = `/admin/dashboard?shop=${shop}${host ? '&host=' + host : ''}`;
-        return res.redirect(redirectUrl);
+        const dashboardUrl = `/admin/dashboard?shop=${encodeURIComponent(shop)}${host ? '&host=' + encodeURIComponent(host) : ''}`;
+        return res.send(`
+            <!DOCTYPE html>
+            <html>
+                <head>
+                    <title>Opening LockerDrop Dashboard...</title>
+                    <style>
+                        body {
+                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            height: 100vh;
+                            margin: 0;
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            color: white;
+                        }
+                        .container { text-align: center; max-width: 500px; padding: 20px; }
+                        h1 { font-size: 36px; margin-bottom: 16px; }
+                        p { font-size: 18px; opacity: 0.9; margin-bottom: 24px; }
+                        .spinner {
+                            width: 40px;
+                            height: 40px;
+                            border: 4px solid rgba(255,255,255,0.3);
+                            border-top-color: white;
+                            border-radius: 50%;
+                            animation: spin 1s linear infinite;
+                            margin: 0 auto 20px;
+                        }
+                        @keyframes spin { to { transform: rotate(360deg); } }
+                        .link-btn {
+                            display: inline-block;
+                            padding: 12px 24px;
+                            background: white;
+                            color: #667eea;
+                            text-decoration: none;
+                            border-radius: 8px;
+                            font-weight: 600;
+                            margin-top: 16px;
+                            transition: transform 0.2s;
+                        }
+                        .link-btn:hover { transform: scale(1.05); }
+                        .fallback { display: none; margin-top: 20px; }
+                        .fallback.show { display: block; }
+                        .success-msg { display: none; }
+                        .success-msg.show { display: block; }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>LockerDrop</h1>
+                        <div class="spinner" id="spinner"></div>
+                        <p id="status">Opening dashboard in a new tab...</p>
+                        <p class="success-msg" id="successMsg">
+                            Dashboard opened! You can close this tab or return to your Shopify admin.
+                        </p>
+                        <div class="fallback" id="fallback">
+                            <p style="font-size: 14px; opacity: 0.8;">
+                                Popup blocked? Click the button below:
+                            </p>
+                            <a href="${dashboardUrl}" target="_blank" class="link-btn" onclick="document.getElementById('successMsg').classList.add('show');">
+                                Open Dashboard
+                            </a>
+                        </div>
+                    </div>
+                    <script>
+                        // Try to open dashboard in new tab
+                        const dashboardUrl = "${dashboardUrl}";
+                        const newWindow = window.open(dashboardUrl, '_blank');
+
+                        if (newWindow) {
+                            // Success - update UI
+                            document.getElementById('spinner').style.display = 'none';
+                            document.getElementById('status').style.display = 'none';
+                            document.getElementById('successMsg').classList.add('show');
+                        } else {
+                            // Popup was blocked - show fallback link
+                            document.getElementById('spinner').style.display = 'none';
+                            document.getElementById('status').textContent = 'Please click the button to open the dashboard:';
+                            document.getElementById('fallback').classList.add('show');
+                        }
+                    </script>
+                </body>
+            </html>
+        `);
     }
 
     // No shop param - show simple landing page (for direct visits)
@@ -646,7 +729,7 @@ app.get('/', (req, res) => {
             </head>
             <body>
                 <div class="container">
-                    <h1>🔐 LockerDrop</h1>
+                    <h1>LockerDrop</h1>
                     <p>Secure locker pickup for Shopify stores</p>
                     <p style="margin-top: 30px; opacity: 0.7;">Install from the Shopify App Store to get started</p>
                 </div>
@@ -1208,9 +1291,13 @@ app.get('/api/sync-orders/:shop', async (req, res) => {
     }
 });
 
-// Get available lockers from Harbor API
+// Get available lockers from Harbor API with search, filtering, and availability
 app.get('/api/lockers/:shop', async (req, res) => {
     try {
+        const { search, sizes, page = 1, limit = 12, includeAvailability } = req.query;
+        const pageNum = parseInt(page);
+        const limitNum = parseInt(limit);
+
         // Step 1: Get access token from Harbor
         const tokenResponse = await axios.post(
             'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
@@ -1222,29 +1309,105 @@ app.get('/api/lockers/:shop', async (req, res) => {
                 }
             }
         );
-        
+
         const accessToken = tokenResponse.data.access_token;
-        
-        // Step 2: Get locations using the token
+
+        // Step 2: Get all locations using the token
         const lockersResponse = await axios.get('https://api.sandbox.harborlockers.com/api/v1/locations/', {
             headers: {
                 'Authorization': `Bearer ${accessToken}`
             },
-            params: { limit: 100 }
+            params: { limit: 500 }
         });
-        
+
         // Transform the response to match our dashboard format
-        const lockers = lockersResponse.data.map(location => ({
+        let lockers = lockersResponse.data.map(location => ({
             id: location.id,
             name: location.name || location.location_name,
-            address: location.address || `${location.street_address}, ${location.city}, ${location.state} ${location.zip}`,
-            city: location.city,
-            state: location.state,
-            zip: location.zip,
+            address: location.address || [location.street_address || location.address1, location.city, location.state, location.zip].filter(Boolean).join(', '),
+            city: location.city || '',
+            state: location.state || '',
+            zip: location.zip || '',
             available_sizes: location.locker_sizes || ['Small', 'Medium', 'Large']
         }));
-        
-        res.json(lockers);
+
+        // Apply search filter (city or zip)
+        if (search && search.trim()) {
+            const searchLower = search.trim().toLowerCase();
+            lockers = lockers.filter(locker =>
+                (locker.city && locker.city.toLowerCase().includes(searchLower)) ||
+                (locker.zip && locker.zip.toLowerCase().startsWith(searchLower)) ||
+                (locker.name && locker.name.toLowerCase().includes(searchLower)) ||
+                (locker.address && locker.address.toLowerCase().includes(searchLower))
+            );
+        }
+
+        // Total count before pagination
+        const totalCount = lockers.length;
+        const totalPages = Math.ceil(totalCount / limitNum);
+
+        // Apply pagination
+        const startIndex = (pageNum - 1) * limitNum;
+        const paginatedLockers = lockers.slice(startIndex, startIndex + limitNum);
+
+        // Fetch availability for each locker if requested
+        if (includeAvailability === 'true') {
+            for (const locker of paginatedLockers) {
+                try {
+                    const availabilityResponse = await axios.get(
+                        `https://api.sandbox.harborlockers.com/api/v1/locations/${locker.id}/availability`,
+                        { headers: { 'Authorization': `Bearer ${accessToken}` }}
+                    );
+
+                    const availability = availabilityResponse.data;
+                    locker.availability = {};
+
+                    if (availability.byType && Array.isArray(availability.byType)) {
+                        for (const type of availability.byType) {
+                            const typeName = type.lockerType?.name || 'Unknown';
+                            const available = type.lockerAvailability?.availableLockers || 0;
+                            const total = type.lockerAvailability?.totalLockers || 0;
+                            locker.availability[typeName] = { available, total };
+                        }
+                    } else if (availability.lockerAvailability) {
+                        locker.availability['Total'] = {
+                            available: availability.lockerAvailability.availableLockers || 0,
+                            total: availability.lockerAvailability.totalLockers || 0
+                        };
+                    }
+                } catch (availError) {
+                    console.log(`⚠️ Could not fetch availability for ${locker.name}:`, availError.message);
+                    locker.availability = null;
+                }
+            }
+        }
+
+        // Apply size filter after fetching availability (filter out lockers without required sizes)
+        let filteredLockers = paginatedLockers;
+        if (sizes && includeAvailability === 'true') {
+            const requiredSizes = sizes.split(',').map(s => s.trim().toLowerCase());
+            filteredLockers = paginatedLockers.filter(locker => {
+                if (!locker.availability) return true; // Include if we couldn't get availability
+                const availableSizes = Object.keys(locker.availability).map(s => s.toLowerCase());
+                return requiredSizes.some(rs =>
+                    availableSizes.some(as => as.includes(rs)) &&
+                    Object.entries(locker.availability).some(([name, data]) =>
+                        name.toLowerCase().includes(rs) && data.available > 0
+                    )
+                );
+            });
+        }
+
+        res.json({
+            lockers: filteredLockers,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                totalCount,
+                totalPages,
+                hasMore: pageNum < totalPages
+            }
+        });
     } catch (error) {
         console.error('Error fetching lockers:', error.response?.data || error.message);
         res.status(500).json({ error: 'Failed to fetch lockers', details: error.response?.data || error.message });
