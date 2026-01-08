@@ -4425,7 +4425,7 @@ async function processOrderCancellation(order, shopDomain) {
 
         // Find the order in our database
         const orderResult = await db.query(
-            'SELECT id, locker_id, dropoff_request_id, status FROM orders WHERE shopify_order_id = $1 OR order_number = $2',
+            'SELECT id, locker_id, tower_id, dropoff_request_id, status FROM orders WHERE shopify_order_id = $1 OR order_number = $2',
             [shopifyOrderId, orderNumber]
         );
 
@@ -4442,8 +4442,8 @@ async function processOrderCancellation(order, shopDomain) {
             return;
         }
 
-        // Try to cancel the Harbor dropoff request if we have one
-        if (lockerOrder.dropoff_request_id) {
+        // Release the locker in Harbor if we have the necessary info
+        if (lockerOrder.locker_id && lockerOrder.tower_id) {
             try {
                 const tokenResponse = await axios.post(
                     'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
@@ -4452,13 +4452,18 @@ async function processOrderCancellation(order, shopDomain) {
                 );
                 const accessToken = tokenResponse.data.access_token;
 
-                // Try to cancel/invalidate the request (Harbor may not support this directly)
-                console.log(`   Attempting to release Harbor request ${lockerOrder.dropoff_request_id}...`);
-                // Note: Harbor doesn't have a direct cancel endpoint for open-requests
-                // The request will auto-expire, but we clear our records
+                console.log(`   🔓 Releasing locker ${lockerOrder.locker_id} in tower ${lockerOrder.tower_id}...`);
+                await axios.post(
+                    `https://api.sandbox.harborlockers.com/api/v1/towers/${lockerOrder.tower_id}/lockers/${lockerOrder.locker_id}/release-locker`,
+                    {},
+                    { headers: { 'Authorization': `Bearer ${accessToken}` }}
+                );
+                console.log(`   ✅ Locker released successfully`);
             } catch (harborError) {
-                console.log(`   Could not contact Harbor: ${harborError.message}`);
+                console.log(`   ⚠️ Could not release locker: ${harborError.response?.data?.detail || harborError.message}`);
             }
+        } else {
+            console.log(`   ⚠️ Cannot release locker - missing tower_id or locker_id`);
         }
 
         // Update our database - clear locker info and mark as cancelled
@@ -4468,6 +4473,7 @@ async function processOrderCancellation(order, shopDomain) {
                 dropoff_link = NULL,
                 pickup_link = NULL,
                 locker_id = NULL,
+                tower_id = NULL,
                 updated_at = NOW()
             WHERE id = $1`,
             [lockerOrder.id]
