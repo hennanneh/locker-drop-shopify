@@ -1397,9 +1397,9 @@ app.post('/api/pickup-complete', async (req, res) => {
             return res.status(400).json({ error: 'Order number required' });
         }
 
-        // Find the order and update status to completed
+        // Find the order and update status to completed - include locker_id and tower_id for release
         const result = await db.query(
-            "UPDATE orders SET status = 'completed', updated_at = NOW() WHERE order_number = $1 AND status = 'ready_for_pickup' RETURNING id, shop, shopify_order_id, order_number, customer_name",
+            "UPDATE orders SET status = 'completed', updated_at = NOW() WHERE order_number = $1 AND status = 'ready_for_pickup' RETURNING id, shop, shopify_order_id, order_number, customer_name, locker_id, tower_id",
             [orderNumber]
         );
 
@@ -1410,6 +1410,30 @@ app.post('/api/pickup-complete', async (req, res) => {
 
         const order = result.rows[0];
         console.log(`✅ Order #${orderNumber} marked as completed (picked up by customer)`);
+
+        // Release the locker in Harbor
+        if (order.tower_id && order.locker_id) {
+            try {
+                console.log(`🔓 Releasing locker ${order.locker_id} in tower ${order.tower_id}...`);
+                const tokenResponse = await axios.post(
+                    'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                    `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
+                    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
+                );
+                const accessToken = tokenResponse.data.access_token;
+
+                const releaseResponse = await axios.post(
+                    `https://api.sandbox.harborlockers.com/api/v1/towers/${order.tower_id}/lockers/${order.locker_id}/release-locker`,
+                    {},
+                    { headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }}
+                );
+                console.log(`✅ Locker released successfully:`, releaseResponse.data?.status?.name || 'released');
+            } catch (releaseError) {
+                console.log(`⚠️ Could not release locker: ${releaseError.response?.data?.detail || releaseError.message}`);
+            }
+        } else {
+            console.log(`⚠️ Cannot release locker - missing tower_id (${order.tower_id}) or locker_id (${order.locker_id})`);
+        }
 
         // Fulfill the order in Shopify
         if (order.shop && order.shopify_order_id) {
@@ -1444,7 +1468,7 @@ app.post('/api/order/:shop/:orderId/cancel-locker', async (req, res) => {
 
         // Get the order details
         const orderResult = await db.query(
-            'SELECT id, dropoff_request_id, pickup_request_id, status, locker_id FROM orders WHERE shop = $1 AND order_number = $2',
+            'SELECT id, dropoff_request_id, pickup_request_id, status, locker_id, tower_id FROM orders WHERE shop = $1 AND order_number = $2',
             [shop, orderNumber]
         );
 
@@ -1459,8 +1483,8 @@ app.post('/api/order/:shop/:orderId/cancel-locker', async (req, res) => {
             return res.status(400).json({ error: 'Cannot cancel a completed order' });
         }
 
-        // Try to release the locker via Harbor API if we have a locker_id
-        if (order.locker_id) {
+        // Try to release the locker via Harbor API if we have tower_id and locker_id
+        if (order.tower_id && order.locker_id) {
             try {
                 const tokenResponse = await axios.post(
                     'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
@@ -1469,13 +1493,19 @@ app.post('/api/order/:shop/:orderId/cancel-locker', async (req, res) => {
                 );
                 const accessToken = tokenResponse.data.access_token;
 
-                // Try to release the locker (Harbor may auto-release expired requests)
-                console.log(`   Attempting to release locker ${order.locker_id}...`);
-                // Note: Harbor doesn't have a direct cancel for open-requests,
-                // but the request should expire and locker becomes available again
+                // Release the locker in Harbor
+                console.log(`   🔓 Releasing locker ${order.locker_id} in tower ${order.tower_id}...`);
+                const releaseResponse = await axios.post(
+                    `https://api.sandbox.harborlockers.com/api/v1/towers/${order.tower_id}/lockers/${order.locker_id}/release-locker`,
+                    {},
+                    { headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }}
+                );
+                console.log(`   ✅ Locker released:`, releaseResponse.data?.status?.name || 'released');
             } catch (harborError) {
-                console.log(`   ⚠️ Could not contact Harbor: ${harborError.message}`);
+                console.log(`   ⚠️ Could not release locker: ${harborError.response?.data?.detail || harborError.message}`);
             }
+        } else if (order.locker_id) {
+            console.log(`   ⚠️ Cannot release locker - missing tower_id`);
         }
 
         // Update order in database - clear locker info and set status to cancelled
@@ -3361,7 +3391,7 @@ app.get('/api/customer/order-status/:orderId', async (req, res) => {
 
         // Find order in our database
         const orderResult = await db.query(
-            `SELECT o.*, lp.location_name as locker_name, lp.street_address, lp.city, lp.state, lp.zip
+            `SELECT o.*, lp.location_name as locker_name
              FROM orders o
              LEFT JOIN locker_preferences lp ON o.location_id::text = lp.location_id::text AND o.shop = lp.shop
              WHERE o.shopify_order_id = $1 OR o.order_number = $1 OR o.id::text = $1`,
@@ -3378,15 +3408,59 @@ app.get('/api/customer/order-status/:orderId', async (req, res) => {
 
         const order = orderResult.rows[0];
 
+        // Fetch location address from Harbor API if we have a location_id
+        let lockerAddress = null;
+        if (order.location_id) {
+            try {
+                const tokenResponse = await axios.post(
+                    'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                    `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
+                    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+                );
+                const harborToken = tokenResponse.data.access_token;
+
+                const locationResponse = await axios.get(
+                    `https://api.sandbox.harborlockers.com/api/v1/locations/${order.location_id}/`,
+                    { headers: { 'Authorization': `Bearer ${harborToken}` } }
+                );
+
+                if (locationResponse.data) {
+                    const loc = locationResponse.data;
+                    lockerAddress = [
+                        loc.address1,
+                        loc.city,
+                        loc.state,
+                        loc.zip
+                    ].filter(Boolean).join(', ');
+                }
+            } catch (locErr) {
+                console.error('Error fetching location address:', locErr.message);
+            }
+        }
+
+        // Calculate expected pickup date - use preferred_pickup_date or default to next business day
+        let expectedPickupDate = order.preferred_pickup_date;
+        if (!expectedPickupDate) {
+            // Default: next business day from order creation
+            const orderDate = new Date(order.created_at);
+            const nextDay = new Date(orderDate);
+            nextDay.setDate(nextDay.getDate() + 1);
+            // Skip weekends (0 = Sunday, 6 = Saturday)
+            while (nextDay.getDay() === 0 || nextDay.getDay() === 6) {
+                nextDay.setDate(nextDay.getDate() + 1);
+            }
+            expectedPickupDate = nextDay.toISOString();
+        }
+
         // Build response
         const response = {
             isLockerDropOrder: true,
             status: order.status,
-            lockerName: order.locker_name || order.locker_location_name,
-            lockerAddress: order.locker_address ||
-                (order.street_address ? `${order.street_address}, ${order.city}, ${order.state} ${order.zip}` : null),
+            lockerName: order.locker_name || order.location_name,
+            lockerAddress: lockerAddress,
             pickupUrl: order.status === 'ready_for_pickup' ? order.pickup_link : null,
             dropoffDate: order.dropoff_date,
+            expectedPickupDate: expectedPickupDate,
             createdAt: order.created_at
         };
 
@@ -4551,18 +4625,45 @@ async function processNewOrder(order, shopDomain) {
             console.log('📦 No access token or line items, using default Medium locker');
         }
 
-        // Get seller's preferred lockers
-        const preferences = await db.query(
-            'SELECT * FROM locker_preferences WHERE shop = $1 ORDER BY location_id = 329 DESC LIMIT 1',
-            [shop]
+        // First, try to extract location ID from shipping_lines service_code (e.g., "lockerdrop_329")
+        let locationId = null;
+        const lockerDropShippingLine = order.shipping_lines?.find(line =>
+            line.title?.toLowerCase().includes('lockerdrop')
         );
 
-        if (preferences.rows.length === 0) {
-            console.log('❌ No locker preferences set for this shop');
-            return;
+        if (lockerDropShippingLine?.code) {
+            const codeMatch = lockerDropShippingLine.code.match(/lockerdrop_(\d+)/i);
+            if (codeMatch) {
+                locationId = parseInt(codeMatch[1], 10);
+                console.log(`📍 Extracted location ID ${locationId} from shipping line code: ${lockerDropShippingLine.code}`);
+            }
         }
 
-        const preferredLocation = preferences.rows[0];
+        // Also try to extract from address2 if checkout extension set it (format: "LockerDrop: Name (ID: xxx)")
+        if (!locationId && order.shipping_address?.address2) {
+            const address2Match = order.shipping_address.address2.match(/\(ID:\s*(\d+)\)/);
+            if (address2Match) {
+                locationId = parseInt(address2Match[1], 10);
+                console.log(`📍 Extracted location ID ${locationId} from address2`);
+            }
+        }
+
+        // Fall back to seller's preferred lockers if no location found
+        if (!locationId) {
+            const preferences = await db.query(
+                'SELECT * FROM locker_preferences WHERE shop = $1 ORDER BY location_id = 329 DESC LIMIT 1',
+                [shop]
+            );
+
+            if (preferences.rows.length === 0) {
+                console.log('❌ No locker preferences set for this shop and no location in shipping lines');
+                return;
+            }
+            locationId = preferences.rows[0].location_id;
+            console.log(`📍 Using seller preferred location: ${locationId}`);
+        }
+
+        const preferredLocation = { location_id: locationId };
 
         // Get customer phone from order (try multiple places)
         const customerPhone = order.phone ||
@@ -5078,11 +5179,11 @@ async function initLockerReservations() {
                 id SERIAL PRIMARY KEY,
                 reservation_ref VARCHAR(100) UNIQUE NOT NULL,
                 shop VARCHAR(255) NOT NULL,
-                location_id INTEGER NOT NULL,
-                locker_id INTEGER,
+                location_id VARCHAR(50) NOT NULL,
+                locker_id VARCHAR(50),
                 tower_id VARCHAR(50),
                 dropoff_link VARCHAR(500),
-                dropoff_request_id INTEGER,
+                dropoff_request_id VARCHAR(50),
                 locker_size VARCHAR(20),
                 customer_email VARCHAR(255),
                 customer_phone VARCHAR(50),
@@ -5098,8 +5199,11 @@ async function initLockerReservations() {
             CREATE INDEX IF NOT EXISTS idx_reservations_expires ON locker_reservations(expires_at);
             CREATE INDEX IF NOT EXISTS idx_reservations_email ON locker_reservations(customer_email);
         `);
-        // Fix tower_id column type if table already exists with wrong type
+        // Fix column types if table already exists with wrong types (INTEGER -> VARCHAR)
         await db.query(`ALTER TABLE locker_reservations ALTER COLUMN tower_id TYPE VARCHAR(50)`).catch(() => {});
+        await db.query(`ALTER TABLE locker_reservations ALTER COLUMN locker_id TYPE VARCHAR(50)`).catch(() => {});
+        await db.query(`ALTER TABLE locker_reservations ALTER COLUMN location_id TYPE VARCHAR(50)`).catch(() => {});
+        await db.query(`ALTER TABLE locker_reservations ALTER COLUMN dropoff_request_id TYPE VARCHAR(50)`).catch(() => {});
         console.log('🔒 Locker reservations table ready');
     } catch (error) {
         console.error('Error creating locker reservations table:', error);

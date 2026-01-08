@@ -41,6 +41,8 @@ export default extension(
         // Use order name (e.g., "#1011" -> "1011")
         const orderNumber = orderName?.replace('#', '') || orderId?.split('/')?.pop();
 
+        console.log('LockerDrop OrderStatus: Checking order', orderNumber);
+
         const response = await fetch(
           `https://app.lockerdrop.it/api/customer/order-status/${orderNumber}`,
           {
@@ -52,26 +54,41 @@ export default extension(
         );
 
         // Remove loading
-        container.removeChild(loadingBlock);
+        if (container.children.length > 0) {
+          container.removeChild(loadingBlock);
+        }
 
         if (!response.ok) {
+          console.log('LockerDrop OrderStatus: API returned', response.status);
           // Not a LockerDrop order or not found - don't render anything
-          container.removeChild(container);
+          // Clear the container contents
+          while (container.children.length > 0) {
+            container.removeChild(container.children[0]);
+          }
           return;
         }
 
         const lockerStatus = await response.json();
+        console.log('LockerDrop OrderStatus: API response:', JSON.stringify(lockerStatus));
 
         // If no locker data, this isn't a LockerDrop order
         if (!lockerStatus || !lockerStatus.isLockerDropOrder) {
+          console.log('LockerDrop OrderStatus: Not a LockerDrop order');
+          while (container.children.length > 0) {
+            container.removeChild(container.children[0]);
+          }
           return;
         }
 
+        console.log('LockerDrop OrderStatus: Rendering status UI');
         // Render the LockerDrop status UI
         renderLockerDropStatus(lockerStatus);
       } catch (err) {
         console.error('Failed to check LockerDrop status:', err);
-        container.removeChild(loadingBlock);
+        // Clean up loading indicator safely
+        while (container.children.length > 0) {
+          container.removeChild(container.children[0]);
+        }
       }
     }
 
@@ -113,6 +130,23 @@ export default extension(
           locationBlock.appendChild(root.createComponent(Text, { size: 'small', appearance: 'subdued' }, lockerStatus.lockerAddress));
         }
         card.appendChild(locationBlock);
+      }
+
+      // Expected Pickup Date - show when status is pending_dropoff
+      if (status === 'pending_dropoff' && lockerStatus?.expectedPickupDate) {
+        card.appendChild(root.createComponent(Divider));
+        const dateBlock = root.createComponent(BlockStack, { spacing: 'extraTight' });
+        dateBlock.appendChild(root.createComponent(Text, { emphasis: 'bold' }, 'Expected Pickup Date:'));
+        // Format the date nicely
+        const pickupDate = new Date(lockerStatus.expectedPickupDate);
+        const formattedDate = pickupDate.toLocaleDateString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        dateBlock.appendChild(root.createComponent(Text, {}, formattedDate));
+        card.appendChild(dateBlock);
       }
 
       // Pickup Link - Only show when ready

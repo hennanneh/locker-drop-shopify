@@ -16,7 +16,7 @@ import {
 export default extension(
   'purchase.checkout.delivery-address.render-after',
   (root, api) => {
-    const { shop, sessionToken, shippingAddress, lines, buyerJourney } = api;
+    const { shop, sessionToken, shippingAddress, lines, buyerJourney, deliveryGroups } = api;
 
     // State
     let lockers = [];
@@ -24,6 +24,7 @@ export default extension(
     let loading = true;
     let error = null;
     let useLockerPickup = false;
+    let lockerDropShippingSelected = false; // Track if LockerDrop was selected via carrier service
     let requiredSize = null;
     let cartProducts = [];
     let availabilityError = null;
@@ -31,18 +32,121 @@ export default extension(
     // State for reservation
     let currentReservation = null;
 
+    // Check if LockerDrop shipping is selected (from carrier service)
+    function checkLockerDropShipping() {
+      try {
+        const groups = deliveryGroups?.current || [];
+        console.log('LockerDrop: Checking delivery groups:', JSON.stringify(groups));
+
+        for (const group of groups) {
+          const selectedOption = group.selectedDeliveryOption;
+          console.log('LockerDrop: Selected option:', JSON.stringify(selectedOption));
+
+          if (selectedOption?.title?.toLowerCase().includes('lockerdrop') ||
+              selectedOption?.handle?.toLowerCase().includes('lockerdrop') ||
+              selectedOption?.code?.toLowerCase().includes('lockerdrop')) {
+            console.log('LockerDrop: Detected LockerDrop shipping selection');
+            return true;
+          }
+        }
+
+        // Fallback: Check if address2 already contains LockerDrop info
+        // This means the customer already selected a locker
+        const address = shippingAddress?.current;
+        if (address?.address2?.toLowerCase().includes('lockerdrop')) {
+          console.log('LockerDrop: Detected via address2');
+          return true;
+        }
+      } catch (err) {
+        console.error('LockerDrop: Error checking delivery groups:', err);
+      }
+      return false;
+    }
+
+    // Subscribe to delivery group changes
+    if (deliveryGroups?.subscribe) {
+      deliveryGroups.subscribe(() => {
+        const wasSelected = lockerDropShippingSelected;
+        lockerDropShippingSelected = checkLockerDropShipping();
+
+        // Auto-enable locker pickup UI if LockerDrop shipping selected
+        if (lockerDropShippingSelected && !useLockerPickup) {
+          useLockerPickup = true;
+          // Auto-select first locker if available
+          if (lockers.length > 0 && !selectedLocker) {
+            selectedLocker = lockers[0];
+          }
+          render();
+        }
+      });
+    }
+
+    // Initial check
+    lockerDropShippingSelected = checkLockerDropShipping();
+
     // Intercept checkout to RESERVE locker before payment (not just check availability)
     // This prevents pending_allocation by actually reserving the locker
     buyerJourney.intercept(async ({ canBlockProgress }) => {
-      // Only intercept if user selected locker pickup
+      console.log('LockerDrop: buyerJourney.intercept called');
+      console.log('LockerDrop: canBlockProgress =', canBlockProgress);
+      console.log('LockerDrop: useLockerPickup =', useLockerPickup);
+      console.log('LockerDrop: selectedLocker =', selectedLocker?.id || 'none');
+      console.log('LockerDrop: lockers.length =', lockers.length);
+
+      // Re-check if LockerDrop shipping is selected
+      lockerDropShippingSelected = checkLockerDropShipping();
+      console.log('LockerDrop: lockerDropShippingSelected =', lockerDropShippingSelected);
+
+      // If LockerDrop shipping selected but NO lockers available at all, block checkout
+      if (lockerDropShippingSelected && lockers.length === 0) {
+        console.log('LockerDrop: BLOCKING - LockerDrop selected but no lockers available');
+        if (canBlockProgress) {
+          availabilityError = 'No lockers are currently available. Please select a different shipping method.';
+          render();
+          return {
+            behavior: 'block',
+            reason: 'No lockers available',
+            errors: [
+              {
+                message: 'No lockers are currently available at this location. Please select a different shipping method to complete your order.',
+              }
+            ]
+          };
+        }
+      }
+
+      // If LockerDrop shipping selected via carrier service but no locker selected, block
+      if (lockerDropShippingSelected && !selectedLocker) {
+        console.log('LockerDrop: BLOCKING - LockerDrop selected but no locker chosen');
+        if (canBlockProgress) {
+          availabilityError = 'Please select a locker pickup location to continue.';
+          useLockerPickup = true;
+          render();
+          return {
+            behavior: 'block',
+            reason: 'Locker selection required',
+            errors: [
+              {
+                message: 'You selected LockerDrop shipping. Please select a pickup locker location below.',
+              }
+            ]
+          };
+        }
+      }
+
+      // Only proceed with reservation if user has locker pickup enabled AND selected a locker
       if (!useLockerPickup || !selectedLocker) {
+        console.log('LockerDrop: ALLOWING - not using locker pickup or no locker selected');
         return { behavior: 'allow' };
       }
 
       // If we can't block progress, just allow
       if (!canBlockProgress) {
+        console.log('LockerDrop: ALLOWING - cannot block progress');
         return { behavior: 'allow' };
       }
+
+      console.log('LockerDrop: Attempting to reserve locker', selectedLocker.id);
 
       try {
         const token = await sessionToken.get();
@@ -227,11 +331,22 @@ export default extension(
           ? `No locker locations with ${requiredSize} or larger lockers available for your order. Your items require a ${requiredSize} locker.`
           : 'No locker locations available near your address';
 
-        container.appendChild(
-          root.createComponent(Banner, { status: 'info' },
-            root.createComponent(Text, null, noLockersMessage)
-          )
-        );
+        // If LockerDrop shipping was selected via carrier service, show critical warning
+        if (lockerDropShippingSelected) {
+          container.appendChild(
+            root.createComponent(Banner, { status: 'critical' },
+              root.createComponent(Text, null,
+                'No lockers are currently available. Please select a different shipping method to continue.'
+              )
+            )
+          );
+        } else {
+          container.appendChild(
+            root.createComponent(Banner, { status: 'info' },
+              root.createComponent(Text, null, noLockersMessage)
+            )
+          );
+        }
       } else if (!useLockerPickup) {
         // Show button to enable locker pickup
         const enableButton = root.createComponent(Button, {
