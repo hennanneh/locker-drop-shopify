@@ -1863,10 +1863,11 @@
                         ` : '<p style="color: #6d7175; font-size: 13px; margin-top: 8px;">This link was sent to the customer</p>'}
                         ${canEmergencyOpen ? `
                         <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e1e3e5;">
-                            <p style="color: #b71c1c; font-size: 13px; margin-bottom: 8px;"><strong>Emergency Access</strong> - Opens the locker door remotely:</p>
+                            <p style="color: #b71c1c; font-size: 13px; margin-bottom: 8px;"><strong>Emergency Access</strong> - Generate a fresh pickup link:</p>
                             <button class="btn btn-small" onclick="emergencyOpenLocker('${order.orderNumber}')" style="background: #b71c1c; color: white; border-color: #b71c1c;">
-                                🔓 Open Locker Now
+                                🔗 New Pickup Link
                             </button>
+                            <p style="color: #6d7175; font-size: 11px; margin-top: 6px;">Click link at locker to open, or share with customer</p>
                         </div>
                         ` : ''}
                     `;
@@ -1929,22 +1930,22 @@
         // Emergency open locker - for when customer's link doesn't work
         async function emergencyOpenLocker(orderNumber) {
             const reason = prompt(
-                `EMERGENCY LOCKER OPEN\n\n` +
+                `NEW PICKUP LINK\n\n` +
                 `Order: #${orderNumber}\n\n` +
-                `This will remotely unlock the locker for the customer.\n` +
+                `This generates a fresh pickup link.\n` +
                 `Please enter a reason for this action (required):`
             );
 
             if (!reason) {
-                alert('Emergency open cancelled - reason is required');
+                alert('Cancelled - reason is required');
                 return;
             }
 
             if (!confirm(
-                `Are you sure you want to emergency open the locker?\n\n` +
+                `Generate new pickup link?\n\n` +
                 `Order: #${orderNumber}\n` +
                 `Reason: ${reason}\n\n` +
-                `The locker will unlock for approximately 5 minutes.`
+                `You can click the link at the locker to open it,\nor share it with the customer.`
             )) {
                 return;
             }
@@ -1963,37 +1964,27 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    if (result.lockerOpened) {
-                        // Locker was directly opened
-                        alert(
-                            `✅ LOCKER OPENED!\n\n` +
-                            `Locker #${result.lockerId} has been unlocked remotely.\n\n` +
-                            `The door will remain unlocked for approximately 30 seconds.\n\n` +
-                            `${result.pickupLink ? 'A backup pickup link has also been generated.' : ''}`
-                        );
-                    } else if (result.pickupLink) {
-                        // Fallback: new pickup link generated
+                    if (result.pickupLink) {
                         navigator.clipboard.writeText(result.pickupLink).then(() => {
                             alert(
-                                `⚠️ Could not open locker directly.\n\n` +
-                                `A new pickup link has been generated and copied to your clipboard.\n\n` +
-                                `Link: ${result.pickupLink}\n\n` +
-                                `Share this link with the customer - when they click it, the locker will open.`
+                                `✅ New Pickup Link Generated!\n\n` +
+                                `Link copied to clipboard.\n\n` +
+                                `• Click the link at the locker to open it\n` +
+                                `• Or share with customer\n\n` +
+                                `Locker #${result.lockerId}`
                             );
                         }).catch(() => {
                             alert(
-                                `⚠️ Could not open locker directly.\n\n` +
-                                `A new pickup link has been generated:\n\n` +
+                                `✅ New Pickup Link Generated!\n\n` +
                                 `${result.pickupLink}\n\n` +
-                                `Share this link with the customer.`
+                                `• Click the link at the locker to open it\n` +
+                                `• Or share with customer`
                             );
                         });
                     } else {
                         alert(
-                            `Locker action completed!\n\n` +
-                            `Location: ${result.locationName || 'N/A'}\n` +
-                            `Locker ID: ${result.lockerId}\n` +
-                            `Method: ${result.method}\n\n` +
+                            `Action completed!\n\n` +
+                            `Locker #${result.lockerId}\n` +
                             `${result.note}`
                         );
                     }

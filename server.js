@@ -3974,33 +3974,12 @@ app.post('/api/emergency-open/:shop', requireApiAuth, async (req, res) => {
         const accessToken = tokenResponse.data.access_token;
 
         let openResult;
-        let method;
+        let method = 'new-pickup-link';
         let newPickupLink = null;
-        let lockerOpened = false;
 
-        // FIRST: Try to directly open the locker
+        // Generate a new pickup link
         try {
-            console.log(`   🔓 Attempting to directly open locker ${order.locker_id} in tower ${order.tower_id}...`);
-            method = 'direct-open';
-
-            const openResponse = await axios.post(
-                `https://api.sandbox.harborlockers.com/api/v1/towers/${order.tower_id}/lockers/${order.locker_id}/open-locker`,
-                {},
-                { headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }}
-            );
-
-            openResult = openResponse.data;
-            lockerOpened = true;
-            console.log(`   ✅ Locker opened directly!`, openResult?.status?.name || 'success');
-
-        } catch (openError) {
-            console.error(`   ⚠️ Direct open failed:`, openError.response?.data?.detail || openError.message);
-            // Continue to generate pickup link as fallback
-        }
-
-        // ALSO: Generate a new pickup link (as backup or if direct open failed)
-        try {
-            console.log(`   Generating new pickup link as backup...`);
+            console.log(`   🔗 Generating new pickup link for locker ${order.locker_id}...`);
 
             const pickupResponse = await axios.post(
                 'https://api.sandbox.harborlockers.com/api/v1/locker-open-requests/pickup-locker-request',
@@ -4016,12 +3995,9 @@ app.post('/api/emergency-open/:shop', requireApiAuth, async (req, res) => {
             );
 
             newPickupLink = pickupResponse.data.linkToken;
-            if (!lockerOpened) {
-                openResult = pickupResponse.data;
-                method = 'new-pickup-link';
-            }
+            openResult = pickupResponse.data;
 
-            console.log(`   ✅ Backup pickup link generated: ${newPickupLink}`);
+            console.log(`   ✅ New pickup link generated: ${newPickupLink}`);
 
             // Update the pickup link in the database
             await db.query(
@@ -4030,24 +4006,19 @@ app.post('/api/emergency-open/:shop', requireApiAuth, async (req, res) => {
             );
 
         } catch (linkError) {
-            console.error(`   ❌ Failed to generate backup pickup link:`, linkError.response?.data || linkError.message);
+            console.error(`   ❌ Failed to generate pickup link:`, linkError.response?.data || linkError.message);
 
-            // If direct open worked, we're still OK
-            if (lockerOpened) {
-                console.log(`   ℹ️ Direct open succeeded, continuing without backup link`);
-            } else {
-                // Check for specific error types
-                const errorDetail = linkError.response?.data?.detail || '';
-                if (errorDetail.includes('not assigned') || errorDetail.includes('not occupied')) {
-                    return res.status(400).json({
-                        error: 'Locker assignment lost',
-                        details: 'The locker is no longer assigned to this order. This can happen if the package was already picked up or the assignment expired.',
-                        suggestion: 'Contact Harbor support to verify the package status and re-assign the locker if needed.'
-                    });
-                }
-
-                throw linkError;
+            // Check for specific error types
+            const errorDetail = linkError.response?.data?.detail || '';
+            if (errorDetail.includes('not assigned') || errorDetail.includes('not occupied')) {
+                return res.status(400).json({
+                    error: 'Locker assignment lost',
+                    details: 'The locker is no longer assigned to this order. This can happen if the package was already picked up or the assignment expired.',
+                    suggestion: 'Contact Harbor support to verify the package status and re-assign the locker if needed.'
+                });
             }
+
+            throw linkError;
         }
 
         // Log the emergency open action
@@ -4074,17 +4045,14 @@ app.post('/api/emergency-open/:shop', requireApiAuth, async (req, res) => {
 
         res.json({
             success: true,
-            message: lockerOpened ? 'Locker opened!' : 'New pickup link generated',
-            lockerOpened: lockerOpened,
+            message: 'New pickup link generated',
             method: method,
             lockerId: order.locker_id,
             towerId: order.tower_id,
             locationName: order.location_name,
             pickupLink: newPickupLink,
             openResult: openResult,
-            note: lockerOpened
-                ? 'The locker door has been opened remotely. A backup pickup link has also been generated.'
-                : 'A new pickup link has been generated. Share this link with the customer or have them click it to open the locker.'
+            note: 'Click the link at the locker to open it, or share with the customer.'
         });
 
     } catch (error) {
