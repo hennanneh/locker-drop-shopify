@@ -1826,14 +1826,17 @@
 
                 // Dropoff link section
                 const dropoffContent = document.getElementById('dropoff-content');
+                const dropoffPending = order.status === 'pending_dropoff';
                 if (order.dropoffLink) {
                     dropoffContent.innerHTML = `
                         <a href="${order.dropoffLink}" target="_blank" class="btn btn-primary">
                             🔓 Open Locker to Drop Off
                         </a>
+                        ${dropoffPending ? `
                         <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLink('${order.orderNumber}')" style="margin-left: 8px;" title="Regenerate if link expired">
                             🔄 Regenerate
                         </button>
+                        ` : '<span style="color: #008060; margin-left: 8px;">✓ Used</span>'}
                     `;
                 } else {
                     dropoffContent.innerHTML = `
@@ -1846,30 +1849,23 @@
 
                 // Pickup link section
                 const pickupContent = document.getElementById('pickup-content');
+                const canRegenPickup = order.status === 'ready_for_pickup' || order.status === 'dropped_off';
                 if (order.pickupLink) {
-                    const canResend = order.status === 'ready_for_pickup' || order.status === 'dropped_off';
-                    const canEmergencyOpen = order.status === 'ready_for_pickup' || order.status === 'dropped_off';
                     pickupContent.innerHTML = `
                         <a href="${order.pickupLink}" target="_blank" class="btn btn-secondary">
                             🔓 Customer Pickup Link
                         </a>
-                        ${canResend ? `
+                        ${canRegenPickup ? `
+                        <button class="btn btn-secondary btn-small" onclick="regeneratePickupLink('${order.orderNumber}')" style="margin-left: 8px;" title="Regenerate if link expired">
+                            🔄 Regenerate
+                        </button>
                         <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e1e3e5;">
                             <p style="color: #6d7175; font-size: 13px; margin-bottom: 8px;">Resend notification to customer:</p>
                             <button class="btn btn-small" onclick="resendNotification('${order.orderNumber}', 'sms')" style="margin-right: 6px;">📱 Send SMS</button>
                             <button class="btn btn-small" onclick="resendNotification('${order.orderNumber}', 'email')" style="margin-right: 6px;">📧 Send Email</button>
                             <button class="btn btn-small" onclick="resendNotification('${order.orderNumber}', 'both')">📱📧 Send Both</button>
                         </div>
-                        ` : '<p style="color: #6d7175; font-size: 13px; margin-top: 8px;">This link was sent to the customer</p>'}
-                        ${canEmergencyOpen ? `
-                        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e1e3e5;">
-                            <p style="color: #b71c1c; font-size: 13px; margin-bottom: 8px;"><strong>Emergency Access</strong> - Generate a fresh pickup link:</p>
-                            <button class="btn btn-small" onclick="emergencyOpenLocker('${order.orderNumber}')" style="background: #b71c1c; color: white; border-color: #b71c1c;">
-                                🔗 New Pickup Link
-                            </button>
-                            <p style="color: #6d7175; font-size: 11px; margin-top: 6px;">Click link at locker to open, or share with customer</p>
-                        </div>
-                        ` : ''}
+                        ` : '<span style="color: #008060; margin-left: 8px;">✓ Picked up</span>'}
                     `;
                 } else {
                     pickupContent.innerHTML = `<p style="color: #6d7175;">Will be generated after drop-off</p>`;
@@ -1927,28 +1923,9 @@
             }
         }
 
-        // Emergency open locker - for when customer's link doesn't work
-        async function emergencyOpenLocker(orderNumber) {
-            const reason = prompt(
-                `NEW PICKUP LINK\n\n` +
-                `Order: #${orderNumber}\n\n` +
-                `This generates a fresh pickup link.\n` +
-                `Please enter a reason for this action (required):`
-            );
-
-            if (!reason) {
-                alert('Cancelled - reason is required');
-                return;
-            }
-
-            if (!confirm(
-                `Generate new pickup link?\n\n` +
-                `Order: #${orderNumber}\n` +
-                `Reason: ${reason}\n\n` +
-                `You can click the link at the locker to open it,\nor share it with the customer.`
-            )) {
-                return;
-            }
+        // Regenerate pickup link - for when customer's link has expired
+        async function regeneratePickupLink(orderNumber) {
+            if (!confirm(`Regenerate pickup link for order #${orderNumber}?\n\nUse this if the current link shows an error or has expired.`)) return;
 
             try {
                 const response = await fetch(`/api/emergency-open/${shop}`, {
@@ -1956,7 +1933,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         orderNumber: orderNumber,
-                        reason: reason,
+                        reason: 'Link regeneration requested',
                         openType: 'pickup'
                     })
                 });
@@ -1964,43 +1941,15 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    if (result.pickupLink) {
-                        navigator.clipboard.writeText(result.pickupLink).then(() => {
-                            alert(
-                                `✅ New Pickup Link Generated!\n\n` +
-                                `Link copied to clipboard.\n\n` +
-                                `• Click the link at the locker to open it\n` +
-                                `• Or share with customer\n\n` +
-                                `Locker #${result.lockerId}`
-                            );
-                        }).catch(() => {
-                            alert(
-                                `✅ New Pickup Link Generated!\n\n` +
-                                `${result.pickupLink}\n\n` +
-                                `• Click the link at the locker to open it\n` +
-                                `• Or share with customer`
-                            );
-                        });
-                    } else {
-                        alert(
-                            `Action completed!\n\n` +
-                            `Locker #${result.lockerId}\n` +
-                            `${result.note}`
-                        );
-                    }
+                    alert(`✅ New pickup link generated for order #${orderNumber}!\n\nThe page will refresh to show the new link.`);
                     closeModal();
                     loadOrders();
                 } else {
-                    alert(
-                        `Failed to open locker:\n\n` +
-                        `${result.error}\n` +
-                        `${result.details ? '\nDetails: ' + result.details : ''}` +
-                        `${result.suggestion ? '\n\n' + result.suggestion : ''}`
-                    );
+                    alert(`Failed to regenerate link:\n\n${result.error || 'Unknown error'}`);
                 }
             } catch (error) {
-                console.error('Error with emergency open:', error);
-                alert('Error: Failed to open locker. Please try again or contact Harbor support.');
+                console.error('Error regenerating pickup link:', error);
+                alert('Error: Failed to regenerate link. Please try again.');
             }
         }
 
