@@ -1,134 +1,116 @@
 # LockerDrop Admin Dashboard - Setup Guide
 
-## Files Created
-
-1. **admin-dashboard.html** - The complete admin interface for sellers
-2. **server-updated.js** - Updated server with admin dashboard routes
-3. **routes-admin.js** - Separate admin routes file (optional, for modularity)
-
-## Setup Instructions
-
-### Step 1: Update Your Project Structure
-
-Your project should have this structure:
+## Project Structure
 
 ```
 lockerdrop-shopify/
-├── server.js (replace with server-updated.js)
-├── .env
-├── package.json
+├── server.js                 # Express server with all routes
+├── .env                      # Environment configuration
+├── package.json              # Dependencies
 ├── public/
-│   └── admin-dashboard.html (new)
-├── routes/
-│   ├── auth.js
-│   ├── carrier.js
-│   └── admin.js (optional)
-└── services/
-    ├── harbor.service.js
-    └── shopify.service.js
+│   ├── admin-dashboard.html  # Seller dashboard (Polaris design)
+│   └── docs/                 # Help documentation pages
+├── docs/                     # Markdown documentation
+└── extensions/               # Shopify app extensions
 ```
 
-### Step 2: Copy Files to Your Project
+## Environment Setup
 
-1. **Copy admin-dashboard.html to public folder:**
-   ```bash
-   cp /home/claude/admin-dashboard.html /path/to/your/project/public/
-   ```
+Create a `.env` file with these variables:
 
-2. **Replace your server.js:**
-   ```bash
-   cp /home/claude/server-updated.js /path/to/your/project/server.js
-   ```
-
-### Step 3: Create the public Directory
-
-In your project root:
-```bash
-mkdir public
-mv admin-dashboard.html public/
-```
-
-### Step 4: Update Your .env File
-
-Make sure you have these variables:
 ```env
 # Shopify App Credentials
 SHOPIFY_API_KEY=your_api_key
 SHOPIFY_API_SECRET=your_api_secret
 SHOPIFY_SCOPES=write_shipping,read_orders,write_orders,read_products
-SHOPIFY_HOST=your-ngrok-url.ngrok.io
+SHOPIFY_HOST=your-domain.com
 
 # Harbor Locker API
-HARBOR_CLIENT_ID=lockerdrop
-HARBOR_CLIENT_SECRET=UHAmeQiazptDLws87frl0TR7ddO3vhHh
-HARBOR_API_URL=https://api.sandbox.harborlockers.com
+HARBOR_CLIENT_ID=your_client_id
+HARBOR_CLIENT_SECRET=your_client_secret
+HARBOR_API_URL=https://api.harborlockers.com
+
+# Database
+DATABASE_URL=postgres://user:pass@host:5432/dbname
 
 # Server
 PORT=3000
 ```
 
-### Step 5: Restart Your Server
+## Running the Server
 
-1. **Stop your current server** (Ctrl+C in terminal)
+```bash
+# Install dependencies
+npm install
 
-2. **Start the updated server:**
-   ```bash
-   npm start
-   ```
+# Development (with auto-reload)
+npm run dev
 
-   Or if you're using nodemon:
-   ```bash
-   nodemon server.js
-   ```
-
-### Step 6: Access the Admin Dashboard
-
-Once the carrier service is registered, you can access the dashboard at:
-```
-https://your-ngrok-url.ngrok.app/admin/dashboard?shop=enna-test.myshopify.com
+# Production
+npm start
 ```
 
-Or after completing the installation flow, you'll be automatically redirected to the dashboard.
+## Accessing the Dashboard
 
-## Features of the Admin Dashboard
+The dashboard is accessed via Shopify admin or directly:
 
-### 📊 Dashboard Tab
-- View statistics: Pending drop-offs, Ready for pickup, Completed orders, Active lockers
-- Recent orders table with quick actions
-- Real-time order status updates
+```
+https://your-domain.com/admin/dashboard?shop=store-name.myshopify.com
+```
 
-### 📦 Orders Tab
-- Complete list of all LockerDrop orders
-- View drop-off and pickup codes
-- Filter and search orders
-- Update order status
+When accessed from Shopify admin, an interstitial page opens the dashboard in a new tab for better UX.
+
+## Dashboard Features
+
+### Orders Tab
+- View and filter orders by status
+- Order detail modal with access codes
+- Mark orders as dropped off
 - Resend pickup emails to customers
+- Cancel locker reservations
+- Create manual orders
 
-### 🔐 My Lockers Tab
-- View all available Harbor lockers in your area
-- Select which lockers you want to use
-- See locker sizes and addresses
-- Save locker preferences
+### My Lockers Tab
+- Browse Harbor Locker locations
+- Search by city or zip code
+- Filter by locker size
+- View real-time availability
+- Select which lockers to use
 
-### 📐 Product Settings Tab
-- Assign locker sizes to products
-- Set product dimensions
-- Ensure customers see only compatible lockers
+### Product Sizes Tab
+- Assign dimensions to products
+- Enter exact L x W x H measurements
+- Quick locker size selection
+- Multi-item stacking calculations
 
-### 💰 Shipping Rates Tab
-- Configure base shipping rate
-- Set processing time
-- Configure locker hold time
-- Enable/disable for specific products
+### Settings Tab
+All settings auto-save when changed.
 
-### 📧 Notifications Tab
-- Email notification settings
-- Customize email templates
-- Toggle different notification types
+**Pricing:**
+- Free pickup toggle
+- Customer fee display
+
+**Fulfillment & Timing:**
+- Processing time (business days)
+- Fulfillment days (Mon-Sun)
+- Hold time before return
+- Vacation days
+- Pickup date preview
+
+**Branding:**
+- Logo upload
+- Primary color
+- Success message
+- Upsell products
+
+### Learn Tab
+- Getting started guide
+- Order lifecycle
+- Locker sizes reference
+- Theme blocks with previews
+- FAQ and support
 
 ## API Endpoints
-
-The dashboard uses these API endpoints:
 
 ### Dashboard Stats
 ```
@@ -137,115 +119,89 @@ GET /api/stats/:shop
 
 ### Orders
 ```
-GET /api/orders/:shop          - Get all orders
-GET /api/order/:shop/:orderId  - Get order details
-POST /api/order/:shop/:orderId/status - Update order status
-POST /api/order/:shop/:orderId/resend-email - Resend pickup email
+GET  /api/orders/:shop
+GET  /api/order/:shop/:orderId
+POST /api/order/:shop/:orderId/status
+POST /api/order/:shop/:orderId/resend-email
+POST /api/order/:shop/:orderId/cancel
+POST /api/orders/:shop/manual
 ```
 
 ### Lockers
 ```
-GET /api/lockers/:shop - Get available lockers from Harbor API
-POST /api/lockers/:shop/preferences - Save locker preferences
+GET  /api/lockers/:shop
+POST /api/lockers/:shop/preferences
+GET  /api/locker-availability/:shop
 ```
 
 ### Settings
 ```
-GET /api/settings/:shop - Get seller settings
-POST /api/settings/:shop - Update seller settings
+GET  /api/settings/:shop
+POST /api/settings/:shop
+GET  /api/branding/:shop
+POST /api/branding/:shop
 ```
 
-## Next Steps
-
-### 1. Database Integration
-Currently, the dashboard uses sample data. You'll need to:
-- Set up a database (PostgreSQL recommended)
-- Create tables for: orders, locker_preferences, settings, etc.
-- Update API endpoints to read/write from database
-
-### 2. Order Webhook Implementation
-When a customer places an order:
-```javascript
-// In server.js, webhook handler
-app.post('/webhooks/orders/create', async (req, res) => {
-    const order = req.body;
-    
-    // 1. Check if order uses LockerDrop
-    // 2. Reserve locker via Harbor API
-    // 3. Generate access codes
-    // 4. Store in database
-    // 5. Send notification emails
-});
+### Products
+```
+GET  /api/products/:shop
+POST /api/products/:shop/sizes
 ```
 
-### 3. Email Notifications
-Implement email sending:
-- Use Sendgrid, Mailgun, or similar
-- Send to seller when order is placed
-- Send to customer with pickup codes
-- Send reminders before deadline
+## Design System
 
-### 4. Harbor API Integration
-Complete the locker reservation flow:
-```javascript
-// Reserve locker
-const reservation = await harborAPI.reserveLocker({
-    lockerId: selectedLocker.id,
-    duration: 5, // days
-    size: 'medium'
-});
+The dashboard uses Shopify Polaris design tokens:
 
-// Generate access codes
-const codes = {
-    dropOff: reservation.seller_code,
-    pickup: reservation.customer_code
-};
+```css
+:root {
+    /* Colors */
+    --p-color-bg-fill-brand: #008060;
+    --p-color-text: #202223;
+    --p-color-text-secondary: #6d7175;
+    --p-color-border-secondary: #e1e3e5;
+
+    /* Spacing (4px base) */
+    --p-space-200: 8px;
+    --p-space-400: 16px;
+    --p-space-500: 20px;
+
+    /* Border Radius */
+    --p-border-radius-200: 8px;
+
+    /* Shadows */
+    --p-shadow-card: 0 0 0 1px rgba(63, 63, 68, 0.05),
+                     0 1px 3px 0 rgba(63, 63, 68, 0.15);
+}
 ```
-
-## Testing the Dashboard
-
-1. **Install the app** on your Shopify dev store
-2. **Register the carrier service**
-3. **Access the dashboard** using the URL provided
-4. **Test each tab** to ensure UI loads correctly
-5. **Make a test order** on your store using LockerDrop shipping
 
 ## Troubleshooting
 
 ### Dashboard not loading?
-- Check that ngrok is running
-- Verify `public` folder exists with admin-dashboard.html
-- Check server logs for errors
+- Verify the server is running
+- Check the `shop` parameter in the URL
+- Look at browser console for errors
 
-### API endpoints returning errors?
-- Verify .env variables are set
-- Check that shop parameter is in URL
-- Look at network tab in browser dev tools
+### API errors?
+- Verify `.env` variables are set
+- Check server logs for detailed errors
+- Test API endpoints with curl
 
-### Lockers not loading?
-- Test Harbor API credentials
-- Check server logs for API errors
-- Verify Harbor API is accessible
+### Lockers not showing?
+- Verify Harbor API credentials
+- Check if lockers are selected in preferences
+- Look for API errors in server logs
 
-## Development vs Production
-
-### Current Setup (Development)
-- Using ngrok for public URL
-- Sample data in memory
-- No database
-- Sandbox Harbor API
-
-### Production Requirements
-- Real hosting (Railway, Heroku, DigitalOcean)
-- Production database
-- Production Harbor API credentials
-- SSL certificate
-- Environment-specific configurations
+### Settings not saving?
+- Auto-save triggers on change
+- Check network tab for API calls
+- Verify database connection
 
 ## Support
 
-If you run into issues:
-1. Check server logs in terminal
-2. Check browser console for JavaScript errors
-3. Verify all .env variables are set
-4. Test API endpoints individually using Postman/curl
+- Email: support@lockerdrop.it
+- Training: `/docs/training`
+- FAQ: `/docs/faq`
+
+---
+
+**Last Updated:** January 2025
