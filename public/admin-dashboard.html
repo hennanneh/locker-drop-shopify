@@ -1863,9 +1863,9 @@
                         ` : '<p style="color: #6d7175; font-size: 13px; margin-top: 8px;">This link was sent to the customer</p>'}
                         ${canEmergencyOpen ? `
                         <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e1e3e5;">
-                            <p style="color: #b71c1c; font-size: 13px; margin-bottom: 8px;"><strong>Emergency Access</strong> - Use if customer's link doesn't work:</p>
+                            <p style="color: #b71c1c; font-size: 13px; margin-bottom: 8px;"><strong>Emergency Access</strong> - Opens the locker door remotely:</p>
                             <button class="btn btn-small" onclick="emergencyOpenLocker('${order.orderNumber}')" style="background: #b71c1c; color: white; border-color: #b71c1c;">
-                                🔗 Generate New Pickup Link
+                                🔓 Open Locker Now
                             </button>
                         </div>
                         ` : ''}
@@ -1963,22 +1963,29 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    // Copy pickup link to clipboard
-                    if (result.pickupLink) {
+                    if (result.lockerOpened) {
+                        // Locker was directly opened
+                        alert(
+                            `✅ LOCKER OPENED!\n\n` +
+                            `Locker #${result.lockerId} has been unlocked remotely.\n\n` +
+                            `The door will remain unlocked for approximately 30 seconds.\n\n` +
+                            `${result.pickupLink ? 'A backup pickup link has also been generated.' : ''}`
+                        );
+                    } else if (result.pickupLink) {
+                        // Fallback: new pickup link generated
                         navigator.clipboard.writeText(result.pickupLink).then(() => {
                             alert(
-                                `✅ New Pickup Link Generated!\n\n` +
-                                `The link has been copied to your clipboard.\n\n` +
+                                `⚠️ Could not open locker directly.\n\n` +
+                                `A new pickup link has been generated and copied to your clipboard.\n\n` +
                                 `Link: ${result.pickupLink}\n\n` +
-                                `Share this link with the customer - when they click it, the locker will open.\n\n` +
-                                `Locker: #${result.lockerId}`
+                                `Share this link with the customer - when they click it, the locker will open.`
                             );
                         }).catch(() => {
                             alert(
-                                `✅ New Pickup Link Generated!\n\n` +
-                                `Link: ${result.pickupLink}\n\n` +
-                                `Share this link with the customer - when they click it, the locker will open.\n\n` +
-                                `Locker: #${result.lockerId}`
+                                `⚠️ Could not open locker directly.\n\n` +
+                                `A new pickup link has been generated:\n\n` +
+                                `${result.pickupLink}\n\n` +
+                                `Share this link with the customer.`
                             );
                         });
                     } else {
