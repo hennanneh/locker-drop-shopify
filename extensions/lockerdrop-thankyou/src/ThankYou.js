@@ -7,7 +7,7 @@ import {
   Icon,
   Banner,
   Divider,
-  SkeletonText,
+  Spinner,
 } from '@shopify/ui-extensions/checkout';
 
 export default extension(
@@ -20,9 +20,35 @@ export default extension(
     const container = root.createComponent(BlockStack, { spacing: 'loose', padding: 'base' });
     root.appendChild(container);
 
-    // Show loading initially
-    const loadingBlock = root.createComponent(SkeletonText, { lines: 3 });
-    container.appendChild(loadingBlock);
+    // Create a branded loading state
+    const loadingCard = root.createComponent(BlockStack, {
+      spacing: 'tight',
+      padding: 'base',
+      background: 'subdued',
+      borderRadius: 'base',
+      inlineAlignment: 'center'
+    });
+    container.appendChild(loadingCard);
+
+    // Spinner row
+    const spinnerRow = root.createComponent(InlineStack, {
+      spacing: 'tight',
+      blockAlignment: 'center',
+      inlineAlignment: 'center'
+    });
+    spinnerRow.appendChild(root.createComponent(Spinner, { size: 'small' }));
+    spinnerRow.appendChild(root.createComponent(Text, { emphasis: 'bold' }, 'LockerDrop'));
+    loadingCard.appendChild(spinnerRow);
+
+    // Status message - we'll update this text
+    const statusText = root.createComponent(Text, {
+      size: 'small',
+      appearance: 'subdued'
+    }, 'Confirming your locker reservation...');
+    loadingCard.appendChild(statusText);
+
+    // Store reference to update status text
+    let currentStatusMessage = 'Confirming your locker reservation...';
 
     // Debug: Log what we have access to
     console.log('LockerDrop ThankYou: api keys:', Object.keys(api));
@@ -75,9 +101,33 @@ export default extension(
       checkLockerDropOrder(orderNumber);
     }
 
+    // Update the loading status message
+    function updateStatus(message) {
+      // Remove old status text and add new one
+      if (loadingCard.children.length > 1) {
+        loadingCard.removeChild(loadingCard.children[1]);
+      }
+      const newStatusText = root.createComponent(Text, {
+        size: 'small',
+        appearance: 'subdued'
+      }, message);
+      loadingCard.appendChild(newStatusText);
+    }
+
     async function checkLockerDropOrder(orderNum, retryCount = 0) {
-      const MAX_RETRIES = 5;
-      const RETRY_DELAY = 2000; // 2 seconds between retries
+      const MAX_RETRIES = 6;
+      const RETRY_DELAY = 1500; // 1.5 seconds between retries
+
+      // Progress messages for each retry
+      const statusMessages = [
+        'Confirming your locker reservation...',
+        'Securing your pickup spot...',
+        'Almost there...',
+        'Finalizing details...',
+        'Just a moment...',
+        'Wrapping up...',
+        'Completing reservation...'
+      ];
 
       try {
         const token = await sessionToken.get();
@@ -106,6 +156,7 @@ export default extension(
           console.log('LockerDrop ThankYou: API returned', response.status);
           // Retry if we haven't exhausted retries (webhook might not have processed yet)
           if (retryCount < MAX_RETRIES) {
+            updateStatus(statusMessages[Math.min(retryCount + 1, statusMessages.length - 1)]);
             console.log(`LockerDrop ThankYou: Retrying in ${RETRY_DELAY}ms...`);
             setTimeout(() => checkLockerDropOrder(orderNum, retryCount + 1), RETRY_DELAY);
             return;
@@ -124,6 +175,7 @@ export default extension(
         if (!lockerStatus || !lockerStatus.isLockerDropOrder) {
           // Retry if we haven't exhausted retries (webhook might not have processed yet)
           if (retryCount < MAX_RETRIES) {
+            updateStatus(statusMessages[Math.min(retryCount + 1, statusMessages.length - 1)]);
             console.log(`LockerDrop ThankYou: Order not found yet, retrying in ${RETRY_DELAY}ms...`);
             setTimeout(() => checkLockerDropOrder(orderNum, retryCount + 1), RETRY_DELAY);
             return;
@@ -135,9 +187,9 @@ export default extension(
           return;
         }
 
-        // Success! Remove loading and render UI
-        if (container.children.length > 0) {
-          container.removeChild(loadingBlock);
+        // Success! Remove loading card and render UI
+        while (container.children.length > 0) {
+          container.removeChild(container.children[0]);
         }
 
         console.log('LockerDrop ThankYou: Rendering thank you UI');
@@ -147,6 +199,7 @@ export default extension(
         console.error('LockerDrop ThankYou: Error checking order:', err);
         // Retry on error too (might be transient)
         if (retryCount < MAX_RETRIES) {
+          updateStatus(statusMessages[Math.min(retryCount + 1, statusMessages.length - 1)]);
           console.log(`LockerDrop ThankYou: Error occurred, retrying in ${RETRY_DELAY}ms...`);
           setTimeout(() => checkLockerDropOrder(orderNum, retryCount + 1), RETRY_DELAY);
           return;
