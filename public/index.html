@@ -6,6 +6,7 @@
     <title>LockerDrop - Smart Locker Pickup for Shopify Stores</title>
     <meta name="description" content="Offer convenient locker pickup to your customers. They shop, you drop off, they pick up 24/7. No more missed deliveries.">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * {
             margin: 0;
@@ -314,7 +315,7 @@
         }
 
         .finder-container {
-            max-width: 600px;
+            max-width: 1000px;
             margin: 0 auto;
             text-align: center;
         }
@@ -323,6 +324,9 @@
             display: flex;
             gap: 0.75rem;
             margin-top: 2rem;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .finder-form input {
@@ -349,35 +353,64 @@
             cursor: pointer;
         }
 
-        .finder-results {
+        .finder-content {
+            display: flex;
+            gap: 2rem;
             margin-top: 2rem;
             text-align: left;
         }
 
+        #lockerMap {
+            flex: 2;
+            height: 400px;
+            border-radius: 12px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .finder-results {
+            flex: 1;
+            min-width: 280px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
         .locker-card {
             background: #f8f9ff;
-            padding: 1.25rem;
+            padding: 1rem;
             border-radius: 8px;
-            margin-bottom: 1rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .locker-card:hover {
+            border-color: #5c6ac4;
+        }
+
+        .locker-card.active {
+            border-color: #5c6ac4;
+            background: #e8ebff;
         }
 
         .locker-card h4 {
-            font-size: 1rem;
+            font-size: 0.95rem;
             margin-bottom: 0.25rem;
+            color: #1a1a2e;
         }
 
         .locker-card p {
             color: #666;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
+            margin: 0;
         }
 
-        .locker-distance {
-            color: #5c6ac4;
+        .locker-card .locker-distance {
+            display: block;
+            margin-top: 0.5rem;
             font-weight: 600;
-            font-size: 0.9rem;
+            color: #5c6ac4;
+            font-size: 0.85rem;
         }
 
         /* CTA Section */
@@ -454,6 +487,22 @@
         }
 
         /* Responsive */
+        @media (max-width: 768px) {
+            .finder-content {
+                flex-direction: column;
+            }
+
+            #lockerMap {
+                height: 300px;
+                order: 2;
+            }
+
+            .finder-results {
+                order: 1;
+                max-height: 250px;
+            }
+        }
+
         @media (max-width: 600px) {
             .email-form {
                 flex-direction: column;
@@ -591,15 +640,18 @@
     <section class="locker-finder" id="find-lockers">
         <div class="finder-container">
             <h2 class="section-title">Find Lockers Near You</h2>
-            <p class="section-subtitle">Enter a zip code to see available locker locations.</p>
+            <p class="section-subtitle">350+ locations across the US. Enter a zip code to find nearby lockers.</p>
 
             <form class="finder-form" id="finderForm">
                 <input type="text" id="zipInput" placeholder="Enter zip code (e.g., 75001)" maxlength="10">
                 <button type="submit">Search</button>
             </form>
 
-            <div class="finder-results" id="finderResults" style="display: none;">
-                <!-- Results populated by JS -->
+            <div class="finder-content" id="finderContent" style="display: none;">
+                <div id="lockerMap"></div>
+                <div class="finder-results" id="finderResults">
+                    <!-- Results populated by JS -->
+                </div>
             </div>
         </div>
     </section>
@@ -622,7 +674,14 @@
         <p>&copy; 2026 LockerDrop. <a href="/privacy-policy">Privacy Policy</a></p>
     </footer>
 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        // Map instance
+        let map = null;
+        let markers = [];
+        let searchLat = null;
+        let searchLon = null;
+
         // Email signup
         async function handleEmailSignup(form, successEl, errorEl) {
             const email = form.querySelector('input[type="email"]').value;
@@ -664,16 +723,89 @@
             handleEmailSignup(e.target, document.getElementById('ctaSuccess'));
         });
 
+        // Initialize map
+        function initMap(lat, lon) {
+            if (map) {
+                map.setView([lat, lon], 11);
+            } else {
+                map = L.map('lockerMap').setView([lat, lon], 11);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+            }
+        }
+
+        // Clear markers
+        function clearMarkers() {
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+        }
+
+        // Add locker markers
+        function addLockerMarkers(lockers) {
+            clearMarkers();
+
+            // Custom icon for lockers
+            const lockerIcon = L.divIcon({
+                html: '<div style="background: #5c6ac4; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">📦</div>',
+                className: 'locker-marker',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+
+            // Search location marker
+            const searchIcon = L.divIcon({
+                html: '<div style="background: #e53935; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">📍</div>',
+                className: 'search-marker',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+
+            // Add search location marker
+            const searchMarker = L.marker([searchLat, searchLon], { icon: searchIcon })
+                .addTo(map)
+                .bindPopup('Your search location');
+            markers.push(searchMarker);
+
+            // Add locker markers
+            lockers.forEach((locker, index) => {
+                const marker = L.marker([locker.lat, locker.lon], { icon: lockerIcon })
+                    .addTo(map)
+                    .bindPopup(`<strong>${locker.name}</strong><br>${locker.address}<br>${locker.city}, ${locker.state} ${locker.zip}<br><em>${locker.distance.toFixed(1)} miles away</em>`);
+
+                marker.on('click', () => highlightCard(index));
+                markers.push(marker);
+            });
+
+            // Fit bounds to show all markers
+            if (markers.length > 1) {
+                const group = L.featureGroup(markers);
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+        }
+
+        // Highlight a locker card
+        function highlightCard(index) {
+            document.querySelectorAll('.locker-card').forEach((card, i) => {
+                card.classList.toggle('active', i === index);
+            });
+            // Open the marker popup
+            if (markers[index + 1]) { // +1 because first marker is search location
+                markers[index + 1].openPopup();
+            }
+        }
+
         // Locker finder
         document.getElementById('finderForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const zip = document.getElementById('zipInput').value.trim();
+            const contentEl = document.getElementById('finderContent');
             const resultsEl = document.getElementById('finderResults');
 
             if (!zip) return;
 
-            resultsEl.innerHTML = '<p style="text-align: center; color: #666;">Searching...</p>';
-            resultsEl.style.display = 'block';
+            resultsEl.innerHTML = '<p style="text-align: center; color: #666; padding: 2rem;">Searching...</p>';
+            contentEl.style.display = 'flex';
 
             try {
                 // First geocode the zip
@@ -681,28 +813,36 @@
                 if (!geoResponse.ok) throw new Error('Invalid zip');
 
                 const geoData = await geoResponse.json();
-                const lat = parseFloat(geoData.places[0].latitude);
-                const lon = parseFloat(geoData.places[0].longitude);
+                searchLat = parseFloat(geoData.places[0].latitude);
+                searchLon = parseFloat(geoData.places[0].longitude);
+
+                // Initialize map
+                initMap(searchLat, searchLon);
 
                 // Then find lockers
-                const lockersResponse = await fetch(`/api/public/lockers?lat=${lat}&lon=${lon}&limit=5`);
+                const lockersResponse = await fetch(`/api/public/lockers?lat=${searchLat}&lon=${searchLon}&limit=8`);
                 const lockersData = await lockersResponse.json();
 
                 if (lockersData.locations && lockersData.locations.length > 0) {
-                    resultsEl.innerHTML = lockersData.locations.map(locker => `
-                        <div class="locker-card">
+                    // Add markers to map
+                    addLockerMarkers(lockersData.locations);
+
+                    // Build results list
+                    resultsEl.innerHTML = lockersData.locations.map((locker, index) => `
+                        <div class="locker-card" onclick="highlightCard(${index}); map.setView([${locker.lat}, ${locker.lon}], 14);">
                             <div>
                                 <h4>${locker.name}</h4>
+                                <p>${locker.address}</p>
                                 <p>${locker.city}, ${locker.state} ${locker.zip}</p>
                             </div>
-                            <span class="locker-distance">${locker.distance ? locker.distance.toFixed(1) + ' mi' : ''}</span>
+                            <span class="locker-distance">${locker.distance.toFixed(1)} mi</span>
                         </div>
                     `).join('');
                 } else {
-                    resultsEl.innerHTML = '<p style="text-align: center; color: #666;">No lockers found near this location yet. We\'re expanding!</p>';
+                    resultsEl.innerHTML = '<p style="text-align: center; color: #666; padding: 2rem;">No lockers found near this location yet. We\'re expanding!</p>';
                 }
             } catch (err) {
-                resultsEl.innerHTML = '<p style="text-align: center; color: #c62828;">Could not find lockers for this zip code. Please try another.</p>';
+                resultsEl.innerHTML = '<p style="text-align: center; color: #c62828; padding: 2rem;">Could not find lockers for this zip code. Please try another.</p>';
             }
         });
     </script>
