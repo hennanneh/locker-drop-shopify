@@ -5,6 +5,7 @@ const session = require('express-session');
 const axios = require('axios');
 const crypto = require('crypto');
 const path = require('path');
+const fs = require('fs');
 const multer = require('multer');
 
 // Configure multer for logo uploads
@@ -3452,6 +3453,22 @@ app.get('/api/checkout/reservation/:ref', async (req, res) => {
 
 // Public endpoint for theme locker finder section
 // No authentication required - for customer-facing locker discovery
+// Load Harbor locations from static JSON (from Harbor's open source map)
+let harborLocationsCache = null;
+function getHarborLocations() {
+    if (!harborLocationsCache) {
+        try {
+            const locationsPath = path.join(__dirname, 'public', 'harbor-locations.json');
+            harborLocationsCache = JSON.parse(fs.readFileSync(locationsPath, 'utf8'));
+            console.log(`📍 Loaded ${harborLocationsCache.length} Harbor locations from static file`);
+        } catch (err) {
+            console.error('Error loading Harbor locations:', err.message);
+            harborLocationsCache = [];
+        }
+    }
+    return harborLocationsCache;
+}
+
 app.get('/api/public/lockers', async (req, res) => {
     try {
         const { lat, lon, limit = 6 } = req.query;
@@ -3471,80 +3488,26 @@ app.get('/api/public/lockers', async (req, res) => {
             return res.status(400).json({ error: 'Invalid coordinates', locations: [] });
         }
 
-        // Get Harbor token
-        const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
-            `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
-            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
-        );
+        // Get locations from static JSON file (450+ real Harbor locations)
+        const allLocations = getHarborLocations();
 
-        const harborAccessToken = tokenResponse.data.access_token;
-
-        // Get all locations from Harbor
-        const locationsResponse = await axios.get(
-            'https://api.sandbox.harborlockers.com/api/v1/locations/',
-            {
-                headers: { 'Authorization': `Bearer ${harborAccessToken}` },
-                params: { limit: 100 }
-            }
-        );
-
-        const allLocations = locationsResponse.data;
-
-        // Calculate distances and check availability
-        const locationsWithDistance = [];
-
-        for (const location of allLocations) {
-            // Calculate distance
-            let distance = null;
-            if (location.lat && location.lon) {
-                distance = calculateDistance(latitude, longitude, location.lat, location.lon);
-            }
-
-            // Get availability for this location
-            let availability = [];
-            try {
-                const availabilityResponse = await axios.get(
-                    `https://api.sandbox.harborlockers.com/api/v1/locations/${location.id}/availability`,
-                    { headers: { 'Authorization': `Bearer ${harborAccessToken}` }}
-                );
-
-                const availData = availabilityResponse.data;
-
-                if (availData.byType && Array.isArray(availData.byType)) {
-                    availability = availData.byType.map(t => ({
-                        size: t.lockerType?.name || 'Unknown',
-                        available: t.lockerAvailability?.availableLockers || 0
-                    }));
-                }
-            } catch (availError) {
-                console.log(`⚠️ Could not check availability for ${location.name}`);
-            }
-
-            locationsWithDistance.push({
+        // Calculate distances
+        const locationsWithDistance = allLocations
+            .filter(location => location.lat && location.lon)
+            .map(location => ({
                 id: location.id,
-                name: location.name || location.location_name,
-                address: location.address || `${location.street_address || ''}, ${location.city || ''}, ${location.state || ''} ${location.zip || ''}`.replace(/^, /, '').trim(),
-                street_address: location.street_address,
+                name: location.name,
+                address: location.address1 || '',
                 city: location.city,
                 state: location.state,
                 zip: location.zip,
                 lat: location.lat,
                 lon: location.lon,
-                distance: distance,
-                availability: availability
-            });
-        }
+                distance: calculateDistance(latitude, longitude, location.lat, location.lon)
+            }));
 
         // Sort by distance
-        locationsWithDistance.sort((a, b) => {
-            if (a.distance !== null && b.distance !== null) {
-                return a.distance - b.distance;
-            }
-            if (a.distance === null) return 1;
-            if (b.distance === null) return -1;
-            return 0;
-        });
+        locationsWithDistance.sort((a, b) => a.distance - b.distance);
 
         // Limit results
         const results = locationsWithDistance.slice(0, resultLimit);
@@ -3558,7 +3521,7 @@ app.get('/api/public/lockers', async (req, res) => {
 
         res.json({ locations: results });
     } catch (error) {
-        console.error('Error in public locker finder:', error.response?.data || error.message);
+        console.error('Error in public locker finder:', error.message);
         res.status(500).json({ error: 'Failed to fetch lockers', locations: [] });
     }
 });
