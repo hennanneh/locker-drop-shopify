@@ -98,6 +98,24 @@ pm2 delete lockerdrop && pm2 start server.js --name lockerdrop
 
 ---
 
+## Checkout UI Extension (Shopify Plus)
+
+For Shopify Plus stores, the app includes a Checkout UI Extension that provides an enhanced locker selection experience directly in checkout.
+
+### Features
+- Shows closest locker location by default with "CLOSEST" badge
+- "See X more locations" button to view alternatives
+- Displays pickup date, distance, and availability
+- Auto-selects locker when LockerDrop shipping is chosen
+- Debounced address updates to reduce UI flashing
+
+### Deployment
+```bash
+shopify app deploy --force
+```
+
+---
+
 ## Theme App Extension
 
 The app includes a theme extension with promotional blocks that merchants can add to their stores via the theme customizer. This works on all Shopify stores (not just Plus).
@@ -213,13 +231,16 @@ NODE_ENV=production
 ### Completed
 - [x] Shopify GraphQL migration (completed January 2026)
 - [x] Theme App Extension for non-Plus stores
+- [x] Checkout UI Extension for Plus stores
+- [x] Auto-release lockers on order cancellation
+- [x] Admin dashboard Polaris redesign with actionable stat cards
 
 ### Pending
 - [ ] `write_fulfillments` scope needed for auto-fulfillment
 
 ### Harbor API Limitations
-- Cannot cancel locker-open-requests via API (expire after ~24 hours)
-- Locker remains "rented" until request expires even if order cancelled
+- Locker release requires `tower_id` and `locker_id` (now captured on dropoff request creation)
+- Order cancellation automatically releases lockers via Harbor `/release-locker` endpoint
 
 ### Future Enhancements
 - Customer tracking portal
@@ -268,4 +289,4 @@ pm2 restart lockerdrop
 
 ---
 
-Last updated: January 7, 2026
+Last updated: January 9, 2026

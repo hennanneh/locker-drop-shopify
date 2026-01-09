@@ -993,12 +993,13 @@ app.post('/carrier/rates', async (req, res) => {
             const shortAddress = [location.city, location.state].filter(Boolean).join(', ');
 
             return {
-                // Format: LockerDrop @ Name (City, State) - shows full address in description
-                service_name: `LockerDrop @ ${location.name}${shortAddress ? ` (${shortAddress})` : ''} - Pickup ${pickupDateFormatted}`,
+                // Format: LockerDrop @ Name (City, State) - clean title
+                service_name: `LockerDrop @ ${location.name}${shortAddress ? ` (${shortAddress})` : ''}`,
                 service_code: `lockerdrop_${location.id}`,
                 total_price: price,
                 currency: 'USD',
-                description: `📍 ${address} • ${location.distance.toFixed(1)} mi away • Available 24/7`
+                // Date on its own line, then address details
+                description: `📅 Ready ${pickupDateFormatted}\n📍 ${address} • ${location.distance.toFixed(1)} mi`
             };
         });
 
@@ -1294,9 +1295,28 @@ app.get('/api/sync-orders/:shop', async (req, res) => {
 // Get available lockers from Harbor API with search, filtering, and availability
 app.get('/api/lockers/:shop', async (req, res) => {
     try {
-        const { search, sizes, page = 1, limit = 12, includeAvailability } = req.query;
+        const { search, sizes, page = 1, limit = 12, includeAvailability, saved_only } = req.query;
         const pageNum = parseInt(page);
         const limitNum = parseInt(limit);
+        const shop = req.params.shop;
+
+        // If saved_only is true, get the seller's saved locker IDs first
+        let savedLockerIds = [];
+        if (saved_only === 'true') {
+            const prefsResult = await db.query(
+                'SELECT location_id FROM locker_preferences WHERE shop = $1',
+                [shop]
+            );
+            savedLockerIds = prefsResult.rows.map(r => r.location_id.toString());
+
+            // If no saved lockers, return empty result immediately
+            if (savedLockerIds.length === 0) {
+                return res.json({
+                    lockers: [],
+                    pagination: { page: 1, limit: limitNum, totalCount: 0, totalPages: 0, hasMore: false }
+                });
+            }
+        }
 
         // Step 1: Get access token from Harbor
         const tokenResponse = await axios.post(
@@ -1328,8 +1348,15 @@ app.get('/api/lockers/:shop', async (req, res) => {
             city: location.city || '',
             state: location.state || '',
             zip: location.zip || '',
-            available_sizes: location.locker_sizes || ['Small', 'Medium', 'Large']
+            latitude: location.lat || location.latitude || null,
+            longitude: location.lon || location.longitude || null,
+            available_sizes: location.locker_sizes || ['Small', 'Medium', 'Large', 'X-Large']
         }));
+
+        // Filter to saved lockers only if requested (do this first for performance)
+        if (saved_only === 'true' && savedLockerIds.length > 0) {
+            lockers = lockers.filter(locker => savedLockerIds.includes(locker.id.toString()));
+        }
 
         // Apply search filter (city or zip)
         if (search && search.trim()) {
@@ -2836,32 +2863,54 @@ app.get('/privacy-policy', (req, res) => {
 app.get('/api/stats/:shop', async (req, res) => {
     try {
         const { shop } = req.params;
-        
+
         const pendingDropoffs = await db.query(
             "SELECT COUNT(*) FROM orders WHERE shop = $1 AND status = 'pending_dropoff'",
             [shop]
         );
-        
+
         const readyForPickup = await db.query(
             "SELECT COUNT(*) FROM orders WHERE shop = $1 AND status = 'ready_for_pickup'",
             [shop]
         );
-        
+
         const completedThisWeek = await db.query(
             "SELECT COUNT(*) FROM orders WHERE shop = $1 AND status = 'completed' AND created_at > NOW() - INTERVAL '7 days'",
             [shop]
         );
-        
+
         const activeLockers = await db.query(
             "SELECT COUNT(*) FROM locker_preferences WHERE shop = $1",
             [shop]
         );
-        
+
+        // Get next dropoff location (most common location for pending orders)
+        let nextDropoffLocation = null;
+        const pendingCount = parseInt(pendingDropoffs.rows[0].count);
+        if (pendingCount > 0) {
+            const nextLocation = await db.query(`
+                SELECT o.locker_name, o.locker_address
+                FROM orders o
+                WHERE o.shop = $1 AND o.status = 'pending_dropoff'
+                GROUP BY o.locker_name, o.locker_address
+                ORDER BY COUNT(*) DESC
+                LIMIT 1
+            `, [shop]);
+
+            if (nextLocation.rows.length > 0) {
+                nextDropoffLocation = {
+                    name: nextLocation.rows[0].locker_name,
+                    address: nextLocation.rows[0].locker_address
+                };
+            }
+        }
+
         res.json({
-            pendingDropoffs: parseInt(pendingDropoffs.rows[0].count),
+            pendingDropoffs: pendingCount,
             readyForPickup: parseInt(readyForPickup.rows[0].count),
             completedThisWeek: parseInt(completedThisWeek.rows[0].count),
-            activeLockers: parseInt(activeLockers.rows[0].count)
+            activeLockers: parseInt(activeLockers.rows[0].count),
+            nextDropoffLocation
         });
     } catch (error) {
         console.error('Error loading stats:', error);
@@ -3255,28 +3304,31 @@ app.get('/api/checkout/lockers', async (req, res) => {
                         availability: availability
                     });
                 } else {
-                    console.log(`📦 Location ${location.name} skipped - only ${availableForRequiredSize} ${requiredSizeName}+ lockers (need ${MIN_AVAILABLE_BUFFER}+)`);
+                    console.log(`📦 Location ${location.name} (ID: ${location.id}) skipped - only ${availableForRequiredSize} ${requiredSizeName}+ lockers (need ${MIN_AVAILABLE_BUFFER}+)`);
                 }
             } catch (availError) {
-                console.log(`⚠️ Could not check availability for ${location.name}`);
+                console.log(`⚠️ Could not check availability for ${location.name} (ID: ${location.id}):`, availError.message);
             }
-
-            // Limit to 5 locations for checkout
-            if (availableLockers.length >= 5) break;
         }
 
-        // Sort by distance if available, otherwise by name
+        // Sort by distance FIRST, then take top 5
         availableLockers.sort((a, b) => {
             if (a.distance && b.distance) {
                 return parseFloat(a.distance) - parseFloat(b.distance);
             }
+            // If one has distance and other doesn't, prefer the one with distance
+            if (a.distance && !b.distance) return -1;
+            if (!a.distance && b.distance) return 1;
             return (a.name || '').localeCompare(b.name || '');
         });
 
-        console.log(`✅ Returning ${availableLockers.length} locations with ${requiredSizeName}+ lockers available`);
+        // Now limit to 5 nearest locations
+        const topLockers = availableLockers.slice(0, 5);
+
+        console.log(`✅ Found ${availableLockers.length} available locations, returning top ${topLockers.length} nearest`);
 
         res.json({
-            lockers: availableLockers,
+            lockers: topLockers,
             requiredSize: requiredSizeName,
             requiredSizeId: requiredLockerTypeId,
             pickupDate: pickupDateFormatted,
@@ -3899,23 +3951,26 @@ app.post('/api/manual-order/:shop', async (req, res) => {
             { headers: { 'Authorization': `Bearer ${accessToken}` }}
         );
 
-        const dropoffLink = dropoffResponse.data.linkToken;
+        const dropoffData = dropoffResponse.data;
+        console.log(`📦 Manual order dropoff - Locker ID: ${dropoffData.lockerId}, Tower ID: ${dropoffData.towerId}`);
 
-        // Insert order into database (using existing column names: location_id, location_name)
+        // Insert order into database with locker_id and tower_id for proper release on cancellation
         const insertResult = await db.query(
-            `INSERT INTO orders (shop, shopify_order_id, order_number, customer_name, customer_email, location_id, location_name, status, dropoff_link, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+            `INSERT INTO orders (shop, shopify_order_id, order_number, customer_name, customer_email, location_id, location_name, locker_id, tower_id, dropoff_request_id, status, dropoff_link, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
              RETURNING id`,
-            [shop, `MANUAL-${orderNumber}`, orderNumber, customerName, customerEmail, lockerId, lockerName, 'pending_dropoff', dropoffLink]
+            [shop, `MANUAL-${orderNumber}`, orderNumber, customerName, customerEmail, lockerId, lockerName, dropoffData.lockerId, dropoffData.towerId, dropoffData.id, 'pending_dropoff', dropoffData.linkToken]
         );
 
-        console.log(`✅ Manual order #${orderNumber} created with dropoff link`);
+        console.log(`✅ Manual order #${orderNumber} created with dropoff link, locker_id: ${dropoffData.lockerId}, tower_id: ${dropoffData.towerId}`);
 
         res.json({
             success: true,
             orderId: insertResult.rows[0].id,
             orderNumber,
-            dropoffLink,
+            dropoffLink: dropoffData.linkToken,
+            lockerId: dropoffData.lockerId,
+            towerId: dropoffData.towerId,
             message: 'Manual order created. Drop off link is ready.'
         });
     } catch (error) {
@@ -4308,11 +4363,12 @@ app.post('/api/regenerate-links/:shop', requireApiAuth, async (req, res) => {
                 );
                 console.log(`   ✅ Got dropoff link:`, dropoffLink.linkToken);
                 console.log(`   📦 Locker ID:`, dropoffLink.lockerId);
+                console.log(`   🏢 Tower ID:`, dropoffLink.towerId);
 
-                // Update order with link and locker_id
+                // Update order with link, locker_id, and tower_id for proper release on cancellation
                 const updateResult = await db.query(
-                    'UPDATE orders SET dropoff_link = $1, location_id = $2, locker_id = $3, dropoff_request_id = $4 WHERE id = $5 RETURNING id',
-                    [dropoffLink.linkToken, locationId, dropoffLink.lockerId, dropoffLink.id, order.id]
+                    'UPDATE orders SET dropoff_link = $1, location_id = $2, locker_id = $3, dropoff_request_id = $4, tower_id = $5 WHERE id = $6 RETURNING id',
+                    [dropoffLink.linkToken, locationId, dropoffLink.lockerId, dropoffLink.id, dropoffLink.towerId, order.id]
                 );
                 console.log(`   💾 Updated order in DB, rows affected: ${updateResult.rowCount}`);
 
@@ -4477,11 +4533,12 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
 
         console.log(`✅ Got new dropoff link:`, dropoffLink.linkToken);
         console.log(`📦 Locker ID:`, dropoffLink.lockerId, `(${usedSize})`);
+        console.log(`🏢 Tower ID:`, dropoffLink.towerId);
 
-        // Update order with new link
+        // Update order with new link and tower_id for proper release on cancellation
         await db.query(
-            'UPDATE orders SET dropoff_link = $1, locker_id = $2, dropoff_request_id = $3, updated_at = NOW() WHERE id = $4',
-            [dropoffLink.linkToken, dropoffLink.lockerId, dropoffLink.id, order.id]
+            'UPDATE orders SET dropoff_link = $1, locker_id = $2, dropoff_request_id = $3, tower_id = $4, updated_at = NOW() WHERE id = $5',
+            [dropoffLink.linkToken, dropoffLink.lockerId, dropoffLink.id, dropoffLink.towerId, order.id]
         );
 
         console.log(`💾 Updated order in database`);
@@ -4543,6 +4600,70 @@ async function registerWebhooks(shop, accessToken) {
             }
         }
     }
+}
+
+// Helper to extract LockerDrop info from order (checks note_attributes first, then address2 for backwards compatibility)
+function extractLockerDropInfo(order) {
+    let lockerInfo = null;
+
+    // First check note_attributes (new method - preserves customer's address2)
+    if (order.note_attributes && Array.isArray(order.note_attributes)) {
+        const lockerAttr = order.note_attributes.find(attr =>
+            attr.name === 'LockerDrop Pickup' && attr.value
+        );
+        if (lockerAttr) {
+            lockerInfo = lockerAttr.value;
+            console.log('📋 Found LockerDrop info in order attributes:', lockerInfo);
+        }
+    }
+
+    // Fall back to address2 for backwards compatibility
+    if (!lockerInfo && order.shipping_address?.address2) {
+        const address2 = order.shipping_address.address2;
+        if (address2.includes('LockerDrop:')) {
+            lockerInfo = address2;
+            console.log('📋 Found LockerDrop info in address2 (legacy):', lockerInfo);
+        }
+    }
+
+    if (!lockerInfo) {
+        return null;
+    }
+
+    // Parse the locker info string
+    const result = {
+        raw: lockerInfo,
+        locationId: null,
+        reservationRef: null,
+        lockerSize: null,
+        pickupDate: null
+    };
+
+    // Extract location ID: "(ID: 123)"
+    const idMatch = lockerInfo.match(/\(ID:\s*(\d+)\)/);
+    if (idMatch) {
+        result.locationId = parseInt(idMatch[1], 10);
+    }
+
+    // Extract reservation ref: "[Res: CHECKOUT_xxx]"
+    const resMatch = lockerInfo.match(/\[Res:\s*([^\]]+)\]/);
+    if (resMatch) {
+        result.reservationRef = resMatch[1].trim();
+    }
+
+    // Extract locker size: "[Size: medium]"
+    const sizeMatch = lockerInfo.match(/\[Size:\s*([^\]]+)\]/);
+    if (sizeMatch) {
+        result.lockerSize = sizeMatch[1].trim();
+    }
+
+    // Extract pickup date: "Pickup: 2024-01-15"
+    const pickupMatch = lockerInfo.match(/Pickup:\s*(\d{4}-\d{2}-\d{2})/);
+    if (pickupMatch) {
+        result.pickupDate = pickupMatch[1];
+    }
+
+    return result;
 }
 
 // Webhook receiver for new orders
@@ -4674,10 +4795,9 @@ async function processNewOrder(order, shopDomain) {
         console.log('🏪 Using shop:', shop);
 
         // Check for existing reservation from checkout
-        // Reservation ref is stored in address2 like: "LockerDrop: Name (ID: xxx) [Res: CHECKOUT_xxx]"
-        const address2 = order.shipping_address?.address2 || '';
-        const reservationMatch = address2.match(/\[Res:\s*([^\]]+)\]/);
-        const reservationRef = reservationMatch ? reservationMatch[1].trim() : null;
+        // LockerDrop info can be in note_attributes (new) or address2 (legacy)
+        const lockerDropInfo = extractLockerDropInfo(order);
+        const reservationRef = lockerDropInfo?.reservationRef || null;
 
         if (reservationRef) {
             console.log(`🔒 Found reservation reference: ${reservationRef}`);
@@ -4709,11 +4829,7 @@ async function processNewOrder(order, shopDomain) {
                     null;
 
                 // Extract pickup date if present
-                let preferredPickupDate = null;
-                const pickupMatch = address2.match(/Pickup:\s*(\d{4}-\d{2}-\d{2})/);
-                if (pickupMatch) {
-                    preferredPickupDate = pickupMatch[1];
-                }
+                const preferredPickupDate = lockerDropInfo?.pickupDate || null;
 
                 // Save order using the reservation's dropoff link
                 await db.query(
@@ -4811,13 +4927,10 @@ async function processNewOrder(order, shopDomain) {
             }
         }
 
-        // Also try to extract from address2 if checkout extension set it (format: "LockerDrop: Name (ID: xxx)")
-        if (!locationId && order.shipping_address?.address2) {
-            const address2Match = order.shipping_address.address2.match(/\(ID:\s*(\d+)\)/);
-            if (address2Match) {
-                locationId = parseInt(address2Match[1], 10);
-                console.log(`📍 Extracted location ID ${locationId} from address2`);
-            }
+        // Also try to extract from note_attributes or address2 if checkout extension set it
+        if (!locationId && lockerDropInfo?.locationId) {
+            locationId = lockerDropInfo.locationId;
+            console.log(`📍 Extracted location ID ${locationId} from order attributes/address2`);
         }
 
         // Fall back to seller's preferred lockers if no location found
@@ -4879,14 +4992,10 @@ async function processNewOrder(order, shopDomain) {
             }
         }
 
-        // Extract pickup date from shipping address if customer selected one
-        let preferredPickupDate = null;
-        if (order.shipping_address?.address2) {
-            const pickupMatch = order.shipping_address.address2.match(/Pickup:\s*(\d{4}-\d{2}-\d{2})/);
-            if (pickupMatch) {
-                preferredPickupDate = pickupMatch[1];
-                console.log(`📅 Customer selected pickup date: ${preferredPickupDate}`);
-            }
+        // Extract pickup date if customer selected one
+        let preferredPickupDate = lockerDropInfo?.pickupDate || null;
+        if (preferredPickupDate) {
+            console.log(`📅 Customer selected pickup date: ${preferredPickupDate}`);
         }
 
         // Save order to database (even if no locker available)

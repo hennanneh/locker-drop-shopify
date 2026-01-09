@@ -440,53 +440,92 @@
 
         /* === RESOURCE LIST / LOCKER SELECTOR === */
         .locker-selector {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: var(--p-space-400);
-        }
-
-        .locker-card {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
             border: 1px solid var(--p-color-border-secondary);
             border-radius: var(--p-border-radius-200);
-            padding: var(--p-space-400);
+            overflow: hidden;
+        }
+
+        .locker-item {
+            display: flex;
+            align-items: center;
+            gap: var(--p-space-300);
+            padding: var(--p-space-300) var(--p-space-400);
             cursor: pointer;
-            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            transition: background 0.1s ease;
             background: var(--p-color-bg-surface);
+            border-bottom: 1px solid var(--p-color-border-secondary);
         }
 
-        .locker-card:hover {
-            border-color: var(--p-color-bg-fill-brand);
+        .locker-item:last-child {
+            border-bottom: none;
         }
 
-        .locker-card.selected {
-            border-color: var(--p-color-bg-fill-brand);
-            box-shadow: 0 0 0 1px var(--p-color-bg-fill-brand);
+        .locker-item:hover {
+            background: var(--p-color-bg-surface-hover);
+        }
+
+        .locker-item.selected {
             background: #f0fdf4;
         }
 
+        .locker-checkbox {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--p-color-border);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.1s ease;
+        }
+
+        .locker-item.selected .locker-checkbox {
+            background: var(--p-color-bg-fill-brand);
+            border-color: var(--p-color-bg-fill-brand);
+        }
+
+        .locker-checkbox svg {
+            display: none;
+        }
+
+        .locker-item.selected .locker-checkbox svg {
+            display: block;
+        }
+
+        .locker-info {
+            flex: 1;
+            min-width: 0;
+        }
+
         .locker-name {
-            font-weight: var(--p-font-weight-semibold);
-            margin-bottom: var(--p-space-100);
+            font-weight: var(--p-font-weight-medium);
             color: var(--p-color-text);
+            font-size: var(--p-font-size-200);
         }
 
         .locker-address {
             font-size: var(--p-font-size-100);
             color: var(--p-color-text-secondary);
-            margin-bottom: var(--p-space-200);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .locker-sizes {
             display: flex;
-            gap: var(--p-space-200);
-            margin-top: var(--p-space-200);
+            gap: var(--p-space-100);
+            flex-shrink: 0;
         }
 
         .size-badge {
-            padding: var(--p-space-100) var(--p-space-200);
+            padding: 2px 6px;
             background: var(--p-color-bg-surface-secondary);
             border-radius: var(--p-border-radius-100);
-            font-size: var(--p-font-size-75);
+            font-size: 11px;
             color: var(--p-color-text-secondary);
         }
 
@@ -567,6 +606,40 @@
             color: var(--p-color-text-secondary);
         }
 
+        /* === COLLAPSIBLE SECTIONS === */
+        .collapsible-header {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .collapsible-header:hover {
+            opacity: 0.85;
+        }
+
+        .collapse-icon {
+            transition: transform 0.2s ease;
+            color: var(--p-color-icon);
+        }
+
+        .collapsible-header.collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .collapsible-content {
+            max-height: 2000px;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, opacity 0.2s ease;
+            opacity: 1;
+        }
+
+        .collapsible-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+        }
+
         .empty-state h3 {
             margin-bottom: var(--p-space-200);
             color: var(--p-color-text);
@@ -598,6 +671,326 @@
             font-size: var(--p-font-size-600);
             font-weight: var(--p-font-weight-semibold);
             color: var(--p-color-text);
+        }
+
+        .stat-card-clickable {
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .stat-card-clickable:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .stat-card-clickable:active {
+            transform: translateY(0);
+        }
+
+        .stat-subtext {
+            font-size: 12px;
+            color: var(--p-color-text-secondary);
+            margin-top: 4px;
+            min-height: 18px;
+        }
+
+        .stat-subtext.success {
+            color: var(--p-color-text-success);
+        }
+
+        .stat-subtext.warning {
+            color: var(--p-color-text-warning);
+        }
+
+        .stat-action-btn {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 4px 0;
+            font-size: 12px;
+            color: var(--p-color-text-link);
+            background: none;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            transition: color 0.15s ease;
+        }
+
+        .stat-action-btn:hover {
+            color: var(--p-color-text-link-hover);
+            text-decoration: underline;
+        }
+
+        /* Priority Action Banner */
+        .priority-banner {
+            background: linear-gradient(135deg, #fef3cd 0%, #fff8e1 100%);
+            border: 1px solid #f0c36d;
+            border-radius: var(--p-border-radius-200);
+            padding: 12px 16px;
+            margin-bottom: var(--p-space-400);
+        }
+
+        .priority-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .priority-icon {
+            font-size: 24px;
+        }
+
+        .priority-text {
+            flex: 1;
+            min-width: 200px;
+            font-size: 14px;
+            color: #856404;
+        }
+
+        .priority-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* === BUTTON LOADING STATE === */
+        .btn-loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+        }
+
+        .btn-loading::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: btn-spin 0.6s linear infinite;
+        }
+
+        .btn-secondary.btn-loading::after {
+            border-color: rgba(0, 0, 0, 0.2);
+            border-top-color: #5c6ac4;
+        }
+
+        @keyframes btn-spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* === ONBOARDING WIZARD === */
+        .onboarding-modal .modal-content {
+            max-width: 560px;
+            padding: 0;
+        }
+
+        .onboarding-header {
+            background: linear-gradient(135deg, #008060 0%, #004c3f 100%);
+            color: white;
+            padding: var(--p-space-600);
+            text-align: center;
+        }
+
+        .onboarding-header h2 {
+            font-size: var(--p-font-size-500);
+            margin-bottom: var(--p-space-200);
+        }
+
+        .onboarding-header p {
+            opacity: 0.9;
+            font-size: var(--p-font-size-200);
+        }
+
+        .onboarding-progress {
+            display: flex;
+            justify-content: center;
+            gap: var(--p-space-200);
+            padding: var(--p-space-400) var(--p-space-600);
+            background: var(--p-color-bg-surface-secondary);
+        }
+
+        .progress-step {
+            display: flex;
+            align-items: center;
+            gap: var(--p-space-200);
+            font-size: var(--p-font-size-100);
+            color: var(--p-color-text-secondary);
+        }
+
+        .progress-step.active {
+            color: var(--p-color-text-success);
+            font-weight: var(--p-font-weight-medium);
+        }
+
+        .progress-step.completed {
+            color: var(--p-color-text-success);
+        }
+
+        .step-number {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: var(--p-font-weight-semibold);
+            background: var(--p-color-border-secondary);
+            color: var(--p-color-text-secondary);
+        }
+
+        .progress-step.active .step-number {
+            background: var(--p-color-bg-fill-brand);
+            color: white;
+        }
+
+        .progress-step.completed .step-number {
+            background: var(--p-color-bg-fill-brand);
+            color: white;
+        }
+
+        .onboarding-body {
+            padding: var(--p-space-600);
+        }
+
+        .onboarding-step {
+            display: none;
+        }
+
+        .onboarding-step.active {
+            display: block;
+        }
+
+        .onboarding-step h3 {
+            font-size: var(--p-font-size-400);
+            margin-bottom: var(--p-space-200);
+            color: var(--p-color-text);
+        }
+
+        .onboarding-step p {
+            color: var(--p-color-text-secondary);
+            margin-bottom: var(--p-space-400);
+            font-size: var(--p-font-size-200);
+        }
+
+        .onboarding-tip {
+            background: #f0fdf4;
+            border-left: 3px solid var(--p-color-bg-fill-brand);
+            padding: var(--p-space-300) var(--p-space-400);
+            border-radius: 0 var(--p-border-radius-100) var(--p-border-radius-100) 0;
+            margin-bottom: var(--p-space-400);
+            font-size: var(--p-font-size-100);
+            color: #065f46;
+        }
+
+        .onboarding-footer {
+            padding: var(--p-space-400) var(--p-space-600);
+            border-top: 1px solid var(--p-color-border-secondary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .skip-link {
+            color: var(--p-color-text-secondary);
+            font-size: var(--p-font-size-100);
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .skip-link:hover {
+            color: var(--p-color-text);
+        }
+
+        .onboarding-actions {
+            display: flex;
+            gap: var(--p-space-200);
+        }
+
+        /* === SKELETON LOADING === */
+        .skeleton {
+            background: linear-gradient(90deg, #e1e3e5 25%, #f0f0f0 50%, #e1e3e5 75%);
+            background-size: 200% 100%;
+            animation: skeleton-shimmer 1.5s infinite;
+            border-radius: var(--p-border-radius-100);
+        }
+
+        @keyframes skeleton-shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .skeleton-text {
+            height: 14px;
+            margin-bottom: 8px;
+        }
+
+        .skeleton-text.short { width: 60%; }
+        .skeleton-text.medium { width: 80%; }
+        .skeleton-text.long { width: 100%; }
+
+        .skeleton-stat {
+            height: 32px;
+            width: 60px;
+            margin-bottom: 4px;
+        }
+
+        .skeleton-row {
+            display: flex;
+            gap: 16px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--p-color-border-secondary);
+        }
+
+        .skeleton-cell { height: 16px; }
+        .skeleton-cell.sm { width: 60px; }
+        .skeleton-cell.md { width: 100px; }
+        .skeleton-cell.lg { width: 150px; }
+
+        .skeleton-locker {
+            padding: var(--p-space-300) var(--p-space-400);
+            border-bottom: 1px solid var(--p-color-border-secondary);
+            display: flex;
+            align-items: center;
+            gap: var(--p-space-300);
+        }
+
+        .skeleton-checkbox {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+        }
+
+        .skeleton-locker-info {
+            flex: 1;
+        }
+
+        /* Onboarding reminder banner */
+        .setup-reminder-banner {
+            background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%);
+            border: 1px solid #f59e0b;
+            border-radius: var(--p-border-radius-200);
+            padding: var(--p-space-300) var(--p-space-400);
+            margin-bottom: var(--p-space-500);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--p-space-300);
+        }
+
+        .setup-reminder-banner p {
+            color: #92400e;
+            font-size: var(--p-font-size-200);
+            margin: 0;
+        }
+
+        .setup-reminder-banner .btn {
+            flex-shrink: 0;
         }
 
         /* === MOBILE RESPONSIVE === */
@@ -646,12 +1039,69 @@
                 font-size: var(--p-font-size-500);
             }
 
+            /* Orders table transforms to cards on mobile */
             .orders-table {
-                min-width: 600px;
+                border: none;
             }
 
-            .locker-selector {
-                grid-template-columns: 1fr;
+            .orders-table thead {
+                display: none;
+            }
+
+            .orders-table tbody {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .orders-table tr {
+                display: block;
+                background: var(--p-color-bg-surface);
+                border: 1px solid var(--p-color-border-secondary);
+                border-radius: var(--p-border-radius-200);
+                padding: var(--p-space-400);
+            }
+
+            .orders-table tr:hover td {
+                background: transparent;
+            }
+
+            .orders-table td {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 8px 0;
+                border-bottom: 1px solid var(--p-color-border-secondary);
+            }
+
+            .orders-table td:last-child {
+                border-bottom: none;
+                padding-top: 12px;
+                justify-content: flex-start;
+            }
+
+            .orders-table td::before {
+                content: attr(data-label);
+                font-weight: var(--p-font-weight-medium);
+                color: var(--p-color-text-secondary);
+                font-size: var(--p-font-size-100);
+                flex-shrink: 0;
+                margin-right: 12px;
+            }
+
+            .orders-table td:last-child::before {
+                display: none;
+            }
+
+            /* Empty state in card view */
+            .orders-table td.empty-state {
+                display: block;
+                border: none;
+                padding: var(--p-space-600);
+            }
+
+            .orders-table td.empty-state::before {
+                display: none;
             }
 
             .modal-content {
@@ -748,7 +1198,41 @@
                 font-size: 11px;
             }
         }
+
+        /* === LOCKER MAP === */
+        #locker-map {
+            height: 300px;
+            border-radius: var(--p-border-radius-200);
+            margin-bottom: var(--p-space-400);
+            border: 1px solid var(--p-color-border-secondary);
+        }
+
+        .locker-map-marker {
+            background: var(--p-color-bg-fill-brand);
+            border: 2px solid white;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .locker-map-marker.selected {
+            background: #008060;
+            transform: scale(1.2);
+        }
+
+        .leaflet-popup-content {
+            font-family: var(--p-font-family);
+            font-size: 13px;
+        }
+
+        .leaflet-popup-content strong {
+            display: block;
+            margin-bottom: 4px;
+        }
     </style>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
     <div class="header">
@@ -767,23 +1251,45 @@
     </div>
 
     <div class="container">
+        <!-- Priority Action Banner (shows when action needed) -->
+        <div id="priority-banner" class="priority-banner" style="display: none;">
+            <div class="priority-content">
+                <span class="priority-icon">📦</span>
+                <div class="priority-text">
+                    <strong>Next Action:</strong> <span id="priority-message">Drop off orders</span>
+                </div>
+                <div class="priority-actions">
+                    <button class="btn btn-small btn-secondary" onclick="navigateToOrderFilter('pending_dropoff')">View Details</button>
+                    <a id="priority-directions-btn" href="#" target="_blank" class="btn btn-small btn-primary" style="display: none;">Get Directions</a>
+                </div>
+            </div>
+        </div>
+
         <!-- Stats -->
         <div class="stats-grid">
-            <div class="stat-card">
+            <div class="stat-card stat-card-clickable" onclick="navigateToOrderFilter('pending_dropoff')" title="Click to view pending drop-off orders">
                 <div class="stat-label">Pending Drop-offs</div>
                 <div class="stat-value" id="stat-pending">0</div>
+                <div class="stat-subtext" id="stat-pending-subtext"></div>
+                <button class="stat-action-btn" onclick="event.stopPropagation(); navigateToOrderFilter('pending_dropoff')">View Orders →</button>
             </div>
-            <div class="stat-card">
+            <div class="stat-card stat-card-clickable" onclick="navigateToOrderFilter('ready_for_pickup')" title="Click to view orders ready for pickup">
                 <div class="stat-label">Ready for Pickup</div>
                 <div class="stat-value" id="stat-ready">0</div>
+                <div class="stat-subtext" id="stat-ready-subtext"></div>
+                <button class="stat-action-btn" onclick="event.stopPropagation(); navigateToOrderFilter('ready_for_pickup')">Monitor Status →</button>
             </div>
-            <div class="stat-card">
+            <div class="stat-card stat-card-clickable" onclick="navigateToOrderFilter('completed')" title="Click to view completed orders">
                 <div class="stat-label">Completed This Week</div>
                 <div class="stat-value" id="stat-completed">0</div>
+                <div class="stat-subtext" id="stat-completed-subtext"></div>
+                <button class="stat-action-btn" onclick="event.stopPropagation(); navigateToOrderFilter('completed')">View Report →</button>
             </div>
-            <div class="stat-card">
+            <div class="stat-card stat-card-clickable" onclick="showActiveLockers()" title="Click to view your active lockers">
                 <div class="stat-label">Active Lockers</div>
                 <div class="stat-value" id="stat-lockers">0</div>
+                <div class="stat-subtext" id="stat-lockers-subtext"></div>
+                <button class="stat-action-btn" onclick="event.stopPropagation(); showActiveLockers()">Manage Lockers →</button>
             </div>
         </div>
 
@@ -851,7 +1357,10 @@
                         </svg>
                         My Lockers
                     </span>
-                    <button class="btn btn-primary" onclick="saveLockerPreferences()">Save Changes</button>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span id="locker-selection-count" style="color: #6d7175; font-size: 14px;">Loading...</span>
+                        <button id="save-lockers-btn" class="btn btn-primary" onclick="saveLockerPreferences()" disabled style="opacity: 0.5;">Save Changes</button>
+                    </div>
                 </div>
                 <p class="card-description">Choose which lockers you're willing to use for deliveries. Selected lockers will appear as options at checkout.</p>
 
@@ -876,11 +1385,20 @@
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px;">
                             <input type="checkbox" class="size-filter" value="large" onchange="searchLockers()"> Large
                         </label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px;">
+                            <input type="checkbox" class="size-filter" value="x-large" onchange="searchLockers()"> X-Large
+                        </label>
                         <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; margin-left: 8px; padding-left: 16px; border-left: 1px solid #e1e3e5;">
                             <input type="checkbox" id="show-availability" onchange="searchLockers()"> Show availability
                         </label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; margin-left: 8px; padding-left: 16px; border-left: 1px solid #e1e3e5; color: #008060; font-weight: 500;">
+                            <input type="checkbox" id="my-lockers-only" onchange="searchLockers()"> My lockers only
+                        </label>
                     </div>
                 </div>
+
+                <!-- Locker Map -->
+                <div id="locker-map"></div>
 
                 <div class="locker-selector" id="locker-list">
                     <p style="padding: 20px 0; color: #6d7175;">Loading lockers...</p>
@@ -909,36 +1427,38 @@
                         </svg>
                         Product Sizes
                     </span>
-                    <button class="btn btn-primary" onclick="saveProductSizes()">Save All Changes</button>
+                    <button id="save-products-btn" class="btn btn-primary" onclick="saveProductSizes()">Save All Changes</button>
                 </div>
-                <p class="card-description">
-                    Set dimensions for each product to ensure the right locker size is reserved.
-                    For multi-item orders, dimensions are combined (stacked) to calculate total package size.
-                </p>
+                <div>
+                    <p class="card-description" style="margin-bottom: 16px;">
+                        Set dimensions for each product to ensure the right locker size is reserved.
+                        For multi-item orders, dimensions are combined (stacked) to calculate total package size.
+                    </p>
 
-                <div class="info-box tip" style="margin-bottom: 20px;">
-                    <strong>Tip:</strong> Entering exact dimensions (L x W x H) allows multiple smaller items to share a locker.
-                    Using only the dropdown assumes a default size.
-                </div>
+                    <div class="info-box tip" style="margin-bottom: 16px;">
+                        <strong>Tip:</strong> Entering exact dimensions (L x W x H) allows multiple smaller items to share a locker.
+                        Using only the dropdown assumes a default size.
+                    </div>
 
-                <div class="info-box" style="margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
-                    <strong>Locker Sizes:</strong>
-                    <span>Small: 12" x 8" x 4"</span>
-                    <span>Medium: 16" x 12" x 8"</span>
-                    <span>Large: 20" x 16" x 12"</span>
-                    <span>X-Large: 24" x 20" x 16"</span>
-                </div>
+                    <div class="info-box" style="margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; font-size: 13px;">
+                        <strong>Locker Sizes:</strong>
+                        <span>Small: 12"×8"×4"</span>
+                        <span>Medium: 16"×12"×8"</span>
+                        <span>Large: 20"×16"×12"</span>
+                        <span>X-Large: 24"×20"×16"</span>
+                    </div>
 
-                <div style="display: grid; grid-template-columns: 1fr repeat(3, 70px) 120px; gap: 12px; padding: 8px 0; font-weight: 500; color: #6d7175; font-size: 13px; border-bottom: 1px solid #e1e3e5;">
-                    <div>Product / Variant</div>
-                    <div style="text-align: center;">L (in)</div>
-                    <div style="text-align: center;">W (in)</div>
-                    <div style="text-align: center;">H (in)</div>
-                    <div style="text-align: center;">Locker Size</div>
-                </div>
+                    <div style="display: grid; grid-template-columns: 1fr repeat(3, 70px) 120px; gap: 12px; padding: 8px 0; font-weight: 500; color: #6d7175; font-size: 13px; border-bottom: 1px solid #e1e3e5;">
+                        <div>Product / Variant</div>
+                        <div style="text-align: center;">L (in)</div>
+                        <div style="text-align: center;">W (in)</div>
+                        <div style="text-align: center;">H (in)</div>
+                        <div style="text-align: center;">Locker Size</div>
+                    </div>
 
-                <div id="products-list">
-                    <p style="padding: 20px 0; color: #6d7175;">Loading products...</p>
+                    <div id="products-list">
+                        <p style="padding: 20px 0; color: #6d7175;">Loading products...</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -947,19 +1467,22 @@
         <div id="learn" class="tab-content">
             <!-- Getting Started Card -->
             <div class="card">
-                <div class="card-header">
+                <div class="card-header collapsible-header" onclick="toggleCollapse(this)">
                     <span class="card-header-title">
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M10 2L3 6V14L10 18L17 14V6L10 2ZM10 4.18L14.5 6.75L10 9.32L5.5 6.75L10 4.18ZM5 8.35L9.5 10.92V15.65L5 13.08V8.35ZM10.5 15.65V10.92L15 8.35V13.08L10.5 15.65Z" fill="#5c6ac4"/>
                         </svg>
                         Getting Started
                     </span>
-                    <div>
-                        <a href="/docs/training" target="_blank" class="btn btn-secondary btn-small" style="margin-right: 8px;">Training Guide</a>
-                        <a href="/docs/faq" target="_blank" class="btn btn-secondary btn-small">FAQ</a>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <a href="/docs/training" target="_blank" class="btn btn-secondary btn-small" onclick="event.stopPropagation()">Training Guide</a>
+                        <a href="/docs/faq" target="_blank" class="btn btn-secondary btn-small" onclick="event.stopPropagation()">FAQ</a>
+                        <svg class="collapse-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
                     </div>
                 </div>
 
+                <div class="collapsible-content">
+                <p class="card-description" style="margin-bottom: 16px;">Quick reference guides to get you up and running with LockerDrop.</p>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
                     <!-- Quick Start -->
                     <div class="info-box" style="background: white; border: 1px solid #e1e3e5;">
@@ -980,20 +1503,20 @@
                         <h4 style="margin: 0 0 12px; color: #5c6ac4; font-size: 15px;">Order Lifecycle</h4>
                         <div style="font-size: 14px;">
                             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-                                <span class="status-badge status-pending_dropoff">Pending Drop-off</span>
-                                <span style="color: #6d7175;">Waiting for you</span>
+                                <span class="status-badge status-pending_dropoff">⏳ Waiting for drop-off</span>
+                                <span style="color: #6d7175;">Your action needed</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-                                <span class="status-badge status-ready_for_pickup">Ready for Pickup</span>
-                                <span style="color: #6d7175;">Customer notified</span>
+                                <span class="status-badge status-ready_for_pickup">📦 In locker - notified</span>
+                                <span style="color: #6d7175;">Customer got pickup email</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-                                <span class="status-badge status-completed">Completed</span>
-                                <span style="color: #6d7175;">Customer picked up</span>
+                                <span class="status-badge status-completed">✓ Picked up</span>
+                                <span style="color: #6d7175;">Order complete</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 12px;">
-                                <span class="status-badge status-cancelled">Cancelled</span>
-                                <span style="color: #6d7175;">Order cancelled</span>
+                                <span class="status-badge status-cancelled">✗ Cancelled</span>
+                                <span style="color: #6d7175;">Locker released</span>
                             </div>
                         </div>
                     </div>
@@ -1051,6 +1574,27 @@
                         </div>
                     </div>
 
+                    <!-- Shopify Plus Checkout -->
+                    <div class="info-box" style="background: white; border: 1px solid #e1e3e5;">
+                        <h4 style="margin: 0 0 12px; color: #5c6ac4; font-size: 15px;">Shopify Plus Checkout</h4>
+                        <div style="font-size: 14px; line-height: 1.6;">
+                            <p style="margin: 0 0 8px;"><strong>For Plus Stores Only</strong></p>
+                            <p style="margin: 0 0 8px; color: #6d7175;">
+                                The checkout extension shows a locker selection widget directly in checkout.
+                            </p>
+                            <p style="margin: 0 0 8px;"><strong>To Enable:</strong></p>
+                            <ol style="margin: 0 0 0 16px; padding: 0; color: #6d7175;">
+                                <li>Go to Settings → Checkout → Customize</li>
+                                <li>Click Apps in the left sidebar</li>
+                                <li>Drag "LockerDrop Pickup" to checkout</li>
+                                <li>Place after Delivery Address section</li>
+                            </ol>
+                            <p style="margin: 10px 0 0; padding: 8px; background: #fff8e5; border-radius: 4px; font-size: 13px; color: #8a6d3b;">
+                                ⚠️ Requires extension deployment via Shopify CLI
+                            </p>
+                        </div>
+                    </div>
+
                     <!-- Common Questions -->
                     <div class="info-box" style="background: white; border: 1px solid #e1e3e5;">
                         <h4 style="margin: 0 0 12px; color: #5c6ac4; font-size: 15px;">Common Questions</h4>
@@ -1058,24 +1602,29 @@
                             <p style="margin: 0 0 10px;"><strong>Customer lost pickup info?</strong><br>
                             <span style="color: #6d7175;">Click View → Resend Pickup Email</span></p>
                             <p style="margin: 0 0 10px;"><strong>Need to cancel?</strong><br>
-                            <span style="color: #6d7175;">Click View → Cancel Locker</span></p>
+                            <span style="color: #6d7175;">Click View → Cancel Locker (releases the reservation)</span></p>
+                            <p style="margin: 0 0 10px;"><strong>Door closed before I finished?</strong><br>
+                            <span style="color: #6d7175;">Use the same drop-off link again to reopen</span></p>
                             <p style="margin: 0;"><strong>Not showing at checkout?</strong><br>
-                            <span style="color: #6d7175;">Check: 1) Address verified, 2) Product has size, 3) Locker available</span></p>
+                            <span style="color: #6d7175;">Check: 1) Address verified 2) Product has size 3) Locker has space 4) Extension deployed</span></p>
                         </div>
                     </div>
+                </div>
                 </div>
             </div>
 
             <!-- Theme Blocks Card -->
             <div class="card">
-                <div class="card-header">
+                <div class="card-header collapsible-header" onclick="toggleCollapse(this)">
                     <span class="card-header-title">
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M3 3H9V9H3V3ZM5 5V7H7V5H5ZM11 3H17V9H11V3ZM13 5V7H15V5H13ZM3 11H9V17H3V11ZM5 13V15H7V13H5ZM11 11H17V17H11V11ZM13 13V15H15V13H13Z" fill="#5c6ac4"/>
                         </svg>
                         Theme Blocks for Your Store
                     </span>
+                    <svg class="collapse-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
                 </div>
+                <div class="collapsible-content">
                 <p class="card-description">
                     Add these blocks to promote LockerDrop on your store. Go to <strong>Online Store → Themes → Customize → Apps</strong>.
                 </p>
@@ -1171,6 +1720,7 @@
                 <div class="info-box success" style="margin-top: 20px;">
                     <strong style="color: #008060;">How to add:</strong>
                     <span style="color: #6d7175;"> Online Store → Themes → Customize → navigate to page → Add block/section → find under Apps</span>
+                </div>
                 </div>
             </div>
 
@@ -1367,8 +1917,22 @@
                     </div>
                 </div>
 
-                <!-- Hidden checkbox for checkout extension (keeping for backwards compatibility) -->
-                <input type="checkbox" id="use-checkout-extension" style="display: none;">
+                <!-- Checkout Extension Toggle (for Plus stores) -->
+                <div class="form-group" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #e1e3e5;">
+                    <label class="toggle-label" style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
+                        <input type="checkbox" id="use-checkout-extension" onchange="autoSaveSettings()">
+                        <div>
+                            <span style="font-weight: 500;">Use Checkout Extension (Plus Only)</span>
+                            <p class="form-help" style="margin-top: 4px;">Enable if you've added the LockerDrop widget in Checkout Customizer. This hides locker options from the shipping method list to prevent duplicates.</p>
+                        </div>
+                    </label>
+                    <div id="extension-mode-info" class="info-box" style="margin-top: 12px; background: #f4f6f8; border: 1px solid #e1e3e5;">
+                        <div style="font-size: 13px; color: #6d7175;">
+                            <strong>When enabled:</strong> Locker selection appears only in your checkout extension widget.<br>
+                            <strong>When disabled:</strong> Locker options appear as shipping methods (for non-Plus stores).
+                        </div>
+                    </div>
+                </div>
                 <span id="checkout-mode-save-status" style="display: none;"></span>
             </div>
 
@@ -1440,12 +2004,16 @@
                     <div>
                         <div class="form-group">
                             <label class="form-label">Vacation Days</label>
-                            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-                                <input type="date" id="vacation-date-input" class="form-input" style="flex: 1;">
-                                <button type="button" class="btn btn-secondary" onclick="addVacationDay()">Add</button>
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 200px;">
+                                    <input type="date" id="vacation-start-date" class="form-input" style="flex: 1;" onchange="updateVacationButtonText()">
+                                    <span style="color: #6d7175;">to</span>
+                                    <input type="date" id="vacation-end-date" class="form-input" style="flex: 1;" onchange="updateVacationButtonText()">
+                                </div>
+                                <button type="button" id="add-vacation-btn" class="btn btn-secondary" onclick="addVacationDays()">Add</button>
                             </div>
                             <div id="vacation-days-list" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 36px;"></div>
-                            <p class="form-help">Days when you cannot fulfill orders</p>
+                            <p class="form-help">Select one date or a range, then click Add.</p>
                         </div>
 
                         <div id="pickup-preview" class="info-box success" style="margin-top: 24px;">
@@ -1470,9 +2038,9 @@
                     </span>
                 </div>
                 <div id="branding-content">
-                    <p class="card-description">
+                    <p class="card-description" style="margin-bottom: 16px;">
                         Customize the success page customers see after picking up their order.
-                        <a id="branding-preview-link" href="#" target="_blank" style="color: #5c6ac4;">Preview Page</a>
+                        <a id="branding-preview-link" href="#" target="_blank" style="color: #5c6ac4; margin-left: 8px;">Preview Page</a>
                     </p>
 
                     <div class="two-column-grid">
@@ -1567,7 +2135,7 @@
             </div>
 
             <div id="dropoff-section" style="margin-top: 24px;">
-                <h3 style="margin-bottom: 12px;">Drop-off Link</h3>
+                <h3 style="margin-bottom: 12px;">📦 Ready to Drop Off?</h3>
                 <div id="dropoff-content">Loading...</div>
             </div>
 
@@ -1632,6 +2200,93 @@
         </div>
     </div>
 
+    <!-- Onboarding Wizard Modal -->
+    <div id="onboardingModal" class="modal onboarding-modal">
+        <div class="modal-content">
+            <div class="onboarding-header">
+                <h2>Welcome to LockerDrop!</h2>
+                <p>Let's get you set up in just 3 quick steps</p>
+            </div>
+
+            <div class="onboarding-progress">
+                <div class="progress-step active" data-step="1">
+                    <span class="step-number">1</span>
+                    <span>Select Lockers</span>
+                </div>
+                <div class="progress-step" data-step="2">
+                    <span class="step-number">2</span>
+                    <span>Product Sizes</span>
+                </div>
+                <div class="progress-step" data-step="3">
+                    <span class="step-number">3</span>
+                    <span>Schedule</span>
+                </div>
+            </div>
+
+            <div class="onboarding-body">
+                <!-- Step 1: Select Lockers -->
+                <div class="onboarding-step active" data-step="1">
+                    <h3>Choose Your Locker Locations</h3>
+                    <p>Select which locker locations you want to offer customers at checkout.</p>
+                    <div class="onboarding-tip">
+                        💡 <strong>Tip:</strong> Start with 2-3 lockers near your store or in popular customer areas.
+                    </div>
+                    <div style="background: var(--p-color-bg-surface-secondary); border-radius: var(--p-border-radius-200); padding: var(--p-space-400); text-align: center;">
+                        <p style="margin-bottom: var(--p-space-300);">You'll configure lockers in the <strong>My Lockers</strong> tab</p>
+                        <button class="btn btn-secondary" onclick="goToLockersTab()">
+                            📍 Go to My Lockers Tab
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 2: Product Sizes -->
+                <div class="onboarding-step" data-step="2">
+                    <h3>Set Up Product Sizes</h3>
+                    <p>Configure product dimensions so we can match them with the right locker size.</p>
+                    <div class="onboarding-tip">
+                        💡 <strong>Tip:</strong> You can set exact dimensions or just choose Small/Medium/Large/X-Large for each product.
+                    </div>
+                    <div style="background: var(--p-color-bg-surface-secondary); border-radius: var(--p-border-radius-200); padding: var(--p-space-400);">
+                        <p style="margin-bottom: var(--p-space-200); font-weight: 500;">Locker size reference:</p>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 13px;">
+                            <div><strong>S:</strong> 12" × 8" × 4"</div>
+                            <div><strong>M:</strong> 16" × 12" × 8"</div>
+                            <div><strong>L:</strong> 20" × 16" × 12"</div>
+                            <div><strong>XL:</strong> 24" × 20" × 16"</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Schedule -->
+                <div class="onboarding-step" data-step="3">
+                    <h3>Set Your Fulfillment Schedule</h3>
+                    <p>Tell us which days you can drop off orders at lockers.</p>
+                    <div class="onboarding-tip">
+                        💡 <strong>Tip:</strong> This helps us show customers accurate pickup dates at checkout.
+                    </div>
+                    <div style="background: var(--p-color-bg-surface-secondary); border-radius: var(--p-border-radius-200); padding: var(--p-space-400); text-align: center;">
+                        <p style="margin-bottom: var(--p-space-200);">✅ <strong>Default:</strong> Monday - Friday</p>
+                        <p style="color: var(--p-color-text-secondary); font-size: 13px;">You can customize this anytime in the Settings tab</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="onboarding-footer">
+                <span class="skip-link" onclick="skipOnboarding()">Skip for now</span>
+                <div class="onboarding-actions">
+                    <button class="btn btn-secondary" id="onboarding-back-btn" onclick="onboardingBack()" style="display: none;">Back</button>
+                    <button class="btn btn-primary" id="onboarding-next-btn" onclick="onboardingNext()">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Setup Reminder Banner (shown when onboarding was skipped) -->
+    <div id="setup-reminder-banner" class="setup-reminder-banner" style="display: none;">
+        <p>⚠️ <strong>Setup incomplete:</strong> Select your locker locations to start receiving LockerDrop orders.</p>
+        <button class="btn btn-primary btn-small" onclick="reopenOnboarding()">Complete Setup</button>
+    </div>
+
     <script>
         // Get shop from URL
         const urlParams = new URLSearchParams(window.location.search);
@@ -1641,6 +2296,133 @@
             alert('Shop parameter missing! Please access this page from Shopify.');
         } else {
             document.getElementById('store-name').textContent = shop.replace('.myshopify.com', '');
+        }
+
+        // ========== ONBOARDING WIZARD ==========
+        let currentOnboardingStep = 1;
+        const totalOnboardingSteps = 3;
+
+        // Check if user needs onboarding (no locker preferences saved)
+        async function checkOnboardingNeeded() {
+            try {
+                const response = await fetch(`/api/locker-preferences/${shop}`);
+                const preferences = await response.json();
+
+                // Check if user has skipped onboarding before
+                const skippedOnboarding = localStorage.getItem(`lockerdrop_onboarding_skipped_${shop}`);
+
+                if (preferences.length === 0) {
+                    if (skippedOnboarding) {
+                        // Show reminder banner instead of modal
+                        showSetupReminderBanner();
+                    } else {
+                        // Show onboarding modal
+                        showOnboardingModal();
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking onboarding status:', error);
+            }
+        }
+
+        function showOnboardingModal() {
+            document.getElementById('onboardingModal').style.display = 'block';
+            updateOnboardingUI();
+        }
+
+        function closeOnboardingModal() {
+            document.getElementById('onboardingModal').style.display = 'none';
+        }
+
+        function showSetupReminderBanner() {
+            const banner = document.getElementById('setup-reminder-banner');
+            const container = document.querySelector('.container');
+            if (banner && container) {
+                // Move banner to start of container
+                container.insertBefore(banner, container.firstChild);
+                banner.style.display = 'flex';
+            }
+        }
+
+        function hideSetupReminderBanner() {
+            const banner = document.getElementById('setup-reminder-banner');
+            if (banner) {
+                banner.style.display = 'none';
+            }
+        }
+
+        function updateOnboardingUI() {
+            // Update progress steps
+            document.querySelectorAll('.progress-step').forEach(step => {
+                const stepNum = parseInt(step.dataset.step);
+                step.classList.remove('active', 'completed');
+                if (stepNum === currentOnboardingStep) {
+                    step.classList.add('active');
+                } else if (stepNum < currentOnboardingStep) {
+                    step.classList.add('completed');
+                }
+            });
+
+            // Update step content visibility
+            document.querySelectorAll('.onboarding-step').forEach(step => {
+                const stepNum = parseInt(step.dataset.step);
+                step.classList.toggle('active', stepNum === currentOnboardingStep);
+            });
+
+            // Update buttons
+            const backBtn = document.getElementById('onboarding-back-btn');
+            const nextBtn = document.getElementById('onboarding-next-btn');
+
+            backBtn.style.display = currentOnboardingStep > 1 ? 'inline-block' : 'none';
+            nextBtn.textContent = currentOnboardingStep === totalOnboardingSteps ? 'Get Started' : 'Next';
+        }
+
+        function onboardingNext() {
+            if (currentOnboardingStep < totalOnboardingSteps) {
+                currentOnboardingStep++;
+                updateOnboardingUI();
+            } else {
+                // Completed onboarding
+                closeOnboardingModal();
+                hideSetupReminderBanner();
+                localStorage.removeItem(`lockerdrop_onboarding_skipped_${shop}`);
+                // Navigate to lockers tab to start setup
+                showTab('lockers', document.querySelector('.tab[onclick*="lockers"]'));
+            }
+        }
+
+        function onboardingBack() {
+            if (currentOnboardingStep > 1) {
+                currentOnboardingStep--;
+                updateOnboardingUI();
+            }
+        }
+
+        function skipOnboarding() {
+            localStorage.setItem(`lockerdrop_onboarding_skipped_${shop}`, 'true');
+            closeOnboardingModal();
+            showSetupReminderBanner();
+        }
+
+        function reopenOnboarding() {
+            localStorage.removeItem(`lockerdrop_onboarding_skipped_${shop}`);
+            hideSetupReminderBanner();
+            currentOnboardingStep = 1;
+            showOnboardingModal();
+        }
+
+        function goToLockersTab() {
+            closeOnboardingModal();
+            hideSetupReminderBanner();
+            localStorage.removeItem(`lockerdrop_onboarding_skipped_${shop}`);
+            showTab('lockers', document.querySelector('.tab[onclick*="lockers"]'));
+        }
+
+        // Check onboarding when page loads
+        if (shop) {
+            setTimeout(() => {
+                checkOnboardingNeeded();
+            }, 500); // Small delay to let the page initialize
         }
 
         // Tab Navigation
@@ -1657,6 +2439,11 @@
             document.getElementById(tabName).classList.add('active');
 
             if (tabName === 'lockers') {
+                // Initialize map when tab first becomes visible
+                setTimeout(() => {
+                    initLockerMap();
+                    if (lockerMap) lockerMap.invalidateSize(); // Fix map display after tab switch
+                }, 100);
                 loadLockers();
             }
             if (tabName === 'products') {
@@ -1670,7 +2457,41 @@
             }
         }
 
-        // Toggle collapsible sections
+        // Navigate to Orders tab with a specific filter
+        function navigateToOrderFilter(status) {
+            // Switch to orders tab
+            const ordersTab = document.querySelector('.tab[onclick*="orders"]');
+            showTab('orders', ordersTab);
+            // Apply the filter
+            filterOrders(status);
+        }
+
+        // Navigate to a specific tab
+        function navigateToTab(tabName) {
+            const tab = document.querySelector(`.tab[onclick*="${tabName}"]`);
+            showTab(tabName, tab);
+        }
+
+        // Show only active/saved lockers
+        function showActiveLockers() {
+            // Navigate to lockers tab
+            const tab = document.querySelector('.tab[onclick*="lockers"]');
+            showTab('lockers', tab);
+
+            // Use setTimeout to ensure the tab is visible before modifying checkbox
+            setTimeout(() => {
+                // Enable "My lockers only" filter
+                const myLockersCheckbox = document.getElementById('my-lockers-only');
+                if (myLockersCheckbox) {
+                    myLockersCheckbox.checked = true;
+                    // Reset to page 1 and reload with filter
+                    lockerCurrentPage = 1;
+                    loadLockers(1);
+                }
+            }, 50);
+        }
+
+        // Toggle collapsible sections (legacy - by ID)
         function toggleSection(sectionId) {
             const section = document.getElementById(sectionId);
             const toggle = document.getElementById(sectionId + '-toggle');
@@ -1681,6 +2502,15 @@
                 section.style.display = 'none';
                 if (toggle) toggle.textContent = '+';
             }
+        }
+
+        // Toggle collapsible card sections (by header element)
+        function toggleCollapse(headerEl) {
+            const content = headerEl.nextElementSibling;
+            if (!content || !content.classList.contains('collapsible-content')) return;
+
+            headerEl.classList.toggle('collapsed');
+            content.classList.toggle('collapsed');
         }
 
         // Load Locker Availability (legacy - availability now in My Lockers)
@@ -1804,12 +2634,80 @@
                 const response = await fetch(`/api/stats/${shop}`);
                 const stats = await response.json();
 
-                document.getElementById('stat-pending').textContent = stats.pendingDropoffs || 0;
-                document.getElementById('stat-ready').textContent = stats.readyForPickup || 0;
-                document.getElementById('stat-completed').textContent = stats.completedThisWeek || 0;
-                document.getElementById('stat-lockers').textContent = stats.activeLockers || 0;
+                const pendingCount = stats.pendingDropoffs || 0;
+                const readyCount = stats.readyForPickup || 0;
+                const completedCount = stats.completedThisWeek || 0;
+                const lockersCount = stats.activeLockers || 0;
+
+                // Update stat values
+                document.getElementById('stat-pending').textContent = pendingCount;
+                document.getElementById('stat-ready').textContent = readyCount;
+                document.getElementById('stat-completed').textContent = completedCount;
+                document.getElementById('stat-lockers').textContent = lockersCount;
+
+                // Update subtexts with actionable copy
+                const pendingSubtext = document.getElementById('stat-pending-subtext');
+                if (pendingCount > 0) {
+                    pendingSubtext.innerHTML = '<span class="warning">⏰ Drop off by EOD today</span>';
+                } else {
+                    pendingSubtext.innerHTML = '<span class="success">✅ All caught up!</span>';
+                }
+
+                const readySubtext = document.getElementById('stat-ready-subtext');
+                if (readyCount > 0) {
+                    readySubtext.innerHTML = '📬 Customers notified';
+                } else {
+                    readySubtext.innerHTML = '';
+                }
+
+                const completedSubtext = document.getElementById('stat-completed-subtext');
+                if (completedCount > 0) {
+                    const savings = completedCount * 8; // $8 avg shipping cost
+                    completedSubtext.innerHTML = `<span class="success">💰 Saved ~$${savings} in shipping</span>`;
+                } else {
+                    completedSubtext.innerHTML = '';
+                }
+
+                const lockersSubtext = document.getElementById('stat-lockers-subtext');
+                if (lockersCount > 0) {
+                    lockersSubtext.innerHTML = '<span class="success">✅ All locations active</span>';
+                } else {
+                    lockersSubtext.innerHTML = '<span class="warning">⚠️ Add lockers to get started</span>';
+                }
+
+                // Update priority banner
+                updatePriorityBanner(pendingCount, stats.nextDropoffLocation);
             } catch (error) {
                 console.error('Error loading stats:', error);
+            }
+        }
+
+        // Update the priority action banner
+        function updatePriorityBanner(pendingCount, nextLocation) {
+            const banner = document.getElementById('priority-banner');
+            const message = document.getElementById('priority-message');
+            const directionsBtn = document.getElementById('priority-directions-btn');
+
+            if (pendingCount > 0) {
+                banner.style.display = 'block';
+
+                if (nextLocation && nextLocation.name) {
+                    message.textContent = `Drop off ${pendingCount} order${pendingCount > 1 ? 's' : ''} at ${nextLocation.name}`;
+
+                    // Show directions button if we have address
+                    if (nextLocation.address) {
+                        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(nextLocation.address)}`;
+                        directionsBtn.href = mapsUrl;
+                        directionsBtn.style.display = 'inline-flex';
+                    } else {
+                        directionsBtn.style.display = 'none';
+                    }
+                } else {
+                    message.textContent = `Drop off ${pendingCount} order${pendingCount > 1 ? 's' : ''} today`;
+                    directionsBtn.style.display = 'none';
+                }
+            } else {
+                banner.style.display = 'none';
             }
         }
 
@@ -1863,15 +2761,39 @@
             }
 
             if (filteredOrders.length === 0) {
-                const message = currentFilter === 'active'
-                    ? 'No active orders'
-                    : currentFilter === 'all'
-                        ? 'No orders yet'
-                        : `No ${formatStatus(currentFilter).toLowerCase()} orders`;
+                let message, subtext, actionHtml = '';
+                if (currentFilter === 'active') {
+                    message = '📭 No active orders';
+                    subtext = 'Orders will appear here when customers choose LockerDrop at checkout.';
+                    actionHtml = `<button class="btn btn-secondary btn-small" onclick="showTab('learn', document.querySelector('.tab[onclick*=\\'learn\\']'))" style="margin-top: 12px;">View Quick Start Guide</button>`;
+                } else if (currentFilter === 'all') {
+                    message = '📭 No orders yet';
+                    subtext = 'Once customers select locker pickup at checkout, their orders will appear here.';
+                    actionHtml = savedPreferenceIds.length === 0
+                        ? `<button class="btn btn-primary btn-small" onclick="showTab('lockers', document.querySelector('.tab[onclick*=\\'lockers\\']'))" style="margin-top: 12px;">Select Your Lockers</button>`
+                        : `<button class="btn btn-secondary btn-small" onclick="showTab('learn', document.querySelector('.tab[onclick*=\\'learn\\']'))" style="margin-top: 12px;">View Quick Start Guide</button>`;
+                } else if (currentFilter === 'pending_dropoff') {
+                    message = '🎉 All caught up!';
+                    subtext = 'No orders waiting for drop-off. Great job staying on top of things!';
+                } else if (currentFilter === 'ready_for_pickup') {
+                    message = '📦 No orders in lockers';
+                    subtext = 'Orders appear here after you drop them off. Customers will be notified automatically.';
+                } else if (currentFilter === 'completed') {
+                    message = '📊 No completed orders yet';
+                    subtext = 'Completed orders will appear here once customers pick up their items.';
+                } else if (currentFilter === 'cancelled') {
+                    message = '✓ No cancelled orders';
+                    subtext = 'Cancelled orders will appear here if any orders are cancelled.';
+                } else {
+                    message = `No ${formatStatus(currentFilter).toLowerCase()} orders`;
+                    subtext = '';
+                }
                 tbody.innerHTML = `
                     <tr>
                         <td colspan="8" class="empty-state">
                             <h3>${message}</h3>
+                            ${subtext ? `<p style="color: #6d7175; margin-top: 8px;">${subtext}</p>` : ''}
+                            ${actionHtml}
                         </td>
                     </tr>
                 `;
@@ -1880,13 +2802,13 @@
 
             tbody.innerHTML = filteredOrders.map(order => `
                 <tr>
-                    <td><strong>#${order.orderNumber}</strong></td>
-                    <td>${order.date}</td>
-                    <td>${order.customerName}</td>
-                    <td>${order.lockerName || 'Not assigned'}</td>
-                    <td>${order.dropoffLink ? `<a href="${order.dropoffLink}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'pending_dropoff' ? 'Open' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
-                    <td>${order.pickupLink ? `<a href="${order.pickupLink}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'ready_for_pickup' ? 'Open' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
-                    <td><span class="status-badge status-${order.status}">${formatStatus(order.status)}</span></td>
+                    <td data-label="Order"><strong>#${order.orderNumber}</strong></td>
+                    <td data-label="Date">${order.date}</td>
+                    <td data-label="Customer">${order.customerName}</td>
+                    <td data-label="Locker">${order.lockerName || 'Not assigned'}</td>
+                    <td data-label="Drop-off">${order.dropoffLink ? `<a href="${order.dropoffLink}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'pending_dropoff' ? 'Open' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
+                    <td data-label="Pickup">${order.pickupLink ? `<a href="${order.pickupLink}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'ready_for_pickup' ? 'Open' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
+                    <td data-label="Status"><span class="status-badge status-${order.status}">${formatStatus(order.status, order.completedAt)}</span></td>
                     <td>
                         <button class="btn btn-primary btn-small" onclick="viewOrder('${order.orderNumber}')">View</button>
                     </td>
@@ -1894,12 +2816,17 @@
             `).join('');
         }
 
-        function formatStatus(status) {
+        function formatStatus(status, completedAt = null) {
+            if (status === 'completed' && completedAt) {
+                const date = new Date(completedAt);
+                const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                return `✓ Picked up ${formatted}`;
+            }
             const statusMap = {
-                'pending_dropoff': 'Pending Drop-off',
-                'ready_for_pickup': 'Ready for Pickup',
-                'completed': 'Completed',
-                'cancelled': 'Cancelled'
+                'pending_dropoff': '⏳ Waiting for drop-off',
+                'ready_for_pickup': '📦 In locker - notified',
+                'completed': '✓ Picked up',
+                'cancelled': '✗ Cancelled'
             };
             return statusMap[status] || status;
         }
@@ -1922,20 +2849,26 @@
                 document.getElementById('modal-email').textContent = order.customerEmail || 'Not provided';
                 document.getElementById('modal-phone').textContent = order.customerPhone || 'Not provided';
                 document.getElementById('modal-locker').textContent = order.lockerName || 'Not assigned';
-                document.getElementById('modal-status').textContent = formatStatus(order.status);
+                document.getElementById('modal-status').textContent = formatStatus(order.status, order.completedAt);
 
                 // Dropoff link section
                 const dropoffContent = document.getElementById('dropoff-content');
                 const dropoffPending = order.status === 'pending_dropoff';
                 if (order.dropoffLink) {
                     dropoffContent.innerHTML = `
+                        <p style="color: var(--p-color-text-secondary); font-size: 13px; margin-bottom: 12px;">
+                            Open this link <strong>at the locker</strong> to unlock it and drop off the package.
+                        </p>
                         <a href="${order.dropoffLink}" target="_blank" class="btn btn-primary">
-                            🔓 Open Locker to Drop Off
+                            🔓 Open Locker Link
                         </a>
                         ${dropoffPending ? `
                         <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLink('${order.orderNumber}')" style="margin-left: 8px;" title="Regenerate if link expired">
                             🔄 Regenerate
                         </button>
+                        <div style="margin-top: 12px; padding: 10px; background: #f0fdf4; border-radius: 6px; font-size: 12px; color: #065f46;">
+                            💡 <strong>Tip:</strong> Save this link - you can reopen it if the door closes before you're done.
+                        </div>
                         ` : '<span style="color: #008060; margin-left: 8px;">✓ Used</span>'}
                     `;
                 } else {
@@ -2192,12 +3125,116 @@
         let lockerTotalPages = 1;
         let lockerTotalCount = 0;
         let savedPreferenceIds = [];
+        let originalSavedIds = []; // Track original state to detect changes
+        let lockerMap = null;
+        let lockerMarkers = [];
+        let allLockersForMap = []; // Store all lockers for map display
+
+        // Initialize the locker map
+        function initLockerMap() {
+            if (lockerMap) return; // Already initialized
+
+            lockerMap = L.map('locker-map').setView([39.8283, -98.5795], 4); // Center of USA
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 18
+            }).addTo(lockerMap);
+        }
+
+        // Update map with locker markers
+        function updateLockerMap(lockers) {
+            if (!lockerMap) initLockerMap();
+
+            // Clear existing markers
+            lockerMarkers.forEach(marker => lockerMap.removeLayer(marker));
+            lockerMarkers = [];
+
+            // We need geocoded locations - for now use placeholder positions
+            // In production, you'd have lat/lng from the Harbor API
+            const bounds = [];
+
+            lockers.forEach((locker, index) => {
+                // Try to get coordinates from locker data, or skip if not available
+                if (locker.latitude && locker.longitude) {
+                    const isSelected = savedPreferenceIds.includes(locker.id.toString());
+                    const markerColor = isSelected ? '#008060' : '#5c6ac4';
+
+                    const icon = L.divIcon({
+                        className: 'locker-map-marker-wrapper',
+                        html: `<div style="width: 12px; height: 12px; background: ${markerColor}; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+                        iconSize: [16, 16],
+                        iconAnchor: [8, 8]
+                    });
+
+                    const marker = L.marker([locker.latitude, locker.longitude], { icon })
+                        .addTo(lockerMap)
+                        .bindPopup(`
+                            <strong>${locker.name}</strong>
+                            ${locker.address}<br>
+                            <em>${isSelected ? '✓ Selected' : 'Click list to select'}</em>
+                        `);
+
+                    marker.on('click', () => {
+                        // Scroll to and highlight this locker in the list
+                        const lockerEl = document.querySelector(`[data-location-id="${locker.id}"]`);
+                        if (lockerEl) {
+                            lockerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            lockerEl.style.boxShadow = '0 0 0 2px #008060';
+                            setTimeout(() => lockerEl.style.boxShadow = '', 2000);
+                        }
+                    });
+
+                    lockerMarkers.push(marker);
+                    bounds.push([locker.latitude, locker.longitude]);
+                }
+            });
+
+            // Fit map to show all markers
+            if (bounds.length > 0) {
+                lockerMap.fitBounds(bounds, { padding: [20, 20], maxZoom: 12 });
+            }
+        }
+
+        // Check if there are unsaved changes
+        function hasLockerChanges() {
+            const currentIds = [...savedPreferenceIds].sort();
+            const originalIds = [...originalSavedIds].sort();
+
+            if (currentIds.length !== originalIds.length) return true;
+            return currentIds.some((id, i) => id !== originalIds[i]);
+        }
+
+        // Update Save button state
+        function updateSaveButtonState() {
+            const btn = document.getElementById('save-lockers-btn');
+            const hasChanges = hasLockerChanges();
+
+            btn.disabled = !hasChanges;
+            btn.style.opacity = hasChanges ? '1' : '0.5';
+            btn.textContent = hasChanges ? 'Save Changes' : 'No Changes';
+        }
 
         // Load Lockers with search, filters, and pagination
         async function loadLockers(page = 1) {
             const lockerList = document.getElementById('locker-list');
             const paginationEl = document.getElementById('locker-pagination');
-            lockerList.innerHTML = '<p>Loading lockers...</p>';
+
+            // Show skeleton loading
+            lockerList.innerHTML = Array(5).fill(0).map(() => `
+                <div class="skeleton-locker">
+                    <div class="skeleton skeleton-checkbox"></div>
+                    <div class="skeleton-locker-info">
+                        <div class="skeleton skeleton-text medium"></div>
+                        <div class="skeleton skeleton-text short"></div>
+                    </div>
+                    <div style="display: flex; gap: 4px;">
+                        <div class="skeleton" style="width: 24px; height: 20px;"></div>
+                        <div class="skeleton" style="width: 24px; height: 20px;"></div>
+                        <div class="skeleton" style="width: 24px; height: 20px;"></div>
+                    </div>
+                </div>
+            `).join('');
 
             try {
                 // Build query params
@@ -2205,72 +3242,106 @@
                 const showAvailability = document.getElementById('show-availability').checked;
                 const selectedSizes = Array.from(document.querySelectorAll('.size-filter:checked'))
                     .map(cb => cb.value);
+                const myLockersOnly = document.getElementById('my-lockers-only')?.checked;
 
-                let url = `/api/lockers/${shop}?page=${page}&limit=12`;
+                // Load saved preferences first if needed (so we know IDs for filtering)
+                if (savedPreferenceIds.length === 0 || originalSavedIds.length === 0) {
+                    const prefsResponse = await fetch(`/api/locker-preferences/${shop}`);
+                    const preferences = await prefsResponse.json();
+                    savedPreferenceIds = preferences.map(p => p.location_id.toString());
+                    // Store original state for change detection
+                    originalSavedIds = [...savedPreferenceIds];
+                    updateSaveButtonState();
+                }
+
+                // Build URL - use saved_only param for efficient server-side filtering
+                let url = `/api/lockers/${shop}?page=${page}&limit=20`;
                 if (searchValue) url += `&search=${encodeURIComponent(searchValue)}`;
-                if (showAvailability) url += `&includeAvailability=true`;
+                // Include availability if checkbox is checked OR if size filters are selected (required for filtering)
+                if (showAvailability || selectedSizes.length > 0) url += `&includeAvailability=true`;
                 if (selectedSizes.length > 0) url += `&sizes=${selectedSizes.join(',')}`;
+                // Use server-side filtering for "My lockers only" (much faster than fetching 1000)
+                if (myLockersOnly) url += `&saved_only=true`;
 
                 // Load available lockers
                 const response = await fetch(url);
                 const data = await response.json();
 
                 // Handle both old format (array) and new format (object with lockers and pagination)
-                const lockers = Array.isArray(data) ? data : data.lockers;
+                let lockers = Array.isArray(data) ? data : data.lockers;
                 const pagination = data.pagination || { page: 1, totalCount: lockers.length, totalPages: 1 };
 
+                // Server handles filtering via saved_only param, just use the results
+                let filteredLockers = lockers;
                 lockerCurrentPage = pagination.page;
                 lockerTotalPages = pagination.totalPages;
                 lockerTotalCount = pagination.totalCount;
 
-                // Load saved preferences (only once)
-                if (savedPreferenceIds.length === 0) {
-                    const prefsResponse = await fetch(`/api/locker-preferences/${shop}`);
-                    const preferences = await prefsResponse.json();
-                    savedPreferenceIds = preferences.map(p => p.location_id.toString());
-                }
-
-                if (lockers.length === 0) {
-                    lockerList.innerHTML = searchValue
-                        ? '<p>No lockers found matching your search. Try a different city or zip code.</p>'
-                        : '<p>No lockers available in your area yet.</p>';
+                if (filteredLockers.length === 0) {
+                    lockerList.innerHTML = myLockersOnly
+                        ? `<div class="empty-state" style="padding: 40px 20px;">
+                            <h3>No active lockers</h3>
+                            <p style="color: #6d7175; margin-top: 8px;">You haven't selected any lockers yet. Uncheck "My lockers only" to browse available locations.</p>
+                            <button class="btn btn-secondary" onclick="document.getElementById('my-lockers-only').checked = false; searchLockers();" style="margin-top: 16px;">Show All Lockers</button>
+                           </div>`
+                        : searchValue
+                        ? `<div class="empty-state" style="padding: 40px 20px;">
+                            <h3>No lockers found</h3>
+                            <p style="color: #6d7175; margin-top: 8px;">Try a different city or zip code, or clear your filters.</p>
+                            <button class="btn btn-secondary" onclick="clearLockerSearch()" style="margin-top: 16px;">Clear Search</button>
+                           </div>`
+                        : `<div class="empty-state" style="padding: 40px 20px;">
+                            <h3>No lockers available yet</h3>
+                            <p style="color: #6d7175; margin-top: 8px;">Locker locations will appear here once they become available in your area.</p>
+                           </div>`;
                     paginationEl.style.display = 'none';
                     return;
                 }
 
-                lockerList.innerHTML = lockers.map(locker => `
-                    <div class="locker-card ${savedPreferenceIds.includes(locker.id.toString()) ? 'selected' : ''}"
+                lockerList.innerHTML = filteredLockers.map(locker => {
+                    const isSelected = savedPreferenceIds.includes(locker.id.toString());
+                    const locationText = [locker.city, locker.state, locker.zip].filter(Boolean).join(', ');
+                    const fullAddress = locker.address ? (locationText ? `${locker.address}, ${locationText}` : locker.address) : locationText;
+
+                    return `
+                    <div class="locker-item ${isSelected ? 'selected' : ''}"
                          onclick="toggleLocker(this)"
                          data-location-id="${locker.id}">
-                        <div class="locker-name">${locker.name || 'Locker'}</div>
-                        <div class="locker-address">${locker.address || 'Address not available'}</div>
-                        ${locker.city || locker.zip ? `<div class="locker-location" style="color: #6d7175; font-size: 13px; margin-top: 4px;">${[locker.city, locker.state, locker.zip].filter(Boolean).join(', ')}</div>` : ''}
+                        <div class="locker-checkbox">
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="white"><path d="M10 3L4.5 8.5L2 6" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </div>
+                        <div class="locker-info">
+                            <div class="locker-name">${locker.name || 'Locker'}</div>
+                            <div class="locker-address">${fullAddress || 'Address not available'}</div>
+                        </div>
                         ${locker.availability ? `
-                            <div class="locker-availability" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e1e3e5;">
-                                <div style="font-size: 12px; color: #6d7175; margin-bottom: 6px;">Availability:</div>
-                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                    ${Object.entries(locker.availability).map(([size, data]) => `
-                                        <span class="size-badge" style="background: ${data.available > 0 ? '#e3f9e5' : '#fce8e8'}; color: ${data.available > 0 ? '#108043' : '#bf0711'};">
-                                            ${size}: ${data.available}/${data.total}
-                                        </span>
-                                    `).join('')}
-                                </div>
+                            <div class="locker-sizes">
+                                ${Object.entries(locker.availability).map(([size, data]) => {
+                                    const sizeLabel = size.toLowerCase().includes('x-large') || size.toLowerCase() === 'xlarge' ? 'XL'
+                                        : size[0].toUpperCase();
+                                    return `
+                                    <span class="size-badge" style="background: ${data.available > 0 ? '#e3f9e5' : '#fce8e8'}; color: ${data.available > 0 ? '#108043' : '#bf0711'};">
+                                        ${sizeLabel}: ${data.available}
+                                    </span>
+                                `}).join('')}
                             </div>
                         ` : `
                             <div class="locker-sizes">
-                                ${(locker.available_sizes || ['Small', 'Medium', 'Large']).map(size =>
-                                    `<span class="size-badge">${size}</span>`
-                                ).join('')}
+                                ${(locker.available_sizes || ['S', 'M', 'L', 'XL']).map(size => {
+                                    const label = size.toLowerCase().includes('x-large') || size.toLowerCase() === 'xlarge' ? 'XL'
+                                        : size.length <= 2 ? size : size[0].toUpperCase();
+                                    return `<span class="size-badge">${label}</span>`;
+                                }).join('')}
                             </div>
                         `}
                     </div>
-                `).join('');
+                `}).join('');
 
                 // Update pagination UI
                 if (lockerTotalPages > 1) {
                     paginationEl.style.display = 'block';
-                    const start = (lockerCurrentPage - 1) * 12 + 1;
-                    const end = Math.min(lockerCurrentPage * 12, lockerTotalCount);
+                    const start = (lockerCurrentPage - 1) * 20 + 1;
+                    const end = Math.min(lockerCurrentPage * 20, lockerTotalCount);
                     document.getElementById('locker-page-info').textContent = `Showing ${start}-${end} of ${lockerTotalCount} lockers`;
                     document.getElementById('prev-page-btn').disabled = lockerCurrentPage <= 1;
                     document.getElementById('next-page-btn').disabled = lockerCurrentPage >= lockerTotalPages;
@@ -2282,6 +3353,12 @@
                         document.getElementById('next-page-btn').disabled = true;
                     }
                 }
+
+                // Update selection counter
+                updateLockerSelectionCount();
+
+                // Update map with locker locations
+                updateLockerMap(filteredLockers);
             } catch (error) {
                 console.error('Error loading lockers:', error);
                 lockerList.innerHTML = `<p style="color: #bf0711;">Error loading lockers. Please try again.</p>`;
@@ -2314,23 +3391,63 @@
         }
 
         function toggleLocker(card) {
+            const lockerId = card.dataset.locationId.toString();
             card.classList.toggle('selected');
+
+            // Update savedPreferenceIds to track total selections
+            if (card.classList.contains('selected')) {
+                if (!savedPreferenceIds.includes(lockerId)) {
+                    savedPreferenceIds.push(lockerId);
+                }
+            } else {
+                savedPreferenceIds = savedPreferenceIds.filter(id => id !== lockerId);
+            }
+
+            updateLockerSelectionCount();
+            updateSaveButtonState();
+        }
+
+        function updateLockerSelectionCount() {
+            // Use savedPreferenceIds for total count (not just visible cards)
+            const count = savedPreferenceIds.length;
+            const countEl = document.getElementById('locker-selection-count');
+            if (countEl) {
+                countEl.textContent = count === 1 ? '1 locker selected' : `${count} lockers selected`;
+                countEl.style.color = count > 0 ? '#008060' : '#6d7175';
+            }
         }
 
         // Save Locker Preferences
         async function saveLockerPreferences() {
             const selectedLockers = [];
-            document.querySelectorAll('.locker-card.selected').forEach(card => {
+            document.querySelectorAll('.locker-item.selected').forEach(card => {
                 selectedLockers.push({
                     id: card.dataset.locationId,
                     name: card.querySelector('.locker-name').textContent
                 });
             });
 
+            // Also include any saved preferences that aren't visible on current page
+            savedPreferenceIds.forEach(id => {
+                if (!selectedLockers.find(l => l.id === id)) {
+                    // This locker is saved but not on current page, keep it
+                    selectedLockers.push({ id: id, name: '' });
+                }
+            });
+
             if (selectedLockers.length === 0) {
-                alert('Please select at least one locker location');
-                return;
+                const confirmed = confirm(
+                    '⚠️ No lockers selected!\n\n' +
+                    'Customers won\'t see LockerDrop as a shipping option at checkout if you have no lockers enabled.\n\n' +
+                    'Are you sure you want to continue with no lockers?'
+                );
+                if (!confirmed) return;
             }
+
+            const btn = document.getElementById('save-lockers-btn');
+            const originalText = btn.textContent;
+            btn.classList.add('btn-loading');
+            btn.textContent = 'Saving...';
 
             try {
                 const response = await fetch(`/api/locker-preferences/${shop}`, {
@@ -2340,11 +3457,33 @@
                 });
 
                 const data = await response.json();
-                alert(data.success ? 'Preferences saved!' : 'Failed to save');
+                if (data.success) {
+                    const count = selectedLockers.length;
+                    btn.textContent = `✓ ${count} locker${count !== 1 ? 's' : ''} saved`;
+                    btn.style.background = '#008060';
+
+                    // Update original state to match current (no more pending changes)
+                    originalSavedIds = [...savedPreferenceIds];
+
+                    setTimeout(() => {
+                        btn.textContent = 'No Changes';
+                        btn.style.background = '';
+                        btn.disabled = true;
+                        btn.style.opacity = '0.5';
+                    }, 2500);
+                    // Also hide reminder banner if it was showing
+                    hideSetupReminderBanner();
+                } else {
+                    alert('Failed to save preferences');
+                    btn.textContent = originalText;
+                }
                 loadStats();
             } catch (error) {
                 console.error('Error:', error);
                 alert('Error saving preferences');
+                btn.textContent = originalText;
+            } finally {
+                btn.classList.remove('btn-loading');
             }
         }
 
@@ -2500,34 +3639,101 @@
             }
         }
 
-        // Add vacation day
-        function addVacationDay() {
-            const input = document.getElementById('vacation-date-input');
-            const date = input.value;
+        // Update vacation button text based on selected dates
+        function updateVacationButtonText() {
+            const startDate = document.getElementById('vacation-start-date').value;
+            const endDate = document.getElementById('vacation-end-date').value;
+            const btn = document.getElementById('add-vacation-btn');
 
-            if (!date) {
+            if (startDate && endDate && startDate !== endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                btn.textContent = `Add ${days} Days`;
+            } else if (startDate || endDate) {
+                btn.textContent = 'Add Day';
+            } else {
+                btn.textContent = 'Add';
+            }
+        }
+
+        // Smart vacation days function - handles single or range
+        function addVacationDays() {
+            const startInput = document.getElementById('vacation-start-date');
+            const endInput = document.getElementById('vacation-end-date');
+            const startDate = startInput.value;
+            const endDate = endInput.value;
+
+            // At least start date required
+            if (!startDate) {
                 alert('Please select a date');
                 return;
             }
 
-            // Check if date is in the past
-            if (new Date(date) < new Date().setHours(0,0,0,0)) {
+            const start = new Date(startDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            if (start < today) {
                 alert('Cannot add past dates');
                 return;
             }
 
-            // Check if already added
-            if (vacationDays.includes(date)) {
-                alert('This date is already added');
-                return;
+            // If no end date or same as start, add single day
+            if (!endDate || endDate === startDate) {
+                if (vacationDays.includes(startDate)) {
+                    alert('This date is already added');
+                    return;
+                }
+                vacationDays.push(startDate);
+            } else {
+                // Add range
+                const end = new Date(endDate);
+
+                if (end < start) {
+                    alert('End date must be after start date');
+                    return;
+                }
+
+                // Limit range to 60 days
+                const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+                if (daysDiff > 60) {
+                    alert('Date range cannot exceed 60 days');
+                    return;
+                }
+
+                let addedCount = 0;
+                const current = new Date(start);
+                while (current <= end) {
+                    const dateStr = current.toISOString().split('T')[0];
+                    if (!vacationDays.includes(dateStr)) {
+                        vacationDays.push(dateStr);
+                        addedCount++;
+                    }
+                    current.setDate(current.getDate() + 1);
+                }
+
+                if (addedCount === 0) {
+                    alert('All dates in this range are already added');
+                    return;
+                }
             }
 
-            vacationDays.push(date);
             vacationDays.sort();
             renderVacationDays();
             updatePickupPreview();
-            input.value = '';
+            autoSaveSettings();
+
+            // Clear inputs and reset button
+            startInput.value = '';
+            endInput.value = '';
+            updateVacationButtonText();
         }
+
+        // Legacy functions for backwards compatibility
+        function addVacationDay() { addVacationDays(); }
+        function addSingleVacationDay() { addVacationDays(); }
+        function addVacationRange() { addVacationDays(); }
 
         // Remove vacation day
         function removeVacationDay(date) {
@@ -2935,6 +4141,23 @@
                 return;
             }
 
+            // Check for products without sizes and warn user
+            const totalProducts = rows.length;
+            const unconfiguredCount = totalProducts - products.length;
+            if (unconfiguredCount > 0) {
+                const proceed = confirm(
+                    `⚠️ ${unconfiguredCount} product${unconfiguredCount !== 1 ? 's' : ''} still ${unconfiguredCount !== 1 ? 'have' : 'has'} no size configured.\n\n` +
+                    `Products without sizes will use "Medium" as the default locker size.\n\n` +
+                    `Continue saving ${products.length} configured product${products.length !== 1 ? 's' : ''}?`
+                );
+                if (!proceed) return;
+            }
+
+            const btn = document.getElementById('save-products-btn');
+            const originalText = btn.textContent;
+            btn.classList.add('btn-loading');
+            btn.textContent = 'Saving...';
+
             try {
                 const response = await fetch(`/api/product-sizes/${shop}`, {
                     method: 'POST',
@@ -2945,13 +4168,22 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert(`Saved sizes for ${products.length} product(s)`);
+                    btn.textContent = `✓ ${products.length} product${products.length !== 1 ? 's' : ''} updated`;
+                    btn.style.background = '#008060';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.style.background = '';
+                    }, 2500);
                 } else {
                     alert('Failed to save: ' + (result.error || 'Unknown error'));
+                    btn.textContent = originalText;
                 }
             } catch (error) {
                 console.error('Error saving product sizes:', error);
                 alert('Error saving: ' + error.message);
+                btn.textContent = originalText;
+            } finally {
+                btn.classList.remove('btn-loading');
             }
         }
 

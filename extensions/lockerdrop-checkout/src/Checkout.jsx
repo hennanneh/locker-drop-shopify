@@ -202,8 +202,11 @@ function LockerDropPickup() {
           </View>
         </InlineStack>
 
-        <Text appearance="subdued" size="small">
-          Pick up your order from a secure locker near you - available 24/7
+        <Text size="small">
+          ✓ Skip shipping fees  ✓ Pick up on YOUR schedule (24/7)  ✓ Secure contactless pickup
+        </Text>
+        <Text appearance="subdued" size="extraSmall">
+          Changed your mind? No problem - we'll hold it for 5 days
         </Text>
       </BlockStack>
 
@@ -233,14 +236,19 @@ function LockerDropPickup() {
           ) : (
             <>
               <BlockStack spacing="tight">
-                {lockers.slice(0, 3).map((locker) => (
-                  <LockerOption
-                    key={locker.id}
-                    locker={locker}
-                    selected={selectedLocker?.id === locker.id}
-                    onSelect={() => handleLockerSelect(locker)}
-                  />
-                ))}
+                {lockers.slice(0, 3).map((locker, index) => {
+                  // First locker with good availability is recommended (already sorted by distance)
+                  const isRecommended = index === 0 && locker.availableCount >= 3;
+                  return (
+                    <LockerOption
+                      key={locker.id}
+                      locker={locker}
+                      selected={selectedLocker?.id === locker.id}
+                      onSelect={() => handleLockerSelect(locker)}
+                      isRecommended={isRecommended}
+                    />
+                  );
+                })}
               </BlockStack>
 
               {/* Date Picker Section */}
@@ -290,7 +298,7 @@ function LockerDropPickup() {
   );
 }
 
-function LockerOption({ locker, selected, onSelect }) {
+function LockerOption({ locker, selected, onSelect, isRecommended }) {
   return (
     <Pressable
       onPress={onSelect}
@@ -316,6 +324,11 @@ function LockerOption({ locker, selected, onSelect }) {
                 ({locker.distance} mi)
               </Text>
             )}
+            {isRecommended && (
+              <Text size="extraSmall" appearance="success" emphasis="bold">
+                ⭐ BEST CHOICE
+              </Text>
+            )}
           </InlineStack>
 
           <Text size="small" appearance="subdued">
@@ -325,6 +338,12 @@ function LockerOption({ locker, selected, onSelect }) {
           <Text size="small" appearance="success">
             {locker.availableCount} locker{locker.availableCount !== 1 ? 's' : ''} available
           </Text>
+
+          {isRecommended && (
+            <Text size="extraSmall" appearance="subdued">
+              Closest location with best availability
+            </Text>
+          )}
         </BlockStack>
       </InlineStack>
     </Pressable>
