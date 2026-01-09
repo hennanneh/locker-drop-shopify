@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LockerDrop - Smart Locker Pickup for Shopify Stores</title>
-    <meta name="description" content="Offer free locker pickup to your customers. They shop, you drop off, they pick up 24/7. No more missed deliveries.">
+    <meta name="description" content="Offer convenient locker pickup to your customers. They shop, you drop off, they pick up 24/7. No more missed deliveries.">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
     <style>
         * {
@@ -171,6 +171,21 @@
             border-radius: 8px;
             margin-top: 1rem;
             display: none;
+        }
+
+        .hero-link {
+            display: inline-block;
+            margin-top: 1.5rem;
+            color: #5c6ac4;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 1rem;
+            transition: color 0.2s;
+        }
+
+        .hero-link:hover {
+            color: #4854a8;
+            text-decoration: underline;
         }
 
         /* How it works */
@@ -468,7 +483,7 @@
     <!-- Hero -->
     <section class="hero">
         <span class="hero-badge">Coming Soon for Shopify</span>
-        <h1>Free Locker Pickup for <span>Your Customers</span></h1>
+        <h1>Smart Locker Pickup for <span>Your Customers</span></h1>
         <p>Offer convenient 24/7 locker pickup as a shipping option. Reduce failed deliveries, delight customers, and save on shipping costs.</p>
 
         <form class="email-form" id="heroForm">
@@ -476,6 +491,7 @@
             <button type="submit">Notify Me</button>
         </form>
         <p class="form-note">Be the first to know when LockerDrop is ready for your store.</p>
+        <a href="#find-lockers" class="hero-link">Find lockers near you →</a>
         <div class="form-success" id="heroSuccess">You're on the list! We'll notify you when LockerDrop launches.</div>
         <div class="form-error" id="heroError">Something went wrong. Please try again.</div>
     </section>
@@ -492,7 +508,7 @@
                     <span class="step-number">1</span>
                     <div class="step-icon">🛒</div>
                     <h3>Shop & Checkout</h3>
-                    <p>Customer selects "LockerDrop Pickup" at checkout - it's free!</p>
+                    <p>Customer selects "LockerDrop Pickup" at checkout</p>
                 </div>
                 <div class="step">
                     <span class="step-number">2</span>
@@ -561,7 +577,7 @@
             <div class="benefit">
                 <div class="benefit-icon">😊</div>
                 <h3>Happy Customers</h3>
-                <p>Offer a free shipping option that's actually convenient for them.</p>
+                <p>Offer a convenient pickup option on their schedule.</p>
             </div>
             <div class="benefit">
                 <div class="benefit-icon">📊</div>
@@ -572,7 +588,7 @@
     </section>
 
     <!-- Locker Finder -->
-    <section class="locker-finder">
+    <section class="locker-finder" id="find-lockers">
         <div class="finder-container">
             <h2 class="section-title">Find Lockers Near You</h2>
             <p class="section-subtitle">Enter a zip code to see available locker locations.</p>
