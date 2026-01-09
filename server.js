@@ -706,36 +706,8 @@ app.get('/', (req, res) => {
         `);
     }
 
-    // No shop param - show simple landing page (for direct visits)
-    res.send(`
-        <html>
-            <head>
-                <title>LockerDrop - Locker Pickup for Shopify</title>
-                <style>
-                    body {
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        height: 100vh;
-                        margin: 0;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        color: white;
-                    }
-                    .container { text-align: center; }
-                    h1 { font-size: 48px; margin-bottom: 20px; }
-                    p { font-size: 20px; opacity: 0.9; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h1>LockerDrop</h1>
-                    <p>Secure locker pickup for Shopify stores</p>
-                    <p style="margin-top: 30px; opacity: 0.7;">Install from the Shopify App Store to get started</p>
-                </div>
-            </body>
-        </html>
-    `);
+    // No shop param - serve the public landing page
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ============================================
@@ -3591,6 +3563,31 @@ app.get('/api/public/lockers', async (req, res) => {
     }
 });
 
+// Waitlist signup for landing page
+app.post('/api/waitlist', async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email || !email.includes('@')) {
+            return res.status(400).json({ error: 'Valid email required' });
+        }
+
+        // Store email in database
+        await db.query(
+            `INSERT INTO waitlist (email, created_at) VALUES ($1, NOW())
+             ON CONFLICT (email) DO UPDATE SET updated_at = NOW()`,
+            [email.toLowerCase().trim()]
+        );
+
+        console.log(`📧 Waitlist signup: ${email}`);
+
+        res.json({ success: true, message: 'Added to waitlist' });
+    } catch (error) {
+        console.error('Waitlist signup error:', error.message);
+        res.status(500).json({ error: 'Failed to join waitlist' });
+    }
+});
+
 // ============================================
 // CUSTOMER ORDER STATUS API
 // ============================================
@@ -5503,6 +5500,23 @@ async function ensureOrdersNotesColumn() {
     }
 }
 
+// Create waitlist table for landing page signups
+async function ensureWaitlistTable() {
+    try {
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS waitlist (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP
+            );
+        `);
+        console.log('📧 Waitlist table ready');
+    } catch (error) {
+        console.error('Error creating waitlist table:', error);
+    }
+}
+
 // Ensure preferred_pickup_date column exists on orders table
 async function ensurePickupDateColumn() {
     try {
@@ -6485,6 +6499,9 @@ app.listen(PORT, async () => {
 
     // Initialize branding settings table
     await initBrandingSettings();
+
+    // Initialize waitlist table
+    await ensureWaitlistTable();
 
     // Schedule data retention cleanup
     scheduleDataRetention();

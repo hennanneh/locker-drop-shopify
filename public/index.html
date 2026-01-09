@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LockerDrop - Smart Locker Pickup for Shopify Stores</title>
+    <meta name="description" content="Offer free locker pickup to your customers. They shop, you drop off, they pick up 24/7. No more missed deliveries.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: #1a1a2e;
+            background: #fff;
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            border-bottom: 1px solid #eee;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #5c6ac4;
+            text-decoration: none;
+        }
+
+        .logo span {
+            color: #1a1a2e;
+        }
+
+        nav a.cta-nav {
+            background: #5c6ac4;
+            color: white;
+            padding: 0.6rem 1.2rem;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+
+        nav a.cta-nav:hover {
+            background: #4854a8;
+        }
+
+        /* Hero */
+        .hero {
+            padding: 8rem 2rem 4rem;
+            text-align: center;
+            background: linear-gradient(135deg, #f8f9ff 0%, #e8f4f8 100%);
+            min-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-weight: 800;
+            margin-bottom: 1.5rem;
+            color: #1a1a2e;
+            max-width: 800px;
+        }
+
+        .hero h1 span {
+            color: #5c6ac4;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: #666;
+            max-width: 600px;
+            margin-bottom: 2.5rem;
+        }
+
+        /* Email Form */
+        .email-form {
+            display: flex;
+            gap: 0.75rem;
+            max-width: 500px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .email-form input {
+            flex: 1;
+            padding: 1rem 1.25rem;
+            font-size: 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .email-form input:focus {
+            border-color: #5c6ac4;
+        }
+
+        .email-form button {
+            padding: 1rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            background: #5c6ac4;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        .email-form button:hover {
+            background: #4854a8;
+        }
+
+        .email-form button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .form-note {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 1rem;
+        }
+
+        .form-success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .form-error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        /* How it works */
+        .how-it-works {
+            padding: 5rem 2rem;
+            background: #fff;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .section-subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 1.1rem;
+            margin-bottom: 3rem;
+        }
+
+        .steps-container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .steps-row {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+        }
+
+        .steps-label {
+            text-align: center;
+            font-weight: 600;
+            color: #5c6ac4;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .step {
+            background: #f8f9ff;
+            padding: 2rem;
+            border-radius: 12px;
+            text-align: center;
+            flex: 1;
+            min-width: 200px;
+            max-width: 280px;
+        }
+
+        .step-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .step h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: #1a1a2e;
+        }
+
+        .step p {
+            color: #666;
+            font-size: 0.95rem;
+        }
+
+        .step-number {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            background: #5c6ac4;
+            color: white;
+            border-radius: 50%;
+            font-size: 0.85rem;
+            font-weight: 600;
+            line-height: 28px;
+            margin-bottom: 0.75rem;
+        }
+
+        /* Benefits */
+        .benefits {
+            padding: 5rem 2rem;
+            background: #f8f9ff;
+        }
+
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .benefit {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .benefit-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .benefit h3 {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            color: #1a1a2e;
+        }
+
+        .benefit p {
+            color: #666;
+            font-size: 0.95rem;
+        }
+
+        /* Locker Finder */
+        .locker-finder {
+            padding: 5rem 2rem;
+            background: #fff;
+        }
+
+        .finder-container {
+            max-width: 600px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .finder-form {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 2rem;
+        }
+
+        .finder-form input {
+            flex: 1;
+            padding: 1rem 1.25rem;
+            font-size: 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            outline: none;
+        }
+
+        .finder-form input:focus {
+            border-color: #5c6ac4;
+        }
+
+        .finder-form button {
+            padding: 1rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            background: #5c6ac4;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .finder-results {
+            margin-top: 2rem;
+            text-align: left;
+        }
+
+        .locker-card {
+            background: #f8f9ff;
+            padding: 1.25rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .locker-card h4 {
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .locker-card p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .locker-distance {
+            color: #5c6ac4;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        /* CTA Section */
+        .cta-section {
+            padding: 5rem 2rem;
+            background: linear-gradient(135deg, #5c6ac4 0%, #4854a8 100%);
+            text-align: center;
+            color: white;
+        }
+
+        .cta-section h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .cta-section p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .cta-section .email-form input {
+            border-color: rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .cta-section .email-form input::placeholder {
+            color: rgba(255,255,255,0.7);
+        }
+
+        .cta-section .email-form input:focus {
+            border-color: white;
+            background: rgba(255,255,255,0.2);
+        }
+
+        .cta-section .email-form button {
+            background: white;
+            color: #5c6ac4;
+        }
+
+        .cta-section .email-form button:hover {
+            background: #f0f0f0;
+        }
+
+        .cta-section .form-note {
+            color: rgba(255,255,255,0.7);
+        }
+
+        .cta-section .form-success {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        /* Footer */
+        footer {
+            padding: 2rem;
+            text-align: center;
+            background: #1a1a2e;
+            color: rgba(255,255,255,0.6);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            color: white;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .email-form {
+                flex-direction: column;
+            }
+
+            .finder-form {
+                flex-direction: column;
+            }
+
+            .steps-row {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .step {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/" class="logo">Locker<span>Drop</span></a>
+        <a href="#notify" class="cta-nav">Get Notified</a>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+        <span class="hero-badge">Coming Soon for Shopify</span>
+        <h1>Free Locker Pickup for <span>Your Customers</span></h1>
+        <p>Offer convenient 24/7 locker pickup as a shipping option. Reduce failed deliveries, delight customers, and save on shipping costs.</p>
+
+        <form class="email-form" id="heroForm">
+            <input type="email" placeholder="Enter your email" required>
+            <button type="submit">Notify Me</button>
+        </form>
+        <p class="form-note">Be the first to know when LockerDrop is ready for your store.</p>
+        <div class="form-success" id="heroSuccess">You're on the list! We'll notify you when LockerDrop launches.</div>
+        <div class="form-error" id="heroError">Something went wrong. Please try again.</div>
+    </section>
+
+    <!-- How it works -->
+    <section class="how-it-works">
+        <h2 class="section-title">How It Works</h2>
+        <p class="section-subtitle">Simple for you. Convenient for customers.</p>
+
+        <div class="steps-container">
+            <p class="steps-label">For Your Customers</p>
+            <div class="steps-row">
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <div class="step-icon">🛒</div>
+                    <h3>Shop & Checkout</h3>
+                    <p>Customer selects "LockerDrop Pickup" at checkout - it's free!</p>
+                </div>
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <div class="step-icon">📍</div>
+                    <h3>Choose Location</h3>
+                    <p>Pick a nearby locker from the map - available 24/7</p>
+                </div>
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <div class="step-icon">📱</div>
+                    <h3>Pick Up Anytime</h3>
+                    <p>Get notified when ready, scan to open locker</p>
+                </div>
+            </div>
+
+            <p class="steps-label" style="margin-top: 3rem;">For You (The Seller)</p>
+            <div class="steps-row">
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <div class="step-icon">📦</div>
+                    <h3>Receive Order</h3>
+                    <p>LockerDrop orders appear in your dashboard</p>
+                </div>
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <div class="step-icon">🚗</div>
+                    <h3>Drop Off</h3>
+                    <p>Visit the locker, scan link to open door, place package</p>
+                </div>
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <div class="step-icon">✅</div>
+                    <h3>Done!</h3>
+                    <p>Customer is notified automatically. No shipping labels needed.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Benefits -->
+    <section class="benefits">
+        <h2 class="section-title">Why LockerDrop?</h2>
+        <p class="section-subtitle">Better for everyone.</p>
+
+        <div class="benefits-grid">
+            <div class="benefit">
+                <div class="benefit-icon">💰</div>
+                <h3>Save on Shipping</h3>
+                <p>No carrier fees, no shipping labels. Just drop off packages at a nearby locker.</p>
+            </div>
+            <div class="benefit">
+                <div class="benefit-icon">🚫</div>
+                <h3>No Failed Deliveries</h3>
+                <p>Customers pick up on their schedule. No "sorry we missed you" notes.</p>
+            </div>
+            <div class="benefit">
+                <div class="benefit-icon">🔒</div>
+                <h3>Secure & Contactless</h3>
+                <p>Packages stay safe in smart lockers until pickup. No porch pirates.</p>
+            </div>
+            <div class="benefit">
+                <div class="benefit-icon">🕐</div>
+                <h3>24/7 Access</h3>
+                <p>Customers can pick up anytime - early morning, late night, weekends.</p>
+            </div>
+            <div class="benefit">
+                <div class="benefit-icon">😊</div>
+                <h3>Happy Customers</h3>
+                <p>Offer a free shipping option that's actually convenient for them.</p>
+            </div>
+            <div class="benefit">
+                <div class="benefit-icon">📊</div>
+                <h3>Easy Dashboard</h3>
+                <p>Track all LockerDrop orders in one place. See who picked up and when.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Locker Finder -->
+    <section class="locker-finder">
+        <div class="finder-container">
+            <h2 class="section-title">Find Lockers Near You</h2>
+            <p class="section-subtitle">Enter a zip code to see available locker locations.</p>
+
+            <form class="finder-form" id="finderForm">
+                <input type="text" id="zipInput" placeholder="Enter zip code (e.g., 75001)" maxlength="10">
+                <button type="submit">Search</button>
+            </form>
+
+            <div class="finder-results" id="finderResults" style="display: none;">
+                <!-- Results populated by JS -->
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section" id="notify">
+        <h2>Ready to offer LockerDrop?</h2>
+        <p>Join the waitlist and be the first to know when we launch on Shopify.</p>
+
+        <form class="email-form" id="ctaForm">
+            <input type="email" placeholder="Enter your email" required>
+            <button type="submit">Join Waitlist</button>
+        </form>
+        <p class="form-note">No spam, just launch updates.</p>
+        <div class="form-success" id="ctaSuccess">You're on the list! We'll be in touch soon.</div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <p>&copy; 2026 LockerDrop. <a href="/privacy-policy">Privacy Policy</a></p>
+    </footer>
+
+    <script>
+        // Email signup
+        async function handleEmailSignup(form, successEl, errorEl) {
+            const email = form.querySelector('input[type="email"]').value;
+            const button = form.querySelector('button');
+
+            button.disabled = true;
+            button.textContent = 'Submitting...';
+
+            try {
+                const response = await fetch('/api/waitlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                if (response.ok) {
+                    successEl.style.display = 'block';
+                    if (errorEl) errorEl.style.display = 'none';
+                    form.style.display = 'none';
+                } else {
+                    throw new Error('Failed');
+                }
+            } catch (err) {
+                if (errorEl) {
+                    errorEl.style.display = 'block';
+                }
+                button.disabled = false;
+                button.textContent = 'Try Again';
+            }
+        }
+
+        document.getElementById('heroForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            handleEmailSignup(e.target, document.getElementById('heroSuccess'), document.getElementById('heroError'));
+        });
+
+        document.getElementById('ctaForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            handleEmailSignup(e.target, document.getElementById('ctaSuccess'));
+        });
+
+        // Locker finder
+        document.getElementById('finderForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const zip = document.getElementById('zipInput').value.trim();
+            const resultsEl = document.getElementById('finderResults');
+
+            if (!zip) return;
+
+            resultsEl.innerHTML = '<p style="text-align: center; color: #666;">Searching...</p>';
+            resultsEl.style.display = 'block';
+
+            try {
+                // First geocode the zip
+                const geoResponse = await fetch(`https://api.zippopotam.us/us/${zip}`);
+                if (!geoResponse.ok) throw new Error('Invalid zip');
+
+                const geoData = await geoResponse.json();
+                const lat = parseFloat(geoData.places[0].latitude);
+                const lon = parseFloat(geoData.places[0].longitude);
+
+                // Then find lockers
+                const lockersResponse = await fetch(`/api/public/lockers?lat=${lat}&lon=${lon}&limit=5`);
+                const lockersData = await lockersResponse.json();
+
+                if (lockersData.locations && lockersData.locations.length > 0) {
+                    resultsEl.innerHTML = lockersData.locations.map(locker => `
+                        <div class="locker-card">
+                            <div>
+                                <h4>${locker.name}</h4>
+                                <p>${locker.city}, ${locker.state} ${locker.zip}</p>
+                            </div>
+                            <span class="locker-distance">${locker.distance ? locker.distance.toFixed(1) + ' mi' : ''}</span>
+                        </div>
+                    `).join('');
+                } else {
+                    resultsEl.innerHTML = '<p style="text-align: center; color: #666;">No lockers found near this location yet. We\'re expanding!</p>';
+                }
+            } catch (err) {
+                resultsEl.innerHTML = '<p style="text-align: center; color: #c62828;">Could not find lockers for this zip code. Please try another.</p>';
+            }
+        });
+    </script>
+</body>
+</html>
