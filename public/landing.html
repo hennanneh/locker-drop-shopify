@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LockerDrop - Smart Locker Pickup for Shopify Stores</title>
     <meta name="description" content="Offer convenient locker pickup to your customers. They shop, you drop off, they pick up 24/7. No more missed deliveries.">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+    <link rel="icon" href="https://cdn.shopify.com/s/files/applications/d0123a17d1e004675deaca3a4a154239.png?1765055210">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * {
@@ -84,13 +84,14 @@
         }
 
         .logo {
-            font-size: 1.5rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            display: flex;
+            align-items: center;
             text-decoration: none;
+        }
+
+        .logo img {
+            height: 40px;
+            width: auto;
         }
 
         .nav-links {
@@ -765,7 +766,7 @@
 </head>
 <body>
     <nav>
-        <a href="/" class="logo">LockerDrop</a>
+        <a href="/" class="logo"><img src="https://cdn.shopify.com/s/files/applications/d0123a17d1e004675deaca3a4a154239.png?1765055210" alt="LockerDrop"></a>
         <div class="nav-links">
             <a href="#how-it-works">How It Works</a>
             <a href="#find-lockers">Find Lockers</a>
@@ -952,6 +953,7 @@
 
     <!-- Footer -->
     <footer>
+        <img src="https://cdn.shopify.com/s/files/applications/d0123a17d1e004675deaca3a4a154239.png?1765055210" alt="LockerDrop" style="height: 32px; margin-bottom: 1rem; opacity: 0.9;">
         <p>&copy; 2026 LockerDrop. <a href="/privacy-policy">Privacy Policy</a></p>
     </footer>
 
