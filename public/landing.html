@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LockerDrop - Smart Locker Pickup for Shopify Stores</title>
     <meta name="description" content="Offer convenient locker pickup to your customers. They shop, you drop off, they pick up 24/7. No more missed deliveries.">
-    <link rel="icon" href="https://cdn.shopify.com/s/files/applications/d0123a17d1e004675deaca3a4a154239.png?1765055210">
+    <link rel="icon" href="/logo.png">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * {
@@ -24,7 +24,7 @@
 
         /* Animated gradient background */
         .gradient-bg {
-            background: linear-gradient(-45deg, #667eea, #764ba2, #6B8DD6, #8E37D7);
+            background: linear-gradient(-45deg, #FE5535, #FF7A45, #D83925, #FF6B35);
             background-size: 400% 400%;
             animation: gradientShift 15s ease infinite;
         }
@@ -108,11 +108,11 @@
         }
 
         .nav-links a:hover {
-            color: #667eea;
+            color: #FE5535;
         }
 
         nav a.cta-nav {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #FE5535 0%, #FF7A45 100%);
             color: white;
             padding: 0.7rem 1.5rem;
             border-radius: 50px;
@@ -120,12 +120,12 @@
             font-weight: 600;
             font-size: 0.9rem;
             transition: transform 0.3s, box-shadow 0.3s;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 15px rgba(254, 85, 53, 0.4);
         }
 
         nav a.cta-nav:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.5);
+            box-shadow: 0 6px 25px rgba(254, 85, 53, 0.5);
         }
 
         /* Hero */
@@ -149,9 +149,9 @@
             right: 0;
             bottom: 0;
             background:
-                radial-gradient(circle at 20% 80%, rgba(102, 126, 234, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 80% 20%, rgba(118, 75, 162, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 40% 40%, rgba(107, 141, 214, 0.1) 0%, transparent 40%);
+                radial-gradient(circle at 20% 80%, rgba(254, 85, 53, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 122, 69, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(255, 107, 53, 0.1) 0%, transparent 40%);
             z-index: 0;
         }
 
@@ -179,9 +179,9 @@
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-            border: 1px solid rgba(102, 126, 234, 0.2);
-            color: #667eea;
+            background: linear-gradient(135deg, rgba(254, 85, 53, 0.1) 0%, rgba(255, 122, 69, 0.1) 100%);
+            border: 1px solid rgba(254, 85, 53, 0.2);
+            color: #FE5535;
             padding: 0.5rem 1.2rem;
             border-radius: 50px;
             font-size: 0.9rem;
@@ -211,7 +211,7 @@
         }
 
         .hero h1 .gradient-text {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #FE5535 0%, #FF7A45 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -241,7 +241,7 @@
         .stat-number {
             font-size: 2.5rem;
             font-weight: 800;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #FE5535 0%, #FF7A45 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -280,7 +280,7 @@
             padding: 1rem 2rem;
             font-size: 1rem;
             font-weight: 700;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #FE5535 0%, #FF7A45 100%);
             color: white;
             border: none;
             border-radius: 50px;
@@ -291,7 +291,7 @@
 
         .email-form button:hover {
             transform: scale(1.05);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 5px 20px rgba(254, 85, 53, 0.4);
         }
 
         .form-note {
@@ -303,7 +303,7 @@
         .hero-link {
             display: inline-block;
             margin-top: 1.5rem;
-            color: #667eea;
+            color: #FE5535;
             text-decoration: none;
             font-weight: 600;
             font-size: 1rem;
@@ -311,7 +311,7 @@
         }
 
         .hero-link:hover {
-            color: #764ba2;
+            color: #FF7A45;
         }
 
         .form-success {
@@ -347,8 +347,8 @@
 
         .section-tag {
             display: inline-block;
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-            color: #667eea;
+            background: linear-gradient(135deg, rgba(254, 85, 53, 0.1) 0%, rgba(255, 122, 69, 0.1) 100%);
+            color: #FE5535;
             padding: 0.4rem 1rem;
             border-radius: 50px;
             font-size: 0.85rem;
@@ -380,7 +380,7 @@
         .steps-label {
             text-align: center;
             font-weight: 700;
-            color: #667eea;
+            color: #FE5535;
             margin-bottom: 1.5rem;
             font-size: 1rem;
             text-transform: uppercase;
@@ -395,18 +395,18 @@
         }
 
         .step {
-            background: linear-gradient(135deg, #f8f9ff 0%, #fff 100%);
+            background: linear-gradient(135deg, #fff8f6 0%, #fff 100%);
             padding: 2.5rem 2rem;
             border-radius: 24px;
             text-align: center;
             position: relative;
             transition: transform 0.3s, box-shadow 0.3s;
-            border: 1px solid rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(254, 85, 53, 0.1);
         }
 
         .step:hover {
             transform: translateY(-8px);
-            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.15);
+            box-shadow: 0 20px 40px rgba(254, 85, 53, 0.15);
         }
 
         .step-number {
@@ -416,7 +416,7 @@
             transform: translateX(-50%);
             width: 30px;
             height: 30px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #FE5535 0%, #FF7A45 100%);
             color: white;
             border-radius: 50%;
             font-size: 0.9rem;
@@ -424,7 +424,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 15px rgba(254, 85, 53, 0.4);
         }
 
         .step-icon {
@@ -448,7 +448,7 @@
         /* Benefits */
         .benefits {
             padding: 6rem 2rem;
-            background: linear-gradient(180deg, #f8f9ff 0%, #fff 100%);
+            background: linear-gradient(180deg, #fff8f6 0%, #fff 100%);
         }
 
         .benefits-grid {
@@ -470,13 +470,13 @@
 
         .benefit:hover {
             transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.1);
+            box-shadow: 0 15px 40px rgba(254, 85, 53, 0.1);
         }
 
         .benefit-icon {
             width: 60px;
             height: 60px;
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            background: linear-gradient(135deg, rgba(254, 85, 53, 0.1) 0%, rgba(255, 122, 69, 0.1) 100%);
             border-radius: 16px;
             display: flex;
             align-items: center;
@@ -517,10 +517,10 @@
             max-width: 480px;
             margin-left: auto;
             margin-right: auto;
-            background: #f8f9ff;
+            background: #fff8f6;
             padding: 0.5rem;
             border-radius: 60px;
-            border: 2px solid rgba(102, 126, 234, 0.1);
+            border: 2px solid rgba(254, 85, 53, 0.1);
         }
 
         .finder-form input {
@@ -537,7 +537,7 @@
             padding: 1rem 2rem;
             font-size: 1rem;
             font-weight: 700;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #FE5535 0%, #FF7A45 100%);
             color: white;
             border: none;
             border-radius: 50px;
@@ -560,7 +560,7 @@
             flex: 2;
             height: 450px;
             border-radius: 20px;
-            border: 2px solid rgba(102, 126, 234, 0.1);
+            border: 2px solid rgba(254, 85, 53, 0.1);
             box-shadow: 0 10px 40px rgba(0,0,0,0.1);
         }
 
@@ -572,7 +572,7 @@
         }
 
         .locker-card {
-            background: #f8f9ff;
+            background: #fff8f6;
             padding: 1.25rem;
             border-radius: 16px;
             margin-bottom: 0.75rem;
@@ -582,15 +582,15 @@
         }
 
         .locker-card:hover {
-            border-color: #667eea;
+            border-color: #FE5535;
             background: white;
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.1);
+            box-shadow: 0 5px 20px rgba(254, 85, 53, 0.1);
         }
 
         .locker-card.active {
-            border-color: #667eea;
+            border-color: #FE5535;
             background: white;
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.15);
+            box-shadow: 0 5px 20px rgba(254, 85, 53, 0.15);
         }
 
         .locker-card h4 {
@@ -610,7 +610,7 @@
             display: inline-block;
             margin-top: 0.5rem;
             font-weight: 700;
-            color: #667eea;
+            color: #FE5535;
             font-size: 0.9rem;
         }
 
@@ -671,7 +671,7 @@
 
         .cta-section .email-form button {
             background: white;
-            color: #667eea;
+            color: #FE5535;
         }
 
         .cta-section .form-note {
@@ -766,7 +766,7 @@
 </head>
 <body>
     <nav>
-        <a href="/" class="logo"><img src="https://cdn.shopify.com/s/files/applications/d0123a17d1e004675deaca3a4a154239.png?1765055210" alt="LockerDrop"></a>
+        <a href="/" class="logo"><img src="/logo.png" alt="LockerDrop"></a>
         <div class="nav-links">
             <a href="#how-it-works">How It Works</a>
             <a href="#find-lockers">Find Lockers</a>
@@ -953,7 +953,7 @@
 
     <!-- Footer -->
     <footer>
-        <img src="https://cdn.shopify.com/s/files/applications/d0123a17d1e004675deaca3a4a154239.png?1765055210" alt="LockerDrop" style="height: 32px; margin-bottom: 1rem; opacity: 0.9;">
+        <img src="/logo.png" alt="LockerDrop" style="height: 32px; margin-bottom: 1rem; opacity: 0.9;">
         <p>&copy; 2026 LockerDrop. <a href="/privacy-policy">Privacy Policy</a></p>
     </footer>
 
@@ -1029,7 +1029,7 @@
             clearMarkers();
 
             const lockerIcon = L.divIcon({
-                html: '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 3px solid white; box-shadow: 0 3px 10px rgba(0,0,0,0.3);">📦</div>',
+                html: '<div style="background: linear-gradient(135deg, #FE5535 0%, #FF7A45 100%); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 3px solid white; box-shadow: 0 3px 10px rgba(0,0,0,0.3);">📦</div>',
                 className: 'locker-marker',
                 iconSize: [32, 32],
                 iconAnchor: [16, 16]
