@@ -618,93 +618,10 @@ app.get('/', (req, res) => {
     const shop = req.query.shop;
     const host = req.query.host;
 
-    // If shop param exists (coming from Shopify), serve interstitial that opens dashboard in new tab
+    // If shop param exists (coming from Shopify admin), redirect to dashboard
     if (shop) {
         const dashboardUrl = `/admin/dashboard?shop=${encodeURIComponent(shop)}${host ? '&host=' + encodeURIComponent(host) : ''}`;
-        return res.send(`
-            <!DOCTYPE html>
-            <html>
-                <head>
-                    <title>Opening LockerDrop Dashboard...</title>
-                    <style>
-                        body {
-                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                            display: flex;
-                            justify-content: center;
-                            align-items: center;
-                            height: 100vh;
-                            margin: 0;
-                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                            color: white;
-                        }
-                        .container { text-align: center; max-width: 500px; padding: 20px; }
-                        h1 { font-size: 36px; margin-bottom: 16px; }
-                        p { font-size: 18px; opacity: 0.9; margin-bottom: 24px; }
-                        .spinner {
-                            width: 40px;
-                            height: 40px;
-                            border: 4px solid rgba(255,255,255,0.3);
-                            border-top-color: white;
-                            border-radius: 50%;
-                            animation: spin 1s linear infinite;
-                            margin: 0 auto 20px;
-                        }
-                        @keyframes spin { to { transform: rotate(360deg); } }
-                        .link-btn {
-                            display: inline-block;
-                            padding: 12px 24px;
-                            background: white;
-                            color: #667eea;
-                            text-decoration: none;
-                            border-radius: 8px;
-                            font-weight: 600;
-                            margin-top: 16px;
-                            transition: transform 0.2s;
-                        }
-                        .link-btn:hover { transform: scale(1.05); }
-                        .fallback { display: none; margin-top: 20px; }
-                        .fallback.show { display: block; }
-                        .success-msg { display: none; }
-                        .success-msg.show { display: block; }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <h1>LockerDrop</h1>
-                        <div class="spinner" id="spinner"></div>
-                        <p id="status">Opening dashboard in a new tab...</p>
-                        <p class="success-msg" id="successMsg">
-                            Dashboard opened! You can close this tab or return to your Shopify admin.
-                        </p>
-                        <div class="fallback" id="fallback">
-                            <p style="font-size: 14px; opacity: 0.8;">
-                                Popup blocked? Click the button below:
-                            </p>
-                            <a href="${dashboardUrl}" target="_blank" class="link-btn" onclick="document.getElementById('successMsg').classList.add('show');">
-                                Open Dashboard
-                            </a>
-                        </div>
-                    </div>
-                    <script>
-                        // Try to open dashboard in new tab
-                        const dashboardUrl = "${dashboardUrl}";
-                        const newWindow = window.open(dashboardUrl, '_blank');
-
-                        if (newWindow) {
-                            // Success - update UI
-                            document.getElementById('spinner').style.display = 'none';
-                            document.getElementById('status').style.display = 'none';
-                            document.getElementById('successMsg').classList.add('show');
-                        } else {
-                            // Popup was blocked - show fallback link
-                            document.getElementById('spinner').style.display = 'none';
-                            document.getElementById('status').textContent = 'Please click the button to open the dashboard:';
-                            document.getElementById('fallback').classList.add('show');
-                        }
-                    </script>
-                </body>
-            </html>
-        `);
+        return res.redirect(dashboardUrl);
     }
 
     // No shop param - serve the public landing page
