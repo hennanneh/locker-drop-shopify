@@ -616,16 +616,47 @@ app.get('/auth/register-carrier/:shop', async (req, res) => {
 // Homepage - open dashboard in new tab when coming from Shopify admin
 app.get('/', (req, res) => {
     const shop = req.query.shop;
-    const host = req.query.host;
+    const hostParam = req.query.host;
+    // Get hostname from various headers (Cloudflare may use different ones)
+    const hostname = req.headers['x-forwarded-host'] || req.headers.host || req.hostname || '';
+    const cleanHostname = hostname.split(':')[0]; // Remove port if present
 
-    // If shop param exists (coming from Shopify admin), redirect to dashboard
+    console.log(`🌐 Root request - hostname: ${cleanHostname}, shop: ${shop || 'none'}`);
+
+    // If this is the main domain (lockerdrop.it), serve the public landing page
+    if (cleanHostname === 'lockerdrop.it' || cleanHostname === 'www.lockerdrop.it') {
+        return res.sendFile(path.join(__dirname, 'public', 'landing.html'));
+    }
+
+    // For app.lockerdrop.it - if shop param exists, redirect to dashboard
     if (shop) {
-        const dashboardUrl = `/admin/dashboard?shop=${encodeURIComponent(shop)}${host ? '&host=' + encodeURIComponent(host) : ''}`;
+        const dashboardUrl = `/admin/dashboard?shop=${encodeURIComponent(shop)}${hostParam ? '&host=' + encodeURIComponent(hostParam) : ''}`;
         return res.redirect(dashboardUrl);
     }
 
-    // No shop param - serve the public landing page
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    // No shop param on app subdomain - redirect to dashboard selection or show simple page
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>LockerDrop</title>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f8f9fa; }
+                .container { text-align: center; }
+                h1 { color: #5c6ac4; }
+                p { color: #666; margin-bottom: 20px; }
+                a { color: #5c6ac4; text-decoration: none; font-weight: 600; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>LockerDrop</h1>
+                <p>Please access this app from your Shopify admin.</p>
+                <a href="https://lockerdrop.it">Visit lockerdrop.it →</a>
+            </div>
+        </body>
+        </html>
+    `);
 });
 
 // ============================================
