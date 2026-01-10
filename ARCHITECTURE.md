@@ -221,25 +221,98 @@ Order appears in seller's admin dashboard
 - Time-limited validity
 - Separate codes for seller and customer
 
+## Public Website (lockerdrop.it)
+
+### Landing Page
+- **URL:** https://lockerdrop.it
+- **Purpose:** Marketing page with waitlist signup
+- **Features:**
+  - Animated hero section with gradient effects
+  - Interactive locker finder with Leaflet.js map
+  - 350+ real Harbor locker locations
+  - Email waitlist signup form
+  - Mobile responsive design
+  - Orange brand color scheme matching logo
+
+### Locker Finder
+- **API Endpoint:** `GET /api/public/lockers?lat=X&lon=Y&limit=8`
+- **Data Source:** Static JSON file (`/public/harbor-locations.json`) with 350+ Harbor locations
+- **Features:**
+  - Search by zip code (geocoded via zippopotam.us API)
+  - Interactive map with OpenStreetMap tiles
+  - Click markers to see details
+  - Distance-sorted results
+
+### Waitlist
+- **API Endpoint:** `POST /api/waitlist`
+- **Storage:** PostgreSQL `waitlist` table
+- **Schema:**
+  ```sql
+  CREATE TABLE waitlist (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP
+  );
+  ```
+
+## Shopify Theme Extensions
+
+### Theme App Blocks (lockerdrop-theme)
+Located in `/extensions/lockerdrop-theme/blocks/`:
+
+1. **locker-finder.liquid** - Embeddable locker finder with interactive map
+2. **how-it-works-page.liquid** - Full page explaining LockerDrop flow
+3. **how-it-works-section.liquid** - Section-based how it works
+
+All blocks include:
+- Leaflet.js interactive maps
+- Merchant-customizable accent colors
+- Real Harbor locker location data
+
+## URL Routing
+
+| URL | Purpose |
+|-----|---------|
+| `lockerdrop.it` | Public landing/marketing page |
+| `app.lockerdrop.it/?shop=X` | Redirects to admin dashboard |
+| `app.lockerdrop.it/admin/dashboard` | Seller admin dashboard |
+| `app.lockerdrop.it/api/*` | API endpoints |
+
+## Static Assets
+
+| File | Purpose |
+|------|---------|
+| `/public/landing.html` | Marketing landing page |
+| `/public/logo.png` | Transparent PNG logo (orange icon) |
+| `/public/harbor-locations.json` | 350+ Harbor locker locations |
+| `/public/admin-dashboard.html` | Seller admin dashboard |
+
 ## Future Enhancements
 
-### Phase 1 (Current)
+### Phase 1 (Complete)
 ✅ Carrier service integration
 ✅ Admin dashboard UI
 ✅ Basic order flow
 ✅ Harbor API connection
+✅ Database implementation (PostgreSQL)
+✅ Real order storage
+✅ Email/SMS notifications (Twilio)
+✅ Public landing page with locker finder
+✅ Waitlist signup
+✅ Shopify theme extension blocks
+✅ Interactive maps with Leaflet.js
 
-### Phase 2 (Next)
-⏭ Database implementation
-⏭ Real order storage
-⏭ Email notifications
-⏭ Locker reservation automation
+### Phase 2 (Current)
+✅ Customer pickup magic links
+✅ Seller dropoff magic links
+✅ Order cancellation with locker release
+✅ Polaris admin dashboard redesign
+⏭ Production Harbor API integration
 
 ### Phase 3 (Future)
-⏭ Customer portal for tracking
-⏭ SMS notifications
 ⏭ Analytics and reporting
-⏭ Multi-location support
+⏭ Multi-location support for sellers
 ⏭ Automated locker selection based on customer proximity
 ⏭ Integration with Shopify fulfillment API
 ⏭ Mobile app for sellers
