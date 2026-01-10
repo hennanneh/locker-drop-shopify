@@ -19,7 +19,52 @@
             line-height: 1.6;
             color: #1a1a2e;
             background: #fff;
+            overflow-x: hidden;
         }
+
+        /* Animated gradient background */
+        .gradient-bg {
+            background: linear-gradient(-45deg, #667eea, #764ba2, #6B8DD6, #8E37D7);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Floating animation */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        @keyframes floatSlow {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-15px) rotate(5deg); }
+        }
+
+        /* Fade in animation */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in {
+            animation: fadeInUp 0.8s ease-out forwards;
+        }
+
+        .fade-in-delay-1 { animation-delay: 0.2s; opacity: 0; }
+        .fade-in-delay-2 { animation-delay: 0.4s; opacity: 0; }
+        .fade-in-delay-3 { animation-delay: 0.6s; opacity: 0; }
 
         /* Navigation */
         nav {
@@ -28,126 +73,224 @@
             left: 0;
             right: 0;
             background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(20px);
             padding: 1rem 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
             z-index: 1000;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            box-shadow: 0 2px 20px rgba(0,0,0,0.05);
         }
 
         .logo {
             font-size: 1.5rem;
-            font-weight: 700;
-            color: #5c6ac4;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             text-decoration: none;
         }
 
-        .logo span {
-            color: #1a1a2e;
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: #666;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: #667eea;
         }
 
         nav a.cta-nav {
-            background: #5c6ac4;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 0.6rem 1.2rem;
-            border-radius: 6px;
+            padding: 0.7rem 1.5rem;
+            border-radius: 50px;
             text-decoration: none;
-            font-weight: 500;
+            font-weight: 600;
             font-size: 0.9rem;
-            transition: background 0.2s;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
         }
 
         nav a.cta-nav:hover {
-            background: #4854a8;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.5);
         }
 
         /* Hero */
         .hero {
-            padding: 8rem 2rem 4rem;
+            padding: 10rem 2rem 6rem;
             text-align: center;
-            background: linear-gradient(135deg, #f8f9ff 0%, #e8f4f8 100%);
-            min-height: 90vh;
+            position: relative;
+            overflow: hidden;
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
         }
 
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(circle at 20% 80%, rgba(102, 126, 234, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(118, 75, 162, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(107, 141, 214, 0.1) 0%, transparent 40%);
+            z-index: 0;
+        }
+
+        /* Floating decorative elements */
+        .floating-element {
+            position: absolute;
+            font-size: 4rem;
+            opacity: 0.15;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .float-1 { top: 15%; left: 10%; animation: float 6s ease-in-out infinite; }
+        .float-2 { top: 60%; right: 8%; animation: floatSlow 8s ease-in-out infinite; animation-delay: -2s; }
+        .float-3 { bottom: 20%; left: 15%; animation: float 7s ease-in-out infinite; animation-delay: -4s; }
+        .float-4 { top: 30%; right: 15%; animation: floatSlow 9s ease-in-out infinite; }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 900px;
+        }
+
         .hero-badge {
-            display: inline-block;
-            background: #e3f2fd;
-            color: #1976d2;
-            padding: 0.4rem 1rem;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            margin-bottom: 1.5rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            padding: 0.5rem 1.2rem;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 2rem;
+        }
+
+        .hero-badge .pulse {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.5); }
         }
 
         .hero h1 {
-            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
             font-weight: 800;
             margin-bottom: 1.5rem;
+            line-height: 1.1;
             color: #1a1a2e;
-            max-width: 800px;
         }
 
-        .hero h1 span {
-            color: #5c6ac4;
+        .hero h1 .gradient-text {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .hero p {
-            font-size: 1.25rem;
-            color: #666;
+            font-size: 1.3rem;
+            color: #555;
             max-width: 600px;
-            margin-bottom: 2.5rem;
+            margin: 0 auto 2.5rem;
+            line-height: 1.7;
+        }
+
+        /* Stats row */
+        .stats-row {
+            display: flex;
+            justify-content: center;
+            gap: 3rem;
+            margin-bottom: 3rem;
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #888;
+            font-weight: 500;
         }
 
         /* Email Form */
         .email-form {
             display: flex;
             gap: 0.75rem;
-            max-width: 500px;
+            max-width: 480px;
             width: 100%;
             margin: 0 auto;
+            background: white;
+            padding: 0.5rem;
+            border-radius: 60px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
         }
 
         .email-form input {
             flex: 1;
-            padding: 1rem 1.25rem;
+            padding: 1rem 1.5rem;
             font-size: 1rem;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            border: none;
+            border-radius: 50px;
             outline: none;
-            transition: border-color 0.2s;
-        }
-
-        .email-form input:focus {
-            border-color: #5c6ac4;
+            background: transparent;
         }
 
         .email-form button {
-            padding: 1rem 1.5rem;
+            padding: 1rem 2rem;
             font-size: 1rem;
-            font-weight: 600;
-            background: #5c6ac4;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 50px;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: transform 0.3s, box-shadow 0.3s;
             white-space: nowrap;
         }
 
         .email-form button:hover {
-            background: #4854a8;
-        }
-
-        .email-form button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
         }
 
         .form-note {
@@ -156,166 +299,212 @@
             margin-top: 1rem;
         }
 
+        .hero-link {
+            display: inline-block;
+            margin-top: 1.5rem;
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .hero-link:hover {
+            color: #764ba2;
+        }
+
         .form-success {
-            background: #e8f5e9;
-            color: #2e7d32;
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(34, 197, 94, 0.05) 100%);
+            color: #16a34a;
             padding: 1rem 1.5rem;
-            border-radius: 8px;
+            border-radius: 12px;
             margin-top: 1rem;
             display: none;
+            border: 1px solid rgba(34, 197, 94, 0.2);
         }
 
         .form-error {
             background: #ffebee;
             color: #c62828;
             padding: 1rem 1.5rem;
-            border-radius: 8px;
+            border-radius: 12px;
             margin-top: 1rem;
             display: none;
         }
 
-        .hero-link {
-            display: inline-block;
-            margin-top: 1.5rem;
-            color: #5c6ac4;
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 1rem;
-            transition: color 0.2s;
-        }
-
-        .hero-link:hover {
-            color: #4854a8;
-            text-decoration: underline;
-        }
-
         /* How it works */
         .how-it-works {
-            padding: 5rem 2rem;
+            padding: 6rem 2rem;
             background: #fff;
+            position: relative;
         }
 
-        .section-title {
+        .section-header {
             text-align: center;
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
+            margin-bottom: 4rem;
         }
 
-        .section-subtitle {
-            text-align: center;
-            color: #666;
-            font-size: 1.1rem;
-            margin-bottom: 3rem;
-        }
-
-        .steps-container {
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-
-        .steps-row {
-            display: flex;
-            justify-content: center;
-            gap: 1rem;
-            flex-wrap: wrap;
-            margin-bottom: 2rem;
-        }
-
-        .steps-label {
-            text-align: center;
+        .section-tag {
+            display: inline-block;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            color: #667eea;
+            padding: 0.4rem 1rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
             font-weight: 600;
-            color: #5c6ac4;
             margin-bottom: 1rem;
-            font-size: 0.9rem;
             text-transform: uppercase;
             letter-spacing: 1px;
         }
 
-        .step {
-            background: #f8f9ff;
-            padding: 2rem;
-            border-radius: 12px;
+        .section-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            color: #1a1a2e;
+        }
+
+        .section-subtitle {
+            color: #666;
+            font-size: 1.1rem;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .steps-container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .steps-label {
             text-align: center;
-            flex: 1;
-            min-width: 200px;
-            max-width: 280px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 1.5rem;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .steps-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        .step {
+            background: linear-gradient(135deg, #f8f9ff 0%, #fff 100%);
+            padding: 2.5rem 2rem;
+            border-radius: 24px;
+            text-align: center;
+            position: relative;
+            transition: transform 0.3s, box-shadow 0.3s;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+        }
+
+        .step:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.15);
+        }
+
+        .step-number {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50%;
+            font-size: 0.9rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
         }
 
         .step-icon {
-            font-size: 3rem;
+            font-size: 3.5rem;
             margin-bottom: 1rem;
         }
 
         .step h3 {
-            font-size: 1.1rem;
-            margin-bottom: 0.5rem;
+            font-size: 1.2rem;
+            margin-bottom: 0.75rem;
             color: #1a1a2e;
+            font-weight: 700;
         }
 
         .step p {
             color: #666;
             font-size: 0.95rem;
-        }
-
-        .step-number {
-            display: inline-block;
-            width: 28px;
-            height: 28px;
-            background: #5c6ac4;
-            color: white;
-            border-radius: 50%;
-            font-size: 0.85rem;
-            font-weight: 600;
-            line-height: 28px;
-            margin-bottom: 0.75rem;
+            line-height: 1.6;
         }
 
         /* Benefits */
         .benefits {
-            padding: 5rem 2rem;
-            background: #f8f9ff;
+            padding: 6rem 2rem;
+            background: linear-gradient(180deg, #f8f9ff 0%, #fff 100%);
         }
 
         .benefits-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 2rem;
-            max-width: 1000px;
+            max-width: 1100px;
             margin: 0 auto;
         }
 
         .benefit {
             background: white;
             padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .benefit:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.1);
         }
 
         .benefit-icon {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            margin-bottom: 1.25rem;
         }
 
         .benefit h3 {
-            font-size: 1.2rem;
+            font-size: 1.15rem;
             margin-bottom: 0.5rem;
             color: #1a1a2e;
+            font-weight: 700;
         }
 
         .benefit p {
             color: #666;
             font-size: 0.95rem;
+            line-height: 1.6;
         }
 
         /* Locker Finder */
         .locker-finder {
-            padding: 5rem 2rem;
+            padding: 6rem 2rem;
             background: #fff;
         }
 
         .finder-container {
-            max-width: 1000px;
+            max-width: 1100px;
             margin: 0 auto;
             text-align: center;
         }
@@ -324,33 +513,39 @@
             display: flex;
             gap: 0.75rem;
             margin-top: 2rem;
-            max-width: 500px;
+            max-width: 480px;
             margin-left: auto;
             margin-right: auto;
+            background: #f8f9ff;
+            padding: 0.5rem;
+            border-radius: 60px;
+            border: 2px solid rgba(102, 126, 234, 0.1);
         }
 
         .finder-form input {
             flex: 1;
-            padding: 1rem 1.25rem;
+            padding: 1rem 1.5rem;
             font-size: 1rem;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            border: none;
+            border-radius: 50px;
             outline: none;
-        }
-
-        .finder-form input:focus {
-            border-color: #5c6ac4;
+            background: transparent;
         }
 
         .finder-form button {
-            padding: 1rem 1.5rem;
+            padding: 1rem 2rem;
             font-size: 1rem;
-            font-weight: 600;
-            background: #5c6ac4;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 50px;
             cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .finder-form button:hover {
+            transform: scale(1.05);
         }
 
         .finder-content {
@@ -362,41 +557,46 @@
 
         #lockerMap {
             flex: 2;
-            height: 400px;
-            border-radius: 12px;
-            border: 2px solid #e0e0e0;
+            height: 450px;
+            border-radius: 20px;
+            border: 2px solid rgba(102, 126, 234, 0.1);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
         }
 
         .finder-results {
             flex: 1;
-            min-width: 280px;
-            max-height: 400px;
+            min-width: 300px;
+            max-height: 450px;
             overflow-y: auto;
         }
 
         .locker-card {
             background: #f8f9ff;
-            padding: 1rem;
-            border-radius: 8px;
+            padding: 1.25rem;
+            border-radius: 16px;
             margin-bottom: 0.75rem;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s;
             border: 2px solid transparent;
         }
 
         .locker-card:hover {
-            border-color: #5c6ac4;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.1);
         }
 
         .locker-card.active {
-            border-color: #5c6ac4;
-            background: #e8ebff;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.15);
         }
 
         .locker-card h4 {
-            font-size: 0.95rem;
+            font-size: 1rem;
             margin-bottom: 0.25rem;
             color: #1a1a2e;
+            font-weight: 700;
         }
 
         .locker-card p {
@@ -406,28 +606,47 @@
         }
 
         .locker-card .locker-distance {
-            display: block;
+            display: inline-block;
             margin-top: 0.5rem;
-            font-weight: 600;
-            color: #5c6ac4;
-            font-size: 0.85rem;
+            font-weight: 700;
+            color: #667eea;
+            font-size: 0.9rem;
         }
 
         /* CTA Section */
         .cta-section {
-            padding: 5rem 2rem;
-            background: linear-gradient(135deg, #5c6ac4 0%, #4854a8 100%);
+            padding: 6rem 2rem;
             text-align: center;
             color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 50%, rgba(255,255,255,0.1) 0%, transparent 50%);
+        }
+
+        .cta-section > * {
+            position: relative;
+            z-index: 1;
         }
 
         .cta-section h2 {
             font-size: 2.5rem;
+            font-weight: 800;
             margin-bottom: 1rem;
         }
 
         .cta-section p {
-            font-size: 1.1rem;
+            font-size: 1.2rem;
             opacity: 0.9;
             margin-bottom: 2rem;
             max-width: 500px;
@@ -435,9 +654,13 @@
             margin-right: auto;
         }
 
+        .cta-section .email-form {
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
         .cta-section .email-form input {
-            border-color: rgba(255,255,255,0.3);
-            background: rgba(255,255,255,0.1);
             color: white;
         }
 
@@ -445,18 +668,9 @@
             color: rgba(255,255,255,0.7);
         }
 
-        .cta-section .email-form input:focus {
-            border-color: white;
-            background: rgba(255,255,255,0.2);
-        }
-
         .cta-section .email-form button {
             background: white;
-            color: #5c6ac4;
-        }
-
-        .cta-section .email-form button:hover {
-            background: #f0f0f0;
+            color: #667eea;
         }
 
         .cta-section .form-note {
@@ -466,11 +680,12 @@
         .cta-section .form-success {
             background: rgba(255,255,255,0.2);
             color: white;
+            border: 1px solid rgba(255,255,255,0.3);
         }
 
         /* Footer */
         footer {
-            padding: 2rem;
+            padding: 3rem 2rem;
             text-align: center;
             background: #1a1a2e;
             color: rgba(255,255,255,0.6);
@@ -480,6 +695,7 @@
         footer a {
             color: rgba(255,255,255,0.8);
             text-decoration: none;
+            transition: color 0.3s;
         }
 
         footer a:hover {
@@ -487,6 +703,15 @@
         }
 
         /* Responsive */
+        @media (max-width: 900px) {
+            .steps-row, .benefits-grid {
+                grid-template-columns: 1fr;
+                max-width: 400px;
+                margin-left: auto;
+                margin-right: auto;
+            }
+        }
+
         @media (max-width: 768px) {
             .finder-content {
                 flex-direction: column;
@@ -501,54 +726,106 @@
                 order: 1;
                 max-height: 250px;
             }
+
+            .stats-row {
+                gap: 2rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .floating-element {
+                display: none;
+            }
         }
 
         @media (max-width: 600px) {
             .email-form {
                 flex-direction: column;
+                border-radius: 20px;
+                padding: 1rem;
+            }
+
+            .email-form button {
+                width: 100%;
             }
 
             .finder-form {
                 flex-direction: column;
+                border-radius: 20px;
+                padding: 1rem;
             }
 
-            .steps-row {
-                flex-direction: column;
-                align-items: center;
-            }
-
-            .step {
-                max-width: 100%;
+            .finder-form button {
+                width: 100%;
             }
         }
     </style>
 </head>
 <body>
     <nav>
-        <a href="/" class="logo">Locker<span>Drop</span></a>
-        <a href="#notify" class="cta-nav">Get Notified</a>
+        <a href="/" class="logo">LockerDrop</a>
+        <div class="nav-links">
+            <a href="#how-it-works">How It Works</a>
+            <a href="#find-lockers">Find Lockers</a>
+            <a href="#notify" class="cta-nav">Get Early Access</a>
+        </div>
     </nav>
+
+    <!-- Floating decorative elements -->
+    <div class="floating-element float-1">📦</div>
+    <div class="floating-element float-2">🔐</div>
+    <div class="floating-element float-3">🚀</div>
+    <div class="floating-element float-4">✨</div>
 
     <!-- Hero -->
     <section class="hero">
-        <span class="hero-badge">Coming Soon for Shopify</span>
-        <h1>Smart Locker Pickup for <span>Your Customers</span></h1>
-        <p>Offer convenient 24/7 locker pickup as a shipping option. Reduce failed deliveries, delight customers, and save on shipping costs.</p>
+        <div class="hero-content">
+            <span class="hero-badge fade-in">
+                <span class="pulse"></span>
+                Coming Soon for Shopify
+            </span>
+            <h1 class="fade-in fade-in-delay-1">
+                The Future of<br><span class="gradient-text">Package Pickup</span>
+            </h1>
+            <p class="fade-in fade-in-delay-2">
+                Give your customers 24/7 access to secure smart lockers. No more missed deliveries, no more porch pirates.
+            </p>
 
-        <form class="email-form" id="heroForm">
-            <input type="email" placeholder="Enter your email" required>
-            <button type="submit">Notify Me</button>
-        </form>
-        <p class="form-note">Be the first to know when LockerDrop is ready for your store.</p>
-        <a href="#find-lockers" class="hero-link">Find lockers near you →</a>
-        <div class="form-success" id="heroSuccess">You're on the list! We'll notify you when LockerDrop launches.</div>
-        <div class="form-error" id="heroError">Something went wrong. Please try again.</div>
+            <div class="stats-row fade-in fade-in-delay-2">
+                <div class="stat">
+                    <div class="stat-number">350+</div>
+                    <div class="stat-label">Locker Locations</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number">24/7</div>
+                    <div class="stat-label">Access</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number">2 min</div>
+                    <div class="stat-label">Setup Time</div>
+                </div>
+            </div>
+
+            <form class="email-form fade-in fade-in-delay-3" id="heroForm">
+                <input type="email" placeholder="Enter your email" required>
+                <button type="submit">Get Early Access</button>
+            </form>
+            <p class="form-note fade-in fade-in-delay-3">Be first in line when we launch. No spam, ever.</p>
+            <a href="#find-lockers" class="hero-link fade-in fade-in-delay-3">Find lockers near you →</a>
+            <div class="form-success" id="heroSuccess">🎉 You're on the list! We'll notify you when LockerDrop launches.</div>
+            <div class="form-error" id="heroError">Something went wrong. Please try again.</div>
+        </div>
     </section>
 
     <!-- How it works -->
-    <section class="how-it-works">
-        <h2 class="section-title">How It Works</h2>
-        <p class="section-subtitle">Simple for you. Convenient for customers.</p>
+    <section class="how-it-works" id="how-it-works">
+        <div class="section-header">
+            <span class="section-tag">Simple Process</span>
+            <h2 class="section-title">How It Works</h2>
+            <p class="section-subtitle">Three easy steps for your customers, three for you.</p>
+        </div>
 
         <div class="steps-container">
             <p class="steps-label">For Your Customers</p>
@@ -557,41 +834,41 @@
                     <span class="step-number">1</span>
                     <div class="step-icon">🛒</div>
                     <h3>Shop & Checkout</h3>
-                    <p>Customer selects "LockerDrop Pickup" at checkout</p>
+                    <p>Customer selects "LockerDrop Pickup" at checkout and picks a nearby location</p>
                 </div>
                 <div class="step">
                     <span class="step-number">2</span>
                     <div class="step-icon">📍</div>
-                    <h3>Choose Location</h3>
-                    <p>Pick a nearby locker from the map - available 24/7</p>
+                    <h3>Get Notified</h3>
+                    <p>They receive a text + email when their package is ready with a magic link</p>
                 </div>
                 <div class="step">
                     <span class="step-number">3</span>
                     <div class="step-icon">📱</div>
-                    <h3>Pick Up Anytime</h3>
-                    <p>Get notified when ready, scan to open locker</p>
+                    <h3>Tap & Collect</h3>
+                    <p>Tap the link, the locker opens instantly. Grab and go, 24/7!</p>
                 </div>
             </div>
 
-            <p class="steps-label" style="margin-top: 3rem;">For You (The Seller)</p>
+            <p class="steps-label">For You (The Seller)</p>
             <div class="steps-row">
                 <div class="step">
                     <span class="step-number">1</span>
                     <div class="step-icon">📦</div>
-                    <h3>Receive Order</h3>
-                    <p>LockerDrop orders appear in your dashboard</p>
+                    <h3>See the Order</h3>
+                    <p>LockerDrop orders appear in your dashboard with locker details</p>
                 </div>
                 <div class="step">
                     <span class="step-number">2</span>
                     <div class="step-icon">🚗</div>
-                    <h3>Drop Off</h3>
-                    <p>Visit the locker, scan link to open door, place package</p>
+                    <h3>Drop It Off</h3>
+                    <p>Visit the locker location, tap your link, place the package inside</p>
                 </div>
                 <div class="step">
                     <span class="step-number">3</span>
                     <div class="step-icon">✅</div>
                     <h3>Done!</h3>
-                    <p>Customer is notified automatically. No shipping labels needed.</p>
+                    <p>Customer is notified automatically. No shipping labels needed!</p>
                 </div>
             </div>
         </div>
@@ -599,39 +876,42 @@
 
     <!-- Benefits -->
     <section class="benefits">
-        <h2 class="section-title">Why LockerDrop?</h2>
-        <p class="section-subtitle">Better for everyone.</p>
+        <div class="section-header">
+            <span class="section-tag">Why LockerDrop</span>
+            <h2 class="section-title">Built for Modern Commerce</h2>
+            <p class="section-subtitle">Everything you need for seamless locker pickup.</p>
+        </div>
 
         <div class="benefits-grid">
             <div class="benefit">
                 <div class="benefit-icon">💰</div>
                 <h3>Save on Shipping</h3>
-                <p>No carrier fees, no shipping labels. Just drop off packages at a nearby locker.</p>
+                <p>No carrier fees, no labels. Drop off packages at a nearby locker and save big.</p>
             </div>
             <div class="benefit">
                 <div class="benefit-icon">🚫</div>
-                <h3>No Failed Deliveries</h3>
-                <p>Customers pick up on their schedule. No "sorry we missed you" notes.</p>
+                <h3>Zero Failed Deliveries</h3>
+                <p>Customers pick up on their schedule. No more "sorry we missed you" notes.</p>
             </div>
             <div class="benefit">
                 <div class="benefit-icon">🔒</div>
                 <h3>Secure & Contactless</h3>
-                <p>Packages stay safe in smart lockers until pickup. No porch pirates.</p>
+                <p>Packages stay protected in smart lockers. No porch pirates, ever.</p>
             </div>
             <div class="benefit">
                 <div class="benefit-icon">🕐</div>
-                <h3>24/7 Access</h3>
-                <p>Customers can pick up anytime - early morning, late night, weekends.</p>
+                <h3>24/7 Pickup Access</h3>
+                <p>Early bird or night owl? Customers can collect anytime that works.</p>
             </div>
             <div class="benefit">
                 <div class="benefit-icon">😊</div>
-                <h3>Happy Customers</h3>
-                <p>Offer a convenient pickup option on their schedule.</p>
+                <h3>Happier Customers</h3>
+                <p>Offer real convenience. Pickup on their terms, at their pace.</p>
             </div>
             <div class="benefit">
                 <div class="benefit-icon">📊</div>
-                <h3>Easy Dashboard</h3>
-                <p>Track all LockerDrop orders in one place. See who picked up and when.</p>
+                <h3>Full Dashboard</h3>
+                <p>Track all orders in one place. See who picked up and when.</p>
             </div>
         </div>
     </section>
@@ -639,8 +919,11 @@
     <!-- Locker Finder -->
     <section class="locker-finder" id="find-lockers">
         <div class="finder-container">
-            <h2 class="section-title">Find Lockers Near You</h2>
-            <p class="section-subtitle">350+ locations across the US. Enter a zip code to find nearby lockers.</p>
+            <div class="section-header">
+                <span class="section-tag">Nationwide Coverage</span>
+                <h2 class="section-title">Find Lockers Near You</h2>
+                <p class="section-subtitle">350+ locations across the US and growing fast.</p>
+            </div>
 
             <form class="finder-form" id="finderForm">
                 <input type="text" id="zipInput" placeholder="Enter zip code (e.g., 75001)" maxlength="10">
@@ -649,24 +932,22 @@
 
             <div class="finder-content" id="finderContent" style="display: none;">
                 <div id="lockerMap"></div>
-                <div class="finder-results" id="finderResults">
-                    <!-- Results populated by JS -->
-                </div>
+                <div class="finder-results" id="finderResults"></div>
             </div>
         </div>
     </section>
 
     <!-- CTA Section -->
-    <section class="cta-section" id="notify">
-        <h2>Ready to offer LockerDrop?</h2>
-        <p>Join the waitlist and be the first to know when we launch on Shopify.</p>
+    <section class="cta-section gradient-bg" id="notify">
+        <h2>Ready to revolutionize pickup?</h2>
+        <p>Join the waitlist and be first to offer LockerDrop to your customers.</p>
 
         <form class="email-form" id="ctaForm">
             <input type="email" placeholder="Enter your email" required>
             <button type="submit">Join Waitlist</button>
         </form>
-        <p class="form-note">No spam, just launch updates.</p>
-        <div class="form-success" id="ctaSuccess">You're on the list! We'll be in touch soon.</div>
+        <p class="form-note">No spam. Just launch updates.</p>
+        <div class="form-success" id="ctaSuccess">🎉 You're on the list! We'll be in touch soon.</div>
     </section>
 
     <!-- Footer -->
@@ -745,29 +1026,25 @@
         function addLockerMarkers(lockers) {
             clearMarkers();
 
-            // Custom icon for lockers
             const lockerIcon = L.divIcon({
-                html: '<div style="background: #5c6ac4; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">📦</div>',
+                html: '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; border: 3px solid white; box-shadow: 0 3px 10px rgba(0,0,0,0.3);">📦</div>',
                 className: 'locker-marker',
-                iconSize: [30, 30],
-                iconAnchor: [15, 15]
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
             });
 
-            // Search location marker
             const searchIcon = L.divIcon({
-                html: '<div style="background: #e53935; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">📍</div>',
+                html: '<div style="background: #ef4444; color: white; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 3px solid white; box-shadow: 0 3px 10px rgba(0,0,0,0.3);">📍</div>',
                 className: 'search-marker',
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
+                iconSize: [26, 26],
+                iconAnchor: [13, 13]
             });
 
-            // Add search location marker
             const searchMarker = L.marker([searchLat, searchLon], { icon: searchIcon })
                 .addTo(map)
                 .bindPopup('Your search location');
             markers.push(searchMarker);
 
-            // Add locker markers
             lockers.forEach((locker, index) => {
                 const marker = L.marker([locker.lat, locker.lon], { icon: lockerIcon })
                     .addTo(map)
@@ -777,7 +1054,6 @@
                 markers.push(marker);
             });
 
-            // Fit bounds to show all markers
             if (markers.length > 1) {
                 const group = L.featureGroup(markers);
                 map.fitBounds(group.getBounds().pad(0.1));
@@ -789,8 +1065,7 @@
             document.querySelectorAll('.locker-card').forEach((card, i) => {
                 card.classList.toggle('active', i === index);
             });
-            // Open the marker popup
-            if (markers[index + 1]) { // +1 because first marker is search location
+            if (markers[index + 1]) {
                 markers[index + 1].openPopup();
             }
         }
@@ -808,7 +1083,6 @@
             contentEl.style.display = 'flex';
 
             try {
-                // First geocode the zip
                 const geoResponse = await fetch(`https://api.zippopotam.us/us/${zip}`);
                 if (!geoResponse.ok) throw new Error('Invalid zip');
 
@@ -816,18 +1090,14 @@
                 searchLat = parseFloat(geoData.places[0].latitude);
                 searchLon = parseFloat(geoData.places[0].longitude);
 
-                // Initialize map
                 initMap(searchLat, searchLon);
 
-                // Then find lockers
                 const lockersResponse = await fetch(`/api/public/lockers?lat=${searchLat}&lon=${searchLon}&limit=8`);
                 const lockersData = await lockersResponse.json();
 
                 if (lockersData.locations && lockersData.locations.length > 0) {
-                    // Add markers to map
                     addLockerMarkers(lockersData.locations);
 
-                    // Build results list
                     resultsEl.innerHTML = lockersData.locations.map((locker, index) => `
                         <div class="locker-card" onclick="highlightCard(${index}); map.setView([${locker.lat}, ${locker.lon}], 14);">
                             <div>
@@ -844,6 +1114,25 @@
             } catch (err) {
                 resultsEl.innerHTML = '<p style="text-align: center; color: #c62828; padding: 2rem;">Could not find lockers for this zip code. Please try another.</p>';
             }
+        });
+
+        // Intersection Observer for fade-in animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.animation = 'fadeInUp 0.6s ease-out forwards';
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.step, .benefit').forEach(el => {
+            el.style.opacity = '0';
+            observer.observe(el);
         });
     </script>
 </body>
