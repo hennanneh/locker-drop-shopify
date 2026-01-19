@@ -104,12 +104,19 @@ Once expired, all sizes should be available again.
 
 **RESOLVED:** All product/variant REST API calls migrated to GraphQL Admin API.
 
-### 2. Auto-Fulfillment Permission Error
+### 2. ~~Auto-Fulfillment Permission Error~~ ✅ RESOLVED (Jan 19, 2026)
 ```
 Error fulfilling order: { errors: 'The api_client does not have the required permission(s).' }
 ```
 
-**Action needed:** Add `write_fulfillments` to SHOPIFY_SCOPES in .env and re-authorize app
+**RESOLVED:**
+- Updated `.env` SHOPIFY_SCOPES to include `read_fulfillments,write_fulfillments`
+- OAuth routes in `server.js` (lines 388, 457) already had correct scopes
+- Added `/api/check-scopes/:shop` endpoint to detect missing permissions
+- Admin dashboard now shows warning banner when re-authorization is needed
+- Improved error handling in `fulfillShopifyOrder()` to detect permission errors
+
+**For existing stores:** Visit `https://app.lockerdrop.it/auth/reconnect?shop=YOUR-STORE.myshopify.com` to re-authorize with new permissions, or click "Grant Permissions" in the admin dashboard warning banner
 
 ### 3. Harbor Locker Cancellation
 Cannot cancel locker reservations via Harbor API. Tried:

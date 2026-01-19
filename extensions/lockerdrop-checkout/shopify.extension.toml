@@ -2,7 +2,7 @@
 # Shows locker pickup options in the checkout flow
 # Learn more: https://shopify.dev/docs/apps/build/checkout
 
-api_version = "2025-01"
+api_version = "2025-04"
 
 [[extensions]]
 uid = "539482da-e96f-2453-1e78-c274f2e1851605b78716"

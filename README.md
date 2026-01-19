@@ -236,7 +236,7 @@ NODE_ENV=production
 - [x] Admin dashboard Polaris redesign with actionable stat cards
 
 ### Pending
-- [ ] `write_fulfillments` scope needed for auto-fulfillment
+- [x] `write_fulfillments` scope - Now included in OAuth flow; existing stores need to re-authorize via `/auth/reconnect`
 
 ### Harbor API Limitations
 - Locker release requires `tower_id` and `locker_id` (now captured on dropoff request creation)

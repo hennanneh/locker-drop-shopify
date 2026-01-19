@@ -514,6 +514,60 @@ app.get('/api/validate-token/:shop', async (req, res) => {
     }
 });
 
+// Check access scopes for a shop - validates if fulfillment permissions are granted
+app.get('/api/check-scopes/:shop', async (req, res) => {
+    const { shop } = req.params;
+
+    try {
+        // Get token from database
+        const result = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop]);
+
+        if (result.rows.length === 0 || !result.rows[0].access_token) {
+            return res.json({ valid: false, error: 'No token found', needsReconnect: true });
+        }
+
+        const accessToken = result.rows[0].access_token;
+
+        // Check access scopes via Shopify API
+        const scopesResponse = await axios.get(
+            `https://${shop}/admin/oauth/access_scopes.json`,
+            { headers: { 'X-Shopify-Access-Token': accessToken } }
+        );
+
+        const grantedScopes = scopesResponse.data.access_scopes.map(s => s.handle);
+
+        // Required scopes for full functionality
+        const requiredScopes = ['write_fulfillments', 'read_fulfillments'];
+        const missingScopes = requiredScopes.filter(s => !grantedScopes.includes(s));
+
+        if (missingScopes.length > 0) {
+            return res.json({
+                valid: true,
+                grantedScopes,
+                missingScopes,
+                needsReauth: true,
+                reauthUrl: `https://app.lockerdrop.it/auth/reconnect?shop=${shop}`,
+                message: `Missing permissions: ${missingScopes.join(', ')}. Re-authorize to enable auto-fulfillment.`
+            });
+        }
+
+        return res.json({
+            valid: true,
+            grantedScopes,
+            missingScopes: [],
+            needsReauth: false
+        });
+
+    } catch (error) {
+        console.error(`❌ Scope check failed for ${shop}:`, error.response?.data || error.message);
+        return res.json({
+            valid: false,
+            error: error.response?.data?.errors || error.message,
+            needsReconnect: error.response?.status === 401 || error.response?.status === 403
+        });
+    }
+});
+
 // Register carrier service
 app.get('/auth/register-carrier/:shop', async (req, res) => {
     const shop = req.params.shop;
@@ -703,16 +757,26 @@ app.post('/carrier/rates', async (req, res) => {
             }
         }
 
-        // If native pickup is enabled (Plus stores), return empty rates
-        // The Pickup Point Function handles locker selection with native Shopify UI
-        if (useNativePickup) {
-            console.log('🔀 Native pickup enabled (Plus store), Pickup Point Function handles lockers');
-            return res.json({ rates: [] });
-        }
-
         // Calculate pickup date
         const { pickupDate } = calculatePickupDate(processingDays, fulfillmentDays, vacationDays);
         const pickupDateFormatted = formatPickupDate(pickupDate);
+
+        // If checkout extension is enabled, return a single generic LockerDrop rate
+        // The checkout extension UI handles the specific locker selection
+        if (useNativePickup) {
+            console.log('🔀 Checkout extension enabled - returning single LockerDrop rate');
+            const price = freePickup ? '0' : '100';
+            return res.json({
+                rates: [{
+                    service_name: 'LockerDrop Pickup',
+                    service_code: 'lockerdrop_pickup',
+                    total_price: price,
+                    currency: 'USD',
+                    description: `📅 Ready ${pickupDateFormatted} • Select locker location below`
+                }]
+            });
+        }
+
         console.log(`📅 Expected pickup: ${pickupDateFormatted}`);
 
         const destination = rate.destination;
@@ -1551,6 +1615,7 @@ app.post('/api/pickup-complete', async (req, res) => {
         }
 
         // Fulfill the order in Shopify
+        let fulfillmentWarning = null;
         if (order.shop && order.shopify_order_id) {
             console.log(`🛍️ Fulfilling order ${order.shopify_order_id} in Shopify...`);
             const fulfillResult = await fulfillShopifyOrder(order.shop, order.shopify_order_id);
@@ -1558,6 +1623,14 @@ app.post('/api/pickup-complete', async (req, res) => {
                 console.log(`✅ Order fulfilled in Shopify: ${fulfillResult.message}`);
             } else {
                 console.log(`⚠️ Shopify fulfillment issue: ${fulfillResult.message}`);
+                if (fulfillResult.needsReauth) {
+                    console.log(`🔐 Re-authorization needed: ${fulfillResult.reauthUrl}`);
+                    fulfillmentWarning = {
+                        type: 'reauth_required',
+                        message: 'Auto-fulfillment failed: App needs re-authorization to access fulfillment permissions.',
+                        reauthUrl: fulfillResult.reauthUrl
+                    };
+                }
             }
         } else {
             console.log(`⚠️ Cannot fulfill in Shopify - missing shop (${order.shop}) or shopify_order_id (${order.shopify_order_id})`);
@@ -1566,7 +1639,11 @@ app.post('/api/pickup-complete', async (req, res) => {
         // Log for seller notification (in production, you might send an email or push notification)
         console.log(`📧 Notify seller: Customer picked up order #${orderNumber}`);
 
-        res.json({ success: true, message: `Order ${orderNumber} marked as completed` });
+        const response = { success: true, message: `Order ${orderNumber} marked as completed` };
+        if (fulfillmentWarning) {
+            response.warning = fulfillmentWarning;
+        }
+        res.json(response);
     } catch (error) {
         console.error('Error processing pickup complete:', error);
         res.status(500).json({ error: 'Failed to process pickup completion' });
@@ -1668,8 +1745,10 @@ app.post('/api/dropoff-complete', async (req, res) => {
 
         const order = orderResult.rows[0];
 
-        // Use locker_id from callback or from order
-        let finalLockerId = lockerId || order.locker_id;
+        // Use locker_id from order first (most reliable), then callback, then fetch from Harbor
+        // The order's locker_id is set when the dropoff link is created, so it should be correct
+        let finalLockerId = order.locker_id || lockerId;
+        console.log(`📍 Locker ID sources - order.locker_id: ${order.locker_id}, callback lockerId: ${lockerId}, using: ${finalLockerId}`);
 
         // Get Harbor token
         const tokenResponse = await axios.post(
@@ -2805,23 +2884,30 @@ app.get('/api/stats/:shop', async (req, res) => {
             [shop]
         );
 
+        // Count future dropoffs (pending orders with pickup date in the future)
+        const futureDropoffs = await db.query(
+            "SELECT COUNT(*) FROM orders WHERE shop = $1 AND status = 'pending_dropoff' AND preferred_pickup_date > CURRENT_DATE",
+            [shop]
+        );
+
         // Get next dropoff location (most common location for pending orders)
         let nextDropoffLocation = null;
         const pendingCount = parseInt(pendingDropoffs.rows[0].count);
         if (pendingCount > 0) {
             const nextLocation = await db.query(`
-                SELECT o.locker_name, o.locker_address
+                SELECT lp.location_name, o.location_id
                 FROM orders o
+                LEFT JOIN locker_preferences lp ON o.location_id = lp.location_id AND o.shop = lp.shop
                 WHERE o.shop = $1 AND o.status = 'pending_dropoff'
-                GROUP BY o.locker_name, o.locker_address
+                GROUP BY lp.location_name, o.location_id
                 ORDER BY COUNT(*) DESC
                 LIMIT 1
             `, [shop]);
 
             if (nextLocation.rows.length > 0) {
                 nextDropoffLocation = {
-                    name: nextLocation.rows[0].locker_name,
-                    address: nextLocation.rows[0].locker_address
+                    name: nextLocation.rows[0].location_name || `Location ${nextLocation.rows[0].location_id}`,
+                    locationId: nextLocation.rows[0].location_id
                 };
             }
         }
@@ -2831,6 +2917,7 @@ app.get('/api/stats/:shop', async (req, res) => {
             readyForPickup: parseInt(readyForPickup.rows[0].count),
             completedThisWeek: parseInt(completedThisWeek.rows[0].count),
             activeLockers: parseInt(activeLockers.rows[0].count),
+            futureDropoffs: parseInt(futureDropoffs.rows[0].count),
             nextDropoffLocation
         });
     } catch (error) {
@@ -2857,7 +2944,8 @@ app.get('/api/orders/:shop', auditCustomerDataAccess('view_orders'), async (req,
                 o.tower_id as "towerId",
                 o.location_id as "locationId",
                 COALESCE(lp.location_name, 'Location ' || o.location_id) as "lockerName",
-                TO_CHAR(o.created_at, 'YYYY-MM-DD') as date
+                TO_CHAR(o.created_at, 'YYYY-MM-DD') as date,
+                TO_CHAR(o.preferred_pickup_date, 'YYYY-MM-DD') as "pickupDate"
             FROM orders o
             LEFT JOIN locker_preferences lp ON o.location_id = lp.location_id AND o.shop = lp.shop
             WHERE o.shop = $1
@@ -3027,6 +3115,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
         let processingDays = 1;
         let fulfillmentDays = ['monday','tuesday','wednesday','thursday','friday'];
         let vacationDays = [];
+        let freePickup = true; // Default to free
 
         if (shop) {
             try {
@@ -3036,6 +3125,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
                     processingDays = settings.processing_days || 1;
                     fulfillmentDays = settings.fulfillment_days || ['monday','tuesday','wednesday','thursday','friday'];
                     vacationDays = settings.vacation_days || [];
+                    freePickup = settings.free_pickup !== false; // Default to true if not set
                 }
             } catch (e) {
                 console.log('⚠️ Could not fetch shop settings for pickup date:', e.message);
@@ -3060,7 +3150,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
 
                 if (enabledLocationIds.length === 0) {
                     console.log('❌ No locker locations enabled for this shop - returning empty');
-                    return res.json({ lockers: [], requiredSize: 'medium', requiredSizeId: 2, pickupDate: pickupDateFormatted, pickupDateISO: pickupDateISO });
+                    return res.json({ lockers: [], requiredSize: 'medium', requiredSizeId: 2, pickupDate: pickupDateFormatted, pickupDateISO: pickupDateISO, freePickup });
                 }
                 console.log(`🔧 Shop has ${enabledLocationIds.length} enabled locations: ${enabledLocationIds.join(', ')}`);
             } catch (e) {
@@ -3126,7 +3216,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
 
         if (enabledLocations.length === 0) {
             console.log('❌ None of the enabled locations match Harbor locations');
-            return res.json({ lockers: [], requiredSize: requiredSizeName, requiredSizeId: requiredLockerTypeId, pickupDate: pickupDateFormatted, pickupDateISO: pickupDateISO });
+            return res.json({ lockers: [], requiredSize: requiredSizeName, requiredSizeId: requiredLockerTypeId, pickupDate: pickupDateFormatted, pickupDateISO: pickupDateISO, freePickup });
         }
 
         // If we have lat/lon, use them for distance calculation
@@ -3253,7 +3343,8 @@ app.get('/api/checkout/lockers', async (req, res) => {
             requiredSize: requiredSizeName,
             requiredSizeId: requiredLockerTypeId,
             pickupDate: pickupDateFormatted,
-            pickupDateISO: pickupDateISO
+            pickupDateISO: pickupDateISO,
+            freePickup
         });
     } catch (error) {
         console.error('Error fetching checkout lockers:', error.response?.data || error.message);
@@ -4706,6 +4797,11 @@ async function processNewOrder(order, shopDomain) {
         // LockerDrop info can be in note_attributes (new) or address2 (legacy)
         const lockerDropInfo = extractLockerDropInfo(order);
         const reservationRef = lockerDropInfo?.reservationRef || null;
+        const preferredPickupDate = lockerDropInfo?.pickupDate || null;
+
+        if (preferredPickupDate) {
+            console.log(`📅 Customer selected pickup date: ${preferredPickupDate}`);
+        }
 
         if (reservationRef) {
             console.log(`🔒 Found reservation reference: ${reservationRef}`);
@@ -4735,9 +4831,6 @@ async function processNewOrder(order, shopDomain) {
                     order.billing_address?.phone ||
                     order.customer?.phone ||
                     null;
-
-                // Extract pickup date if present
-                const preferredPickupDate = lockerDropInfo?.pickupDate || null;
 
                 // Save order using the reservation's dropoff link
                 await db.query(
@@ -4898,12 +4991,6 @@ async function processNewOrder(order, shopDomain) {
                     throw sizeError; // Re-throw if it's not an availability issue
                 }
             }
-        }
-
-        // Extract pickup date if customer selected one
-        let preferredPickupDate = lockerDropInfo?.pickupDate || null;
-        if (preferredPickupDate) {
-            console.log(`📅 Customer selected pickup date: ${preferredPickupDate}`);
         }
 
         // Save order to database (even if no locker available)
@@ -6092,8 +6179,27 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
 
         return { success: true, message: 'Order fulfilled in Shopify' };
     } catch (error) {
-        console.error(`❌ Error fulfilling order ${shopifyOrderId} in Shopify:`, error.response?.data || error.message);
-        return { success: false, message: error.response?.data?.errors || error.message };
+        const errorData = error.response?.data;
+        const errorMessage = errorData?.errors || error.message;
+        console.error(`❌ Error fulfilling order ${shopifyOrderId} in Shopify:`, errorData || error.message);
+
+        // Check for permission/scope error
+        if (errorMessage && (
+            errorMessage.includes('permission') ||
+            errorMessage.includes('scope') ||
+            errorMessage.includes('Access denied') ||
+            error.response?.status === 403
+        )) {
+            console.error(`🔐 Permission error detected - shop "${shop}" needs to re-authorize with write_fulfillments scope`);
+            return {
+                success: false,
+                message: errorMessage,
+                needsReauth: true,
+                reauthUrl: `https://app.lockerdrop.it/auth/reconnect?shop=${shop}`
+            };
+        }
+
+        return { success: false, message: errorMessage };
     }
 }
 
@@ -6136,18 +6242,27 @@ app.post('/carrier-service/rates', async (req, res) => {
             }
         }
 
-        // If native pickup is enabled (Plus stores), return empty rates
-        // The Pickup Point Function handles locker selection with native Shopify UI
-        if (useNativePickup) {
-            console.log('🔀 Native pickup enabled (Plus store), Pickup Point Function handles lockers');
-            return res.json({ rates: [] });
-        }
-
         // Calculate pickup date based on fulfillment settings
         const { pickupDate } = calculatePickupDate(processingDays, fulfillmentDays, vacationDays);
         const pickupDateFormatted = formatPickupDate(pickupDate);
         const pickupDateISO = pickupDate.toISOString().split('T')[0];
         console.log(`📅 Expected pickup: ${pickupDateFormatted} (${pickupDateISO})`);
+
+        // If checkout extension is enabled, return a single generic LockerDrop rate
+        // The checkout extension UI handles the specific locker selection
+        if (useNativePickup) {
+            console.log('🔀 Checkout extension enabled - returning single LockerDrop rate');
+            const price = freePickup ? '0' : '100';
+            return res.json({
+                rates: [{
+                    service_name: 'LockerDrop Pickup',
+                    service_code: 'lockerdrop_pickup',
+                    total_price: price,
+                    currency: 'USD',
+                    description: `📅 Ready ${pickupDateFormatted} • Select locker location below`
+                }]
+            });
+        }
 
         const destination = rateRequest.rate.destination;
         let lat = destination.latitude;

@@ -373,6 +373,36 @@
             border-bottom: 1px solid var(--p-color-border-secondary);
         }
 
+        .orders-table th.sortable {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 24px;
+        }
+
+        .orders-table th.sortable:hover {
+            background: var(--p-color-bg-surface-hover);
+            color: var(--p-color-text);
+        }
+
+        .orders-table th.sortable::after {
+            content: '⇅';
+            position: absolute;
+            right: 8px;
+            opacity: 0.3;
+            font-size: 11px;
+        }
+
+        .orders-table th.sortable.sort-asc::after {
+            content: '↑';
+            opacity: 0.8;
+        }
+
+        .orders-table th.sortable.sort-desc::after {
+            content: '↓';
+            opacity: 0.8;
+        }
+
         .orders-table td {
             padding: var(--p-space-300) var(--p-space-400);
             border-bottom: 1px solid var(--p-color-border-secondary);
@@ -1244,9 +1274,20 @@
 
     <!-- Reconnect Banner - shown when Shopify token is invalid -->
     <div id="reconnect-banner" style="display: none; background: #ffc107; color: #333; padding: 16px 24px; text-align: center; font-weight: 500;">
-        <span id="reconnect-message">⚠️ Your Shopify connection has expired. Some features may not work.</span>
+        <span id="reconnect-message">Your Shopify connection has expired. Some features may not work.</span>
         <button onclick="reconnectToShopify()" style="margin-left: 16px; padding: 8px 20px; background: #5c6ac4; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-            🔄 Reconnect to Shopify
+            Reconnect to Shopify
+        </button>
+    </div>
+
+    <!-- Scope Warning Banner - shown when fulfillment permissions are missing -->
+    <div id="scope-warning-banner" style="display: none; background: #fff3cd; color: #856404; padding: 16px 24px; text-align: center; font-weight: 500; border-bottom: 1px solid #ffeeba;">
+        <span id="scope-warning-message">Auto-fulfillment is disabled. Missing permission: write_fulfillments.</span>
+        <button onclick="reconnectToShopify()" style="margin-left: 16px; padding: 8px 20px; background: #f58220; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+            Grant Permissions
+        </button>
+        <button onclick="dismissScopeWarning()" style="margin-left: 8px; padding: 8px 12px; background: transparent; color: #856404; border: 1px solid #856404; border-radius: 6px; cursor: pointer;">
+            Dismiss
         </button>
     </div>
 
@@ -1285,18 +1326,18 @@
                 <div class="stat-subtext" id="stat-completed-subtext"></div>
                 <button class="stat-action-btn" onclick="event.stopPropagation(); navigateToOrderFilter('completed')">View Report →</button>
             </div>
-            <div class="stat-card stat-card-clickable" onclick="showActiveLockers()" title="Click to view your active lockers">
-                <div class="stat-label">Active Lockers</div>
-                <div class="stat-value" id="stat-lockers">0</div>
-                <div class="stat-subtext" id="stat-lockers-subtext"></div>
-                <button class="stat-action-btn" onclick="event.stopPropagation(); showActiveLockers()">Manage Lockers →</button>
+            <div class="stat-card stat-card-clickable" onclick="navigateToOrderFilter('future_dropoff')" title="Click to view orders scheduled for future drop-off">
+                <div class="stat-label">Future Drop-offs</div>
+                <div class="stat-value" id="stat-future">0</div>
+                <div class="stat-subtext" id="stat-future-subtext">Scheduled for later</div>
+                <button class="stat-action-btn" onclick="event.stopPropagation(); navigateToOrderFilter('future_dropoff')">View Orders →</button>
             </div>
         </div>
 
         <!-- Navigation Tabs -->
         <div class="nav-tabs">
             <button class="tab active" onclick="showTab('orders', this)">Orders</button>
-            <button class="tab" onclick="showTab('lockers', this)">My Lockers</button>
+            <button class="tab" onclick="showTab('lockers', this)" id="tab-lockers">My Lockers</button>
             <button class="tab" onclick="showTab('products', this)">Product Sizes</button>
             <button class="tab" onclick="showTab('settings', this)">Settings</button>
             <button class="tab" onclick="showTab('learn', this)">Learn</button>
@@ -1318,6 +1359,7 @@
                 <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
                     <button class="filter-btn active" data-status="active" onclick="filterOrders('active')">Active</button>
                     <button class="filter-btn" data-status="pending_dropoff" onclick="filterOrders('pending_dropoff')">Pending Drop-off</button>
+                    <button class="filter-btn" data-status="future_dropoff" onclick="filterOrders('future_dropoff')">Future Drop-off</button>
                     <button class="filter-btn" data-status="ready_for_pickup" onclick="filterOrders('ready_for_pickup')">Ready for Pickup</button>
                     <button class="filter-btn" data-status="completed" onclick="filterOrders('completed')">Completed</button>
                     <button class="filter-btn" data-status="cancelled" onclick="filterOrders('cancelled')">Cancelled</button>
@@ -1326,19 +1368,20 @@
                 <table class="orders-table">
                     <thead>
                         <tr>
-                            <th>Order #</th>
-                            <th>Date</th>
-                            <th>Customer</th>
-                            <th>Locker</th>
+                            <th class="sortable" data-sort="orderNumber" onclick="sortOrders('orderNumber')">Order #</th>
+                            <th class="sortable" data-sort="date" onclick="sortOrders('date')">Date</th>
+                            <th class="sortable" data-sort="pickupDate" onclick="sortOrders('pickupDate')">Pickup Date</th>
+                            <th class="sortable" data-sort="customerName" onclick="sortOrders('customerName')">Customer</th>
+                            <th class="sortable" data-sort="lockerName" onclick="sortOrders('lockerName')">Locker</th>
                             <th>Drop-off Link</th>
                             <th>Pickup Link</th>
-                            <th>Status</th>
+                            <th class="sortable" data-sort="status" onclick="sortOrders('status')">Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="orders-table-body">
                         <tr>
-                            <td colspan="8" class="empty-state">
+                            <td colspan="9" class="empty-state">
                                 <h3>Loading orders...</h3>
                             </td>
                         </tr>
@@ -2638,12 +2681,19 @@
                 const readyCount = stats.readyForPickup || 0;
                 const completedCount = stats.completedThisWeek || 0;
                 const lockersCount = stats.activeLockers || 0;
+                const futureCount = stats.futureDropoffs || 0;
 
                 // Update stat values
                 document.getElementById('stat-pending').textContent = pendingCount;
                 document.getElementById('stat-ready').textContent = readyCount;
                 document.getElementById('stat-completed').textContent = completedCount;
-                document.getElementById('stat-lockers').textContent = lockersCount;
+                document.getElementById('stat-future').textContent = futureCount;
+
+                // Update My Lockers tab with count
+                const lockersTab = document.getElementById('tab-lockers');
+                if (lockersTab && lockersCount > 0) {
+                    lockersTab.textContent = `My Lockers (${lockersCount})`;
+                }
 
                 // Update subtexts with actionable copy
                 const pendingSubtext = document.getElementById('stat-pending-subtext');
@@ -2668,11 +2718,11 @@
                     completedSubtext.innerHTML = '';
                 }
 
-                const lockersSubtext = document.getElementById('stat-lockers-subtext');
-                if (lockersCount > 0) {
-                    lockersSubtext.innerHTML = '<span class="success">✅ All locations active</span>';
+                const futureSubtext = document.getElementById('stat-future-subtext');
+                if (futureCount > 0) {
+                    futureSubtext.innerHTML = `<span class="info">📅 ${futureCount} scheduled</span>`;
                 } else {
-                    lockersSubtext.innerHTML = '<span class="warning">⚠️ Add lockers to get started</span>';
+                    futureSubtext.innerHTML = 'No future orders';
                 }
 
                 // Update priority banner
@@ -2714,6 +2764,28 @@
         // Store all orders for filtering
         let allOrders = [];
         let currentFilter = 'active'; // Default filter
+        let currentSort = { column: 'date', direction: 'desc' }; // Default sort by date descending
+
+        // Sort orders
+        function sortOrders(column) {
+            // Toggle direction if same column, otherwise default to descending
+            if (currentSort.column === column) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.column = column;
+                currentSort.direction = 'desc';
+            }
+
+            // Update header classes
+            document.querySelectorAll('.orders-table th.sortable').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+                if (th.dataset.sort === column) {
+                    th.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+                }
+            });
+
+            renderOrders();
+        }
 
         // Load All Orders
         async function loadOrders() {
@@ -2756,9 +2828,40 @@
             if (currentFilter === 'active') {
                 // Active = pending_dropoff + ready_for_pickup (excludes completed and cancelled)
                 filteredOrders = allOrders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
+            } else if (currentFilter === 'future_dropoff') {
+                // Future drop-off = pending_dropoff with pickup date in the future
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                filteredOrders = allOrders.filter(o => {
+                    if (o.status !== 'pending_dropoff' || !o.pickupDate) return false;
+                    const pickupDate = new Date(o.pickupDate + 'T00:00:00');
+                    return pickupDate > today;
+                });
             } else if (currentFilter !== 'all') {
                 filteredOrders = allOrders.filter(o => o.status === currentFilter);
             }
+
+            // Apply sorting
+            filteredOrders = [...filteredOrders].sort((a, b) => {
+                let aVal = a[currentSort.column];
+                let bVal = b[currentSort.column];
+
+                // Handle special cases
+                if (currentSort.column === 'orderNumber') {
+                    aVal = parseInt(aVal) || 0;
+                    bVal = parseInt(bVal) || 0;
+                } else if (currentSort.column === 'date' || currentSort.column === 'pickupDate') {
+                    aVal = aVal ? new Date(aVal) : new Date(0);
+                    bVal = bVal ? new Date(bVal) : new Date(0);
+                } else {
+                    aVal = (aVal || '').toString().toLowerCase();
+                    bVal = (bVal || '').toString().toLowerCase();
+                }
+
+                if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+                if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
 
             if (filteredOrders.length === 0) {
                 let message, subtext, actionHtml = '';
@@ -2775,6 +2878,9 @@
                 } else if (currentFilter === 'pending_dropoff') {
                     message = '🎉 All caught up!';
                     subtext = 'No orders waiting for drop-off. Great job staying on top of things!';
+                } else if (currentFilter === 'future_dropoff') {
+                    message = '📅 No future drop-offs';
+                    subtext = 'Orders with pickup dates in the future will appear here.';
                 } else if (currentFilter === 'ready_for_pickup') {
                     message = '📦 No orders in lockers';
                     subtext = 'Orders appear here after you drop them off. Customers will be notified automatically.';
@@ -2790,7 +2896,7 @@
                 }
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="8" class="empty-state">
+                        <td colspan="9" class="empty-state">
                             <h3>${message}</h3>
                             ${subtext ? `<p style="color: #6d7175; margin-top: 8px;">${subtext}</p>` : ''}
                             ${actionHtml}
@@ -2804,6 +2910,7 @@
                 <tr>
                     <td data-label="Order"><strong>#${order.orderNumber}</strong></td>
                     <td data-label="Date">${order.date}</td>
+                    <td data-label="Pickup Date">${order.pickupDate ? formatPickupDate(order.pickupDate) : '<span style="color: #6d7175;">-</span>'}</td>
                     <td data-label="Customer">${order.customerName}</td>
                     <td data-label="Locker">${order.lockerName || 'Not assigned'}</td>
                     <td data-label="Drop-off">${order.dropoffLink ? `<a href="${order.dropoffLink}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'pending_dropoff' ? 'Open' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
@@ -2824,11 +2931,31 @@
             }
             const statusMap = {
                 'pending_dropoff': '⏳ Waiting for drop-off',
+                'future_dropoff': '📅 Future drop-off',
                 'ready_for_pickup': '📦 In locker - notified',
                 'completed': '✓ Picked up',
                 'cancelled': '✗ Cancelled'
             };
             return statusMap[status] || status;
+        }
+
+        function formatPickupDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr + 'T00:00:00');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+
+            if (date.getTime() === today.getTime()) {
+                return '<span style="color: #d97706; font-weight: 600;">Today</span>';
+            } else if (date.getTime() === tomorrow.getTime()) {
+                return '<span style="color: #059669;">Tomorrow</span>';
+            } else if (date < today) {
+                return '<span style="color: #6d7175;">' + date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '</span>';
+            } else {
+                return '<span style="color: #059669;">' + date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) + '</span>';
+            }
         }
 
         // View Order Modal
@@ -3884,10 +4011,41 @@
             window.location.href = `/auth/reconnect?shop=${shop}`;
         }
 
+        // Check Shopify scopes for fulfillment permissions
+        async function checkScopes() {
+            // Skip if user dismissed the warning this session
+            if (sessionStorage.getItem('scopeWarningDismissed')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/check-scopes/${shop}`);
+                const result = await response.json();
+
+                if (result.needsReauth && result.missingScopes && result.missingScopes.length > 0) {
+                    console.warn('Missing Shopify scopes:', result.missingScopes);
+                    document.getElementById('scope-warning-banner').style.display = 'block';
+                    document.getElementById('scope-warning-message').textContent =
+                        `Auto-fulfillment is disabled. Missing permission: ${result.missingScopes.join(', ')}. Orders will not auto-fulfill when customers pick up.`;
+                }
+            } catch (error) {
+                console.error('Error checking scopes:', error);
+            }
+        }
+
+        // Dismiss scope warning for this session
+        function dismissScopeWarning() {
+            document.getElementById('scope-warning-banner').style.display = 'none';
+            sessionStorage.setItem('scopeWarningDismissed', 'true');
+        }
+
         // Initialize
         window.onload = async function() {
             // Validate token first
             await validateToken();
+
+            // Check scopes for fulfillment permissions
+            checkScopes();
 
             loadStats();
             loadOrders();
