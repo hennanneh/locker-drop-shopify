@@ -90,7 +90,17 @@ extension(
       }
 
       if (error) {
-        container.appendChild(root.createComponent(Banner, { status: 'warning' }, root.createComponent(Text, null, error)));
+        const errorBanner = root.createComponent(BlockStack, { spacing: 'tight' });
+        container.appendChild(errorBanner);
+        errorBanner.appendChild(root.createComponent(Banner, { status: 'warning' }, root.createComponent(Text, null, error)));
+        errorBanner.appendChild(
+          root.createComponent(Button, { kind: 'secondary', onPress: () => {
+            error = null;
+            loading = true;
+            render();
+            fetchLockers();
+          }}, 'Retry')
+        );
         return;
       }
 
@@ -242,7 +252,25 @@ extension(
       deliveryGroups.subscribe(() => { if (selectedLocker) render(); });
     }
 
-    // Fetch lockers and dates
+    // Fetch with timeout helper
+    async function fetchWithTimeout(url, timeoutMs = 10000) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
+    }
+
+    // Fetch lockers and dates with retry
+    let retryCount = 0;
+    const MAX_RETRIES = 2;
+
     async function fetchLockers() {
       const address = shippingAddress.current;
       if (!address?.zip && !address?.city) {
@@ -251,24 +279,63 @@ extension(
         return;
       }
 
+      error = null; // Clear any previous error
+
       try {
         const addressQuery = encodeURIComponent(`${address?.city || ''} ${address?.provinceCode || ''} ${address?.zip || ''}`);
-        const response = await fetch(`https://app.lockerdrop.it/api/checkout/lockers?address=${addressQuery}&shop=${shop.myshopifyDomain}`);
+        const response = await fetchWithTimeout(
+          `https://app.lockerdrop.it/api/checkout/lockers?address=${addressQuery}&shop=${shop.myshopifyDomain}`,
+          10000
+        );
 
         if (response.ok) {
           const data = await response.json();
           lockers = (data.lockers || []).slice(0, 5);
           pickupDate = data.pickupDate || null;
+          retryCount = 0; // Reset retry count on success
+        } else if (response.status >= 500) {
+          throw new Error('Server temporarily unavailable');
+        } else if (response.status === 404) {
+          // No lockers found is not an error
+          lockers = [];
+        } else {
+          throw new Error(`Request failed (${response.status})`);
         }
 
-        // Fetch available dates
-        const datesResponse = await fetch(`https://app.lockerdrop.it/api/available-pickup-dates/${shop.myshopifyDomain}`);
-        if (datesResponse.ok) {
-          const datesData = await datesResponse.json();
-          availableDates = datesData.dates || [];
+        // Fetch available dates (non-critical, don't fail if this fails)
+        try {
+          const datesResponse = await fetchWithTimeout(
+            `https://app.lockerdrop.it/api/available-pickup-dates/${shop.myshopifyDomain}`,
+            5000
+          );
+          if (datesResponse.ok) {
+            const datesData = await datesResponse.json();
+            availableDates = datesData.dates || [];
+          }
+        } catch (dateErr) {
+          console.warn('LockerDrop: Could not fetch dates, using default');
+          availableDates = [];
         }
+
       } catch (err) {
         console.error('LockerDrop fetch error:', err);
+
+        // Handle specific error types
+        if (err.name === 'AbortError') {
+          error = 'Request timed out. Please check your connection and try again.';
+        } else if (!navigator.onLine) {
+          error = 'No internet connection. Please check your network.';
+        } else if (retryCount < MAX_RETRIES) {
+          // Auto-retry with exponential backoff
+          retryCount++;
+          const delay = Math.pow(2, retryCount) * 500; // 1s, 2s
+          console.log(`LockerDrop: Retrying in ${delay}ms (attempt ${retryCount}/${MAX_RETRIES})`);
+          setTimeout(fetchLockers, delay);
+          return; // Don't update loading state yet
+        } else {
+          error = 'Unable to load pickup locations. Please try again.';
+          retryCount = 0; // Reset for manual retry
+        }
       } finally {
         loading = false;
         render();

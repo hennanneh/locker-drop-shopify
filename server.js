@@ -568,6 +568,44 @@ app.get('/api/check-scopes/:shop', async (req, res) => {
     }
 });
 
+// Get store location info for initial locker search
+app.get('/api/store-location/:shop', async (req, res) => {
+    const { shop } = req.params;
+
+    try {
+        // Get token from database
+        const result = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop]);
+
+        if (result.rows.length === 0 || !result.rows[0].access_token) {
+            return res.json({ success: false, error: 'No token found' });
+        }
+
+        const accessToken = result.rows[0].access_token;
+
+        // Fetch shop info including address
+        const shopResponse = await axios.get(
+            `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/shop.json`,
+            { headers: { 'X-Shopify-Access-Token': accessToken } }
+        );
+
+        const shopData = shopResponse.data.shop;
+
+        return res.json({
+            success: true,
+            location: {
+                zip: shopData.zip,
+                city: shopData.city,
+                province: shopData.province,
+                country: shopData.country_name
+            }
+        });
+
+    } catch (error) {
+        console.error(`❌ Store location fetch failed for ${shop}:`, error.response?.data || error.message);
+        return res.json({ success: false, error: error.message });
+    }
+});
+
 // Register carrier service
 app.get('/auth/register-carrier/:shop', async (req, res) => {
     const shop = req.params.shop;
@@ -823,13 +861,23 @@ app.post('/carrier/rates', async (req, res) => {
                     const productDimensions = await getProductDimensionsFromOrder(shopDomain, shopAccessToken, lineItems);
                     console.log(`📦 Got ${productDimensions.length} product dimensions`);
                     requiredLockerTypeId = calculateRequiredLockerSize(productDimensions);
+
+                    // If any product is not configured for LockerDrop, don't offer it
+                    if (requiredLockerTypeId === null) {
+                        console.log('❌ One or more products not configured for LockerDrop - hiding option at checkout');
+                        return res.json({ rates: [] });
+                    }
+
                     requiredSizeName = LOCKER_SIZES.find(s => s.id === requiredLockerTypeId)?.name?.toLowerCase() || 'medium';
                     console.log(`📦 Required locker size for cart: ${requiredSizeName} (type ${requiredLockerTypeId})`);
                 } else {
                     console.log(`⚠️ No access token found for ${shopDomain}`);
+                    // No token means we can't verify product sizes - don't offer LockerDrop
+                    return res.json({ rates: [] });
                 }
             } catch (sizeError) {
-                console.log(`⚠️ Could not calculate locker size: ${sizeError.message}, defaulting to medium`);
+                console.log(`⚠️ Could not calculate locker size: ${sizeError.message} - hiding LockerDrop option`);
+                return res.json({ rates: [] });
             }
         }
 
@@ -1278,6 +1326,101 @@ app.get('/api/sync-orders/:shop', async (req, res) => {
 });
 
 // Get available lockers from Harbor API with search, filtering, and availability
+// Simple geocoding cache to avoid repeated API calls
+const geocodeCache = new Map();
+const GEOCODE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+async function geocodeLocation(query) {
+    const cacheKey = query.toLowerCase().trim();
+    const cached = geocodeCache.get(cacheKey);
+
+    if (cached && (Date.now() - cached.timestamp) < GEOCODE_CACHE_TTL) {
+        return cached.coords;
+    }
+
+    try {
+        // Add slight delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        const response = await axios.get('https://nominatim.openstreetmap.org/search', {
+            params: {
+                q: query + ', USA',
+                format: 'json',
+                limit: 1
+            },
+            headers: { 'User-Agent': 'LockerDrop/1.0 (locker pickup service)' },
+            timeout: 5000
+        });
+
+        if (response.data && response.data.length > 0) {
+            const coords = {
+                lat: parseFloat(response.data[0].lat),
+                lon: parseFloat(response.data[0].lon)
+            };
+            geocodeCache.set(cacheKey, { coords, timestamp: Date.now() });
+            return coords;
+        }
+    } catch (err) {
+        console.log(`⚠️ Geocoding error for "${query}": ${err.message}`);
+    }
+
+    return null;
+}
+
+// Calculate distance between two coordinates using Haversine formula (returns miles)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 3959; // Earth's radius in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+// In-memory cache for locker locations (refreshed every 5 minutes)
+let lockerLocationsCache = { data: null, timestamp: 0 };
+const LOCKER_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Load locker locations from cache or static file (fast)
+async function getLockerLocations() {
+    const now = Date.now();
+
+    // Return cached data if still fresh
+    if (lockerLocationsCache.data && (now - lockerLocationsCache.timestamp) < LOCKER_CACHE_TTL) {
+        return lockerLocationsCache.data;
+    }
+
+    // Load from static JSON file (much faster than Harbor API)
+    try {
+        const locationsPath = path.join(__dirname, 'public', 'harbor-locations.json');
+        const locationsData = JSON.parse(fs.readFileSync(locationsPath, 'utf8'));
+
+        // Transform to our format
+        const lockers = locationsData.map(location => ({
+            id: location.id,
+            name: location.name || location.location_name,
+            address: location.address1 || [location.street_address, location.city, location.state, location.zip].filter(Boolean).join(', '),
+            city: location.city || '',
+            state: location.state || '',
+            zip: location.zip || '',
+            latitude: location.lat || location.latitude || null,
+            longitude: location.lon || location.longitude || null,
+            available_sizes: ['Small', 'Medium', 'Large', 'X-Large']
+        }));
+
+        // Update cache
+        lockerLocationsCache = { data: lockers, timestamp: now };
+        console.log(`📍 Loaded ${lockers.length} locker locations from static file`);
+        return lockers;
+    } catch (error) {
+        console.error('Failed to load static locker locations:', error.message);
+        // Fall back to API if static file fails
+        return null;
+    }
+}
+
 app.get('/api/lockers/:shop', async (req, res) => {
     try {
         const { search, sizes, page = 1, limit = 12, includeAvailability, saved_only } = req.query;
@@ -1303,55 +1446,106 @@ app.get('/api/lockers/:shop', async (req, res) => {
             }
         }
 
-        // Step 1: Get access token from Harbor
-        const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
-            'grant_type=client_credentials&scope=service_provider&client_id=' + process.env.HARBOR_CLIENT_ID + '&client_secret=' + process.env.HARBOR_CLIENT_SECRET,
-            {
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'accept': 'application/json'
-                }
-            }
-        );
+        // Step 1: Get locations from cache (fast) or static file
+        let lockers = await getLockerLocations();
 
-        const accessToken = tokenResponse.data.access_token;
+        // Fallback to Harbor API if static file unavailable
+        if (!lockers) {
+            const tokenResponse = await axios.post(
+                'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                'grant_type=client_credentials&scope=service_provider&client_id=' + process.env.HARBOR_CLIENT_ID + '&client_secret=' + process.env.HARBOR_CLIENT_SECRET,
+                { headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'accept': 'application/json' }}
+            );
+            const accessToken = tokenResponse.data.access_token;
 
-        // Step 2: Get all locations using the token
-        const lockersResponse = await axios.get('https://api.sandbox.harborlockers.com/api/v1/locations/', {
-            headers: {
-                'Authorization': `Bearer ${accessToken}`
-            },
-            params: { limit: 500 }
-        });
+            const lockersResponse = await axios.get('https://api.sandbox.harborlockers.com/api/v1/locations/', {
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+                params: { limit: 500 }
+            });
 
-        // Transform the response to match our dashboard format
-        let lockers = lockersResponse.data.map(location => ({
-            id: location.id,
-            name: location.name || location.location_name,
-            address: location.address || [location.street_address || location.address1, location.city, location.state, location.zip].filter(Boolean).join(', '),
-            city: location.city || '',
-            state: location.state || '',
-            zip: location.zip || '',
-            latitude: location.lat || location.latitude || null,
-            longitude: location.lon || location.longitude || null,
-            available_sizes: location.locker_sizes || ['Small', 'Medium', 'Large', 'X-Large']
-        }));
+            lockers = lockersResponse.data.map(location => ({
+                id: location.id,
+                name: location.name || location.location_name,
+                address: location.address || [location.street_address || location.address1, location.city, location.state, location.zip].filter(Boolean).join(', '),
+                city: location.city || '',
+                state: location.state || '',
+                zip: location.zip || '',
+                latitude: location.lat || location.latitude || null,
+                longitude: location.lon || location.longitude || null,
+                available_sizes: location.locker_sizes || ['Small', 'Medium', 'Large', 'X-Large']
+            }));
+        } else {
+            // Clone the array to avoid modifying cached data
+            lockers = [...lockers];
+        }
 
         // Filter to saved lockers only if requested (do this first for performance)
         if (saved_only === 'true' && savedLockerIds.length > 0) {
             lockers = lockers.filter(locker => savedLockerIds.includes(locker.id.toString()));
         }
 
-        // Apply search filter (city or zip)
+        // Apply search filter - try geocoding for distance search, fall back to text search
         if (search && search.trim()) {
-            const searchLower = search.trim().toLowerCase();
-            lockers = lockers.filter(locker =>
-                (locker.city && locker.city.toLowerCase().includes(searchLower)) ||
-                (locker.zip && locker.zip.toLowerCase().startsWith(searchLower)) ||
-                (locker.name && locker.name.toLowerCase().includes(searchLower)) ||
-                (locker.address && locker.address.toLowerCase().includes(searchLower))
-            );
+            const searchQuery = search.trim();
+            let useDistanceSearch = false;
+            let searchCoords = null;
+
+            // Try to geocode the search query for distance-based search (with caching)
+            searchCoords = await geocodeLocation(searchQuery);
+            if (searchCoords) {
+                useDistanceSearch = true;
+                console.log(`📍 Geocoded "${searchQuery}" to ${searchCoords.lat}, ${searchCoords.lon}`);
+            } else {
+                console.log(`⚠️ Could not geocode "${searchQuery}", using text search`);
+            }
+
+            if (useDistanceSearch && searchCoords) {
+                // Distance-based search: filter within 50 miles and sort by distance
+                const maxDistanceMiles = 50;
+
+                const distanceResults = lockers
+                    .map(locker => {
+                        if (locker.latitude && locker.longitude) {
+                            locker.distance = calculateDistance(
+                                searchCoords.lat, searchCoords.lon,
+                                locker.latitude, locker.longitude
+                            );
+                        } else {
+                            locker.distance = Infinity;
+                        }
+                        return locker;
+                    })
+                    .filter(locker => locker.distance <= maxDistanceMiles)
+                    .sort((a, b) => a.distance - b.distance);
+
+                if (distanceResults.length > 0) {
+                    lockers = distanceResults;
+                    console.log(`📍 Found ${lockers.length} lockers within ${maxDistanceMiles} miles of "${searchQuery}"`);
+                } else {
+                    // No lockers within 50 miles - fall back to text search
+                    console.log(`📍 No lockers within ${maxDistanceMiles} miles of "${searchQuery}", trying text search`);
+                    useDistanceSearch = false;
+                }
+            }
+
+            if (!useDistanceSearch) {
+                // Text search fallback
+                const searchLower = searchQuery.toLowerCase();
+                const searchTerms = searchLower.split(/[,\s]+/).filter(t => t.length > 0);
+
+                lockers = lockers.filter(locker => {
+                    const lockerText = [
+                        locker.city,
+                        locker.state,
+                        locker.zip,
+                        locker.name,
+                        locker.address
+                    ].filter(Boolean).join(' ').toLowerCase();
+
+                    return searchTerms.every(term => lockerText.includes(term));
+                });
+                console.log(`📝 Text search for "${searchQuery}" found ${lockers.length} lockers`);
+            }
         }
 
         // Total count before pagination
@@ -1362,13 +1556,23 @@ app.get('/api/lockers/:shop', async (req, res) => {
         const startIndex = (pageNum - 1) * limitNum;
         const paginatedLockers = lockers.slice(startIndex, startIndex + limitNum);
 
-        // Fetch availability for each locker if requested
-        if (includeAvailability === 'true') {
-            for (const locker of paginatedLockers) {
+        // Fetch availability for each locker IN PARALLEL if requested (much faster)
+        if (includeAvailability === 'true' && paginatedLockers.length > 0) {
+            console.log(`📦 Fetching availability for ${paginatedLockers.length} lockers...`);
+            // Get Harbor token once
+            const tokenResponse = await axios.post(
+                'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                'grant_type=client_credentials&scope=service_provider&client_id=' + process.env.HARBOR_CLIENT_ID + '&client_secret=' + process.env.HARBOR_CLIENT_SECRET,
+                { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
+            );
+            const accessToken = tokenResponse.data.access_token;
+
+            // Fetch all availabilities in parallel
+            const availabilityPromises = paginatedLockers.map(async (locker) => {
                 try {
                     const availabilityResponse = await axios.get(
                         `https://api.sandbox.harborlockers.com/api/v1/locations/${locker.id}/availability`,
-                        { headers: { 'Authorization': `Bearer ${accessToken}` }}
+                        { headers: { 'Authorization': `Bearer ${accessToken}` }, timeout: 5000 }
                     );
 
                     const availability = availabilityResponse.data;
@@ -1387,11 +1591,20 @@ app.get('/api/lockers/:shop', async (req, res) => {
                             total: availability.lockerAvailability.totalLockers || 0
                         };
                     }
+
+                    // If no availability data was parsed, set to null so frontend doesn't render empty badges
+                    if (Object.keys(locker.availability).length === 0) {
+                        console.log(`📦 No availability data for locker ${locker.id} (${locker.name}):`, JSON.stringify(availability).substring(0, 200));
+                        locker.availability = null;
+                    }
                 } catch (availError) {
-                    console.log(`⚠️ Could not fetch availability for ${locker.name}:`, availError.message);
+                    console.log(`⚠️ Failed to fetch availability for locker ${locker.id}: ${availError.message}`);
                     locker.availability = null;
                 }
-            }
+            });
+
+            // Wait for all availability requests to complete
+            await Promise.all(availabilityPromises);
         }
 
         // Apply size filter after fetching availability (filter out lockers without required sizes)
@@ -2750,7 +2963,8 @@ app.get('/api/products/:shop', async (req, res) => {
                     length_inches: mapping?.length_inches || 0,
                     width_inches: mapping?.width_inches || 0,
                     height_inches: mapping?.height_inches || 0,
-                    locker_size: mapping?.locker_size || null
+                    locker_size: mapping?.locker_size || null,
+                    excluded: mapping?.excluded || false
                 };
             });
 
@@ -2783,13 +2997,13 @@ app.get('/api/products/:shop', async (req, res) => {
 app.post('/api/product-sizes/:shop', async (req, res) => {
     try {
         const { shop } = req.params;
-        const { products } = req.body; // Array of { product_id, product_title, variant_id, variant_title, length, width, height, locker_size }
+        const { products } = req.body; // Array of { product_id, product_title, variant_id, variant_title, length, width, height, locker_size, excluded }
 
         for (const product of products) {
             await db.query(`
                 INSERT INTO product_locker_sizes
-                    (shop, product_id, product_title, variant_id, variant_title, length_inches, width_inches, height_inches, locker_size, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+                    (shop, product_id, product_title, variant_id, variant_title, length_inches, width_inches, height_inches, locker_size, excluded, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
                 ON CONFLICT (shop, product_id, variant_id)
                 DO UPDATE SET
                     product_title = $3,
@@ -2798,6 +3012,7 @@ app.post('/api/product-sizes/:shop', async (req, res) => {
                     width_inches = $7,
                     height_inches = $8,
                     locker_size = $9,
+                    excluded = $10,
                     updated_at = NOW()
             `, [
                 shop,
@@ -2808,7 +3023,8 @@ app.post('/api/product-sizes/:shop', async (req, res) => {
                 product.length || 0,
                 product.width || 0,
                 product.height || 0,
-                product.locker_size || 'medium'
+                product.locker_size || 'medium',
+                product.excluded || false
             ]);
         }
 
@@ -3100,6 +3316,36 @@ app.get('/api/locker-availability/:shop', async (req, res) => {
     }
 });
 
+// Get availability for a single locker location (used by manual order modal)
+app.get('/api/location-availability/:locationId', async (req, res) => {
+    try {
+        const { locationId } = req.params;
+
+        if (!locationId || isNaN(parseInt(locationId))) {
+            return res.status(400).json({ error: 'Invalid location ID' });
+        }
+
+        // Get Harbor token
+        const tokenResponse = await axios.post(
+            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
+        );
+        const accessToken = tokenResponse.data.access_token;
+
+        // Fetch availability for this location
+        const availabilityResponse = await axios.get(
+            `https://api.sandbox.harborlockers.com/api/v1/locations/${locationId}/availability`,
+            { headers: { 'Authorization': `Bearer ${accessToken}` }}
+        );
+
+        res.json(availabilityResponse.data);
+    } catch (error) {
+        console.error('Error fetching single locker availability:', error.message);
+        res.status(500).json({ error: 'Failed to fetch availability', details: error.message });
+    }
+});
+
 // ============================================
 // CHECKOUT UI EXTENSION API
 // ============================================
@@ -3181,6 +3427,17 @@ app.get('/api/checkout/lockers', async (req, res) => {
                     // Fetch product dimensions and calculate required size
                     const productDimensions = await getProductDimensionsFromCheckout(shop, shopAccessToken, cartProducts);
                     requiredLockerTypeId = calculateRequiredLockerSize(productDimensions);
+
+                    // If any product is not configured for LockerDrop, return empty
+                    if (requiredLockerTypeId === null) {
+                        console.log('❌ One or more products not configured for LockerDrop - returning empty lockers');
+                        return res.json({
+                            lockers: [],
+                            pickupDate: null,
+                            message: 'One or more items in your cart are not available for locker pickup.'
+                        });
+                    }
+
                     requiredSizeName = LOCKER_SIZES.find(s => s.id === requiredLockerTypeId)?.name?.toLowerCase() || 'medium';
                     console.log(`📦 Required locker size for cart: ${requiredSizeName} (type ${requiredLockerTypeId})`);
                 }
@@ -3889,9 +4146,13 @@ app.post('/api/checkout/select-locker', async (req, res) => {
 app.post('/api/manual-order/:shop', async (req, res) => {
     try {
         const shop = req.params.shop;
-        const { orderNumber, customerName, customerEmail, lockerId, lockerName, sendEmail } = req.body;
+        const { orderNumber, customerName, customerEmail, lockerId, lockerName, sendEmail, requiredLockerSize, preferredPickupDate } = req.body;
 
-        console.log(`📦 Creating manual order #${orderNumber} for ${shop}`);
+        // Parse required locker size (1=small, 2=medium, 3=large, 4=x-large), default to 2 (medium)
+        const requiredSizeId = parseInt(requiredLockerSize) || 2;
+        const requiredSizeName = LOCKER_SIZES.find(s => s.id === requiredSizeId)?.name || 'Medium';
+
+        console.log(`📦 Creating manual order #${orderNumber} for ${shop}, required size: ${requiredSizeName} (${requiredSizeId})${preferredPickupDate ? `, pickup: ${preferredPickupDate}` : ''}`);
 
         // Get Harbor token
         const tokenResponse = await axios.post(
@@ -3912,25 +4173,48 @@ app.post('/api/manual-order/:shop', async (req, res) => {
         let availableLockerTypeId = null;
         let availableLockerTypeName = null;
 
-        // Check byType array for available lockers
+        // Check byType array for available lockers that meet size requirement
         // API format: byType[].lockerType.id, byType[].lockerAvailability.availableLockers
+        // Harbor uses names like "small", "medium", "large" - we convert to our size IDs using getLockerSizeIdFromName
         if (availability.byType && Array.isArray(availability.byType)) {
-            for (const type of availability.byType) {
+            // Sort by size (using our size mapping) to prefer smaller fitting lockers first
+            const sortedTypes = [...availability.byType].sort((a, b) => {
+                const sizeA = getLockerSizeIdFromName(a.lockerType?.name);
+                const sizeB = getLockerSizeIdFromName(b.lockerType?.name);
+                return sizeA - sizeB;
+            });
+
+            for (const type of sortedTypes) {
+                const typeName = type.lockerType?.name || '';
+                const harborSizeId = getLockerSizeIdFromName(typeName);
                 const available = type.lockerAvailability?.availableLockers || 0;
-                if (available > 0) {
+
+                // Only consider lockers that are >= required size
+                if (harborSizeId >= requiredSizeId && available > 0) {
                     availableLockerTypeId = type.lockerType?.id;
-                    availableLockerTypeName = type.lockerType?.name;
-                    console.log(`Found available locker type: ${availableLockerTypeName} (id: ${availableLockerTypeId}) - ${available} available`);
+                    availableLockerTypeName = typeName;
+                    console.log(`✓ Found suitable locker type: ${availableLockerTypeName} (size ${harborSizeId}) >= required ${requiredSizeName} (${requiredSizeId}) - ${available} available`);
                     break;
+                } else if (available > 0) {
+                    console.log(`✗ Skipping ${typeName} (size ${harborSizeId}) - too small for ${requiredSizeName} (${requiredSizeId})`);
                 }
             }
         }
 
         if (!availableLockerTypeId) {
-            const total = availability.lockerAvailability?.availableLockers || 0;
+            // Build a helpful error message showing what sizes ARE available
+            const availableSizes = (availability.byType || [])
+                .filter(t => (t.lockerAvailability?.availableLockers || 0) > 0)
+                .map(t => t.lockerType?.name)
+                .filter(Boolean);
+
+            const availableMsg = availableSizes.length > 0
+                ? `Available sizes: ${availableSizes.join(', ')}`
+                : 'No lockers currently available';
+
             return res.status(400).json({
                 success: false,
-                error: `No lockers available at ${lockerName} (${total} total). Please try a different location.`
+                error: `No ${requiredSizeName} or larger locker available at ${lockerName}. ${availableMsg}. Please try a different location or select a smaller size.`
             });
         }
 
@@ -3955,10 +4239,10 @@ app.post('/api/manual-order/:shop', async (req, res) => {
 
         // Insert order into database with locker_id and tower_id for proper release on cancellation
         const insertResult = await db.query(
-            `INSERT INTO orders (shop, shopify_order_id, order_number, customer_name, customer_email, location_id, location_name, locker_id, tower_id, dropoff_request_id, status, dropoff_link, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+            `INSERT INTO orders (shop, shopify_order_id, order_number, customer_name, customer_email, location_id, location_name, locker_id, tower_id, dropoff_request_id, status, dropoff_link, preferred_pickup_date, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
              RETURNING id`,
-            [shop, `MANUAL-${orderNumber}`, orderNumber, customerName, customerEmail, lockerId, lockerName, dropoffData.lockerId, dropoffData.towerId, dropoffData.id, 'pending_dropoff', dropoffData.linkToken]
+            [shop, `MANUAL-${orderNumber}`, orderNumber, customerName, customerEmail, lockerId, lockerName, dropoffData.lockerId, dropoffData.towerId, dropoffData.id, 'pending_dropoff', dropoffData.linkToken, preferredPickupDate || null]
         );
 
         console.log(`✅ Manual order #${orderNumber} created with dropoff link, locker_id: ${dropoffData.lockerId}, tower_id: ${dropoffData.towerId}`);
@@ -5527,6 +5811,18 @@ async function ensurePickupDateColumn() {
     }
 }
 
+// Ensure excluded column exists on product_locker_sizes table
+async function ensureProductExcludedColumn() {
+    try {
+        await db.query(`
+            ALTER TABLE product_locker_sizes ADD COLUMN IF NOT EXISTS excluded BOOLEAN DEFAULT FALSE;
+        `);
+        console.log('🚫 Product excluded column ready');
+    } catch (error) {
+        console.error('Error adding excluded column:', error);
+    }
+}
+
 // Log data access
 async function logDataAccess(userId, action, details = {}, req = null) {
     try {
@@ -5697,26 +5993,30 @@ const LOCKER_SIZES = [
 // Calculate required locker size based on product dimensions
 // For multiple items, calculates total package size (stacking items)
 // Returns the smallest locker type ID that fits all products
+// Returns null if ANY product lacks size configuration (product is not eligible for LockerDrop)
 function calculateRequiredLockerSize(products) {
     if (!products || products.length === 0) {
-        console.log('📦 No product dimensions available, defaulting to Medium');
-        return 2; // Default to Medium if no dimensions
+        console.log('📦 No product dimensions available - products not configured for LockerDrop');
+        return null; // No dimensions = not eligible for LockerDrop
     }
 
-    let hasAnyDimensions = false;
+    let allProductsConfigured = true;
     let totalVolume = 0;
     let maxLength = 0, maxWidth = 0;
     let totalHeight = 0; // Stack items vertically
+    let unconfiguredProducts = [];
 
     for (const product of products) {
         const length = parseFloat(product.length) || 0;
         const width = parseFloat(product.width) || 0;
         const height = parseFloat(product.height) || 0;
         const quantity = parseInt(product.quantity) || 1;
+        const isConfigured = product.isConfigured !== false; // Explicit flag from dimension fetching
 
-        if (length > 0 || width > 0 || height > 0) {
-            hasAnyDimensions = true;
-
+        if (!isConfigured || (length === 0 && width === 0 && height === 0)) {
+            allProductsConfigured = false;
+            unconfiguredProducts.push(product.title || product.productId || 'Unknown product');
+        } else {
             // For multiple items, we assume they stack
             // The base (length x width) is the max of all items
             // The height is cumulative (stacking)
@@ -5728,9 +6028,9 @@ function calculateRequiredLockerSize(products) {
         }
     }
 
-    if (!hasAnyDimensions) {
-        console.log('📦 Products have no dimensions set, defaulting to Medium');
-        return 2; // Default to Medium
+    if (!allProductsConfigured) {
+        console.log(`📦 Products not configured for LockerDrop: ${unconfiguredProducts.join(', ')}`);
+        return null; // Not all products have sizes = not eligible for LockerDrop
     }
 
     console.log(`📦 Package dimensions: ${maxLength}" x ${maxWidth}" x ${totalHeight}" (${products.length} item types, volume: ${totalVolume.toFixed(1)} cu in)`);
@@ -5762,7 +6062,7 @@ async function getProductDimensionsFromOrder(shop, accessToken, lineItems) {
     let savedSizes = {};
     try {
         const sizesResult = await db.query(
-            'SELECT product_id, variant_id, length_inches, width_inches, height_inches, locker_size FROM product_locker_sizes WHERE shop = $1',
+            'SELECT product_id, variant_id, length_inches, width_inches, height_inches, locker_size, excluded FROM product_locker_sizes WHERE shop = $1',
             [shop]
         );
         for (const row of sizesResult.rows) {
@@ -5784,6 +6084,22 @@ async function getProductDimensionsFromOrder(shop, accessToken, lineItems) {
             // Check for saved dimensions in our database first
             const savedKey = variantId ? `${productId}-${variantId}` : productId;
             const saved = savedSizes[savedKey] || savedSizes[productId];
+
+            // Check if product is explicitly excluded from LockerDrop
+            if (saved && saved.excluded) {
+                console.log(`🚫 Product ${productId} is excluded from LockerDrop`);
+                productDimensions.push({
+                    length: 0,
+                    width: 0,
+                    height: 0,
+                    quantity: item.quantity,
+                    productId: productId,
+                    isConfigured: false,
+                    isExcluded: true,
+                    source: 'excluded'
+                });
+                continue;
+            }
 
             if (saved && (saved.length_inches > 0 || saved.width_inches > 0 || saved.height_inches > 0)) {
                 // Use our saved dimensions
@@ -5813,79 +6129,43 @@ async function getProductDimensionsFromOrder(shop, accessToken, lineItems) {
                     width: defaults.width,
                     height: defaults.height,
                     quantity: item.quantity,
-                    source: 'size_override'
+                    source: 'size_override',
+                    isConfigured: true
                 };
                 productDimensions.push(dimensions);
                 console.log(`📦 Product ${productId} (size override: ${saved.locker_size}): ${dimensions.length}" x ${dimensions.width}" x ${dimensions.height}" (qty: ${item.quantity})`);
                 continue;
             }
 
-            // Fall back to Shopify product data (using GraphQL API)
+            // Product has no saved size configuration - mark as unconfigured
+            // Fetch product title for logging
             const product = await fetchProductByIdGraphQL(shop, accessToken, productId);
-
-            if (!product) {
-                console.log(`⚠️ Product ${productId} not found`);
-                productDimensions.push({
-                    length: 12, width: 10, height: 6,
-                    quantity: item.quantity,
-                    source: 'not_found_default'
-                });
-                continue;
-            }
-
-            // Find the specific variant
-            let variant = product.variants?.find(v => v.id.toString() === variantId);
-            if (!variant && product.variants?.length > 0) {
-                variant = product.variants[0];
-            }
-
-            if (variant) {
-                // Shopify variants don't have dimensions, so estimate from weight
-                const weight = parseFloat(variant.weight) || 0;
-                const weightUnit = variant.weight_unit || 'lb';
-
-                // Convert to pounds
-                let weightLb = weight;
-                if (weightUnit === 'kg') weightLb = weight * 2.205;
-                if (weightUnit === 'g') weightLb = weight * 0.002205;
-                if (weightUnit === 'oz') weightLb = weight / 16;
-
-                let dimensions;
-                // Estimate dimensions from weight
-                if (weightLb > 0) {
-                    if (weightLb < 0.5) {
-                        dimensions = { length: 8, width: 6, height: 2 };
-                    } else if (weightLb < 2) {
-                        dimensions = { length: 12, width: 10, height: 6 };
-                    } else if (weightLb < 5) {
-                        dimensions = { length: 16, width: 14, height: 10 };
-                    } else {
-                        dimensions = { length: 20, width: 16, height: 12 };
-                    }
-                    dimensions.quantity = item.quantity;
-                    dimensions.source = 'weight_estimate';
-                    console.log(`📦 Product "${product.title}" (weight estimate: ${weightLb.toFixed(2)} lb): ${dimensions.length}" x ${dimensions.width}" x ${dimensions.height}" (qty: ${item.quantity})`);
-                } else {
-                    // No weight, use medium default
-                    dimensions = {
-                        length: 12, width: 10, height: 6,
-                        quantity: item.quantity,
-                        source: 'default'
-                    };
-                    console.log(`📦 Product "${product.title}" (default): ${dimensions.length}" x ${dimensions.width}" x ${dimensions.height}" (qty: ${item.quantity})`);
-                }
-
-                productDimensions.push(dimensions);
-            }
-        } catch (error) {
-            console.log(`⚠️ Could not fetch product ${item.product_id}:`, error.message);
-            // Add a default for failed products
+            const productTitle = product?.title || `Product ${productId}`;
+            console.log(`⚠️ Product "${productTitle}" (${productId}) has no size configured - not eligible for LockerDrop`);
             productDimensions.push({
-                length: 12,
-                width: 10,
-                height: 6,
+                length: 0,
+                width: 0,
+                height: 0,
                 quantity: item.quantity,
-                source: 'error_default'
+                productId: productId,
+                title: productTitle,
+                isConfigured: false,
+                source: 'unconfigured'
+            });
+            continue;
+
+        } catch (error) {
+            console.log(`⚠️ Could not process product ${item.product_id}:`, error.message);
+            // Mark product as unconfigured on error
+            productDimensions.push({
+                length: 0,
+                width: 0,
+                height: 0,
+                quantity: item.quantity,
+                productId: item.product_id?.toString(),
+                title: `Product ${item.product_id}`,
+                isConfigured: false,
+                source: 'error'
             });
         }
     }
@@ -5901,7 +6181,7 @@ async function getProductDimensionsFromCheckout(shop, accessToken, cartProducts)
     let savedSizes = {};
     try {
         const sizesResult = await db.query(
-            'SELECT product_id, variant_id, length_inches, width_inches, height_inches, locker_size FROM product_locker_sizes WHERE shop = $1',
+            'SELECT product_id, variant_id, length_inches, width_inches, height_inches, locker_size, excluded FROM product_locker_sizes WHERE shop = $1',
             [shop]
         );
         for (const row of sizesResult.rows) {
@@ -5930,6 +6210,22 @@ async function getProductDimensionsFromCheckout(shop, accessToken, cartProducts)
             console.log(`📦 DEBUG: Looking for key="${savedKey}" or fallback="${productId}"`);
             const saved = savedSizes[savedKey] || savedSizes[productId];
             console.log(`📦 DEBUG: Found saved=${saved ? 'YES' : 'NO'} (size: ${saved?.locker_size || 'none'})`);
+
+            // Check if product is explicitly excluded from LockerDrop
+            if (saved && saved.excluded) {
+                console.log(`🚫 Checkout: Product ${productId} is excluded from LockerDrop`);
+                productDimensions.push({
+                    length: 0,
+                    width: 0,
+                    height: 0,
+                    quantity: item.quantity || 1,
+                    productId: productId,
+                    isConfigured: false,
+                    isExcluded: true,
+                    source: 'excluded'
+                });
+                continue;
+            }
 
             if (saved && (saved.length_inches > 0 || saved.width_inches > 0 || saved.height_inches > 0)) {
                 // Use our saved dimensions
@@ -5966,13 +6262,14 @@ async function getProductDimensionsFromCheckout(shop, accessToken, cartProducts)
                 continue;
             }
 
-            // Fall back to Shopify product data if we have a variant ID (using GraphQL API)
+            // Product has no saved size configuration - try to get product info for logging
+            let productTitle = `Product ${productId || variantId}`;
             if (variantId) {
                 try {
                     const variant = await fetchVariantByIdGraphQL(shop, accessToken, variantId);
-
                     if (variant) {
                         productId = variant.product_id?.toString();
+                        productTitle = variant.product_title || productTitle;
 
                         // Check saved sizes again with the product ID we just got
                         const variantSavedKey = `${productId}-${variantId}`;
@@ -5991,73 +6288,38 @@ async function getProductDimensionsFromCheckout(shop, accessToken, cartProducts)
                                 width: defaults.width,
                                 height: defaults.height,
                                 quantity: item.quantity || 1,
-                                source: 'size_override_variant'
+                                source: 'size_override_variant',
+                                isConfigured: true
                             });
                             continue;
                         }
-
-                        // Shopify variants don't have dimensions, so estimate from weight
-                        const weight = parseFloat(variant.weight) || 0;
-                        const weightUnit = variant.weight_unit || 'lb';
-
-                        let weightLb = weight;
-                        if (weightUnit === 'kg') weightLb = weight * 2.205;
-                        if (weightUnit === 'g') weightLb = weight * 0.002205;
-                        if (weightUnit === 'oz') weightLb = weight / 16;
-
-                        let dimensions;
-                        if (weightLb > 0) {
-                            if (weightLb < 0.5) {
-                                dimensions = { length: 8, width: 6, height: 2 };
-                            } else if (weightLb < 2) {
-                                dimensions = { length: 12, width: 10, height: 6 };
-                            } else if (weightLb < 5) {
-                                dimensions = { length: 16, width: 14, height: 10 };
-                            } else {
-                                dimensions = { length: 20, width: 16, height: 12 };
-                            }
-                            dimensions.quantity = item.quantity || 1;
-                            dimensions.source = 'weight_estimate';
-                        } else {
-                            dimensions = {
-                                length: 12, width: 10, height: 6,
-                                quantity: item.quantity || 1,
-                                source: 'default'
-                            };
-                        }
-
-                        productDimensions.push(dimensions);
-                        console.log(`📦 Checkout variant ${variantId} (${dimensions.source}): ${dimensions.length}" x ${dimensions.width}" x ${dimensions.height}" (qty: ${dimensions.quantity})`);
                     }
                 } catch (variantError) {
                     console.log(`⚠️ Could not fetch variant ${variantId}:`, variantError.message);
-                    // Add default
-                    productDimensions.push({
-                        length: 12,
-                        width: 10,
-                        height: 6,
-                        quantity: item.quantity || 1,
-                        source: 'error_default'
-                    });
                 }
-            } else {
-                // No variant ID, use default
-                productDimensions.push({
-                    length: 12,
-                    width: 10,
-                    height: 6,
-                    quantity: item.quantity || 1,
-                    source: 'no_id_default'
-                });
             }
+
+            // Product is not configured for LockerDrop
+            console.log(`⚠️ Product "${productTitle}" has no size configured - not eligible for LockerDrop`);
+            productDimensions.push({
+                length: 0,
+                width: 0,
+                height: 0,
+                quantity: item.quantity || 1,
+                productId: productId,
+                title: productTitle,
+                isConfigured: false,
+                source: 'unconfigured'
+            });
         } catch (error) {
             console.log(`⚠️ Could not process cart item:`, error.message);
             productDimensions.push({
-                length: 12,
-                width: 10,
-                height: 6,
+                length: 0,
+                width: 0,
+                height: 0,
                 quantity: item.quantity || 1,
-                source: 'error_default'
+                isConfigured: false,
+                source: 'error'
             });
         }
     }
@@ -6522,6 +6784,9 @@ app.listen(PORT, async () => {
 
     // Ensure preferred_pickup_date column exists
     await ensurePickupDateColumn();
+
+    // Ensure excluded column exists on product_locker_sizes
+    await ensureProductExcludedColumn();
 
     // Initialize branding settings table
     await initBrandingSettings();

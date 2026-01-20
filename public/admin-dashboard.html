@@ -1411,7 +1411,7 @@
                 <div class="locker-search-controls" style="margin-bottom: 20px;">
                     <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
                         <div style="flex: 1; min-width: 200px; max-width: 300px;">
-                            <input type="text" id="locker-search" placeholder="Search by city or zip code..." class="form-input"
+                            <input type="text" id="locker-search" placeholder="Search by city, state, or zip code..." class="form-input"
                                 onkeypress="if(event.key==='Enter') searchLockers()">
                         </div>
                         <button class="btn btn-secondary" onclick="searchLockers()">Search</button>
@@ -1443,6 +1443,12 @@
                 <!-- Locker Map -->
                 <div id="locker-map"></div>
 
+                <!-- Search info banner -->
+                <div id="locker-search-info" style="padding: 10px 16px; background: #f0f4ff; border-radius: 6px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="#5c6ac4"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 12a1 1 0 11-2 0 1 1 0 012 0zm-1-3a1 1 0 01-1-1V7a1 1 0 112 0v3a1 1 0 01-1 1z"/></svg>
+                    <span id="locker-search-info-text" style="color: #5c6ac4; font-size: 13px;">Showing lockers near your store location. Search by city or state to find lockers in other areas.</span>
+                </div>
+
                 <div class="locker-selector" id="locker-list">
                     <p style="padding: 20px 0; color: #6d7175;">Loading lockers...</p>
                 </div>
@@ -1470,7 +1476,18 @@
                         </svg>
                         Product Sizes
                     </span>
-                    <button id="save-products-btn" class="btn btn-primary" onclick="saveProductSizes()">Save All Changes</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-secondary" onclick="exportProductSizesCSV()" title="Export current sizes to CSV">
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" style="margin-right: 4px;"><path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/></svg>
+                            Export CSV
+                        </button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('csv-import-input').click()" title="Import sizes from CSV">
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" style="margin-right: 4px;"><path d="M13 12v6H7v-6H2l8-8 8 8h-5zM0 0h20v2H0V0z"/></svg>
+                            Import CSV
+                        </button>
+                        <input type="file" id="csv-import-input" accept=".csv" style="display: none;" onchange="importProductSizesCSV(this)">
+                        <button id="save-products-btn" class="btn btn-primary" onclick="saveProductSizes()">Save All Changes</button>
+                    </div>
                 </div>
                 <div>
                     <p class="card-description" style="margin-bottom: 16px;">
@@ -1481,6 +1498,10 @@
                     <div class="info-box tip" style="margin-bottom: 16px;">
                         <strong>Tip:</strong> Entering exact dimensions (L x W x H) allows multiple smaller items to share a locker.
                         Using only the dropdown assumes a default size.
+                        <br><br>
+                        <strong>CSV Import:</strong> Use "Export CSV" to download current sizes, edit in a spreadsheet, then re-import.
+                        Match products by Product ID, Variant ID, or SKU.
+                        <a href="#" onclick="downloadCSVTemplate(); return false;" style="color: #5c6ac4;">Download blank template</a>
                     </div>
 
                     <div class="info-box" style="margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; font-size: 13px;">
@@ -1491,12 +1512,14 @@
                         <span>X-Large: 24"×20"×16"</span>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr repeat(3, 70px) 120px; gap: 12px; padding: 8px 0; font-weight: 500; color: #6d7175; font-size: 13px; border-bottom: 1px solid #e1e3e5;">
+                    <div style="display: grid; grid-template-columns: 1fr repeat(3, 70px) 120px 70px; gap: 12px; padding: 8px 0; font-weight: 500; color: #6d7175; font-size: 13px; border-bottom: 1px solid #e1e3e5;">
                         <div>Product / Variant</div>
                         <div style="text-align: center;">L (in)</div>
                         <div style="text-align: center;">W (in)</div>
                         <div style="text-align: center;">H (in)</div>
                         <div style="text-align: center;">Locker Size</div>
+                        <div style="text-align: center;" title="Check to exclude from LockerDrop">Exclude</div>
+                        <div style="text-align: center;" title="Exclude this product from LockerDrop">Exclude</div>
                     </div>
 
                     <div id="products-list">
@@ -2221,11 +2244,34 @@
                 </div>
 
                 <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">Required Locker Size *</label>
+                    <select id="manual-locker-size" required
+                            style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;"
+                            onchange="updateLockerAvailabilityDisplay()">
+                        <option value="1">Small (up to 12" × 8" × 4")</option>
+                        <option value="2" selected>Medium (up to 16" × 12" × 8")</option>
+                        <option value="3">Large (up to 20" × 16" × 12")</option>
+                        <option value="4">X-Large (up to 24" × 20" × 16")</option>
+                    </select>
+                    <p style="color: #6d7175; font-size: 12px; margin-top: 4px;">Select the minimum size needed for your package</p>
+                </div>
+
+                <div style="margin-bottom: 16px;">
                     <label style="display: block; font-weight: 500; margin-bottom: 8px;">Locker Location *</label>
                     <select id="manual-locker-select" required
-                            style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;">
+                            style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;"
+                            onchange="updateLockerAvailabilityDisplay()">
                         <option value="">Select a locker...</option>
                     </select>
+                    <div id="manual-locker-availability" style="margin-top: 8px; font-size: 13px;"></div>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">Preferred Pickup Date</label>
+                    <input type="date" id="manual-pickup-date"
+                           style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;"
+                           min="">
+                    <p style="color: #6d7175; font-size: 12px; margin-top: 4px;">Optional - when customer should pick up (leave blank for ASAP)</p>
                 </div>
 
                 <div style="margin-bottom: 16px;">
@@ -2487,7 +2533,8 @@
                     initLockerMap();
                     if (lockerMap) lockerMap.invalidateSize(); // Fix map display after tab switch
                 }, 100);
-                loadLockers();
+                // Load lockers with store location on first load
+                initLockersWithStoreLocation();
             }
             if (tabName === 'products') {
                 loadProducts();
@@ -3342,6 +3389,45 @@
             btn.textContent = hasChanges ? 'Save Changes' : 'No Changes';
         }
 
+        // Track if we've already initialized with store location
+        let lockersInitialized = false;
+        let storeLocationLoaded = false;
+
+        // Initialize lockers with store location on first load
+        async function initLockersWithStoreLocation() {
+            if (lockersInitialized) {
+                loadLockers();
+                return;
+            }
+
+            lockersInitialized = true;
+
+            try {
+                // Fetch store location
+                const response = await fetch(`/api/store-location/${shop}`);
+                const data = await response.json();
+
+                if (data.success && data.location) {
+                    const searchInput = document.getElementById('locker-search');
+                    // Use zip, or city+state if zip not available
+                    if (data.location.zip) {
+                        searchInput.value = data.location.zip;
+                        searchInput.placeholder = `Search by city, state, or zip (store: ${data.location.city || data.location.zip})`;
+                        storeLocationLoaded = true;
+                    } else if (data.location.city && data.location.province) {
+                        searchInput.value = `${data.location.city}, ${data.location.province}`;
+                        searchInput.placeholder = `Search by city, state, or zip`;
+                        storeLocationLoaded = true;
+                    }
+                }
+            } catch (error) {
+                console.log('Could not fetch store location:', error);
+            }
+
+            // Load lockers (with or without store location)
+            loadLockers();
+        }
+
         // Load Lockers with search, filters, and pagination
         async function loadLockers(page = 1) {
             const lockerList = document.getElementById('locker-list');
@@ -3370,6 +3456,23 @@
                 const selectedSizes = Array.from(document.querySelectorAll('.size-filter:checked'))
                     .map(cb => cb.value);
                 const myLockersOnly = document.getElementById('my-lockers-only')?.checked;
+
+                // Update search info banner
+                const searchInfoEl = document.getElementById('locker-search-info');
+                const searchInfoTextEl = document.getElementById('locker-search-info-text');
+                if (myLockersOnly) {
+                    searchInfoEl.style.background = '#e3f9e5';
+                    searchInfoTextEl.style.color = '#108043';
+                    searchInfoTextEl.textContent = 'Showing only your selected lockers. Uncheck "My lockers only" to browse all available locations.';
+                } else if (searchValue) {
+                    searchInfoEl.style.background = '#e3f9e5';
+                    searchInfoTextEl.style.color = '#108043';
+                    searchInfoTextEl.textContent = `Showing lockers within 50 miles of "${searchValue}", sorted by distance.`;
+                } else {
+                    searchInfoEl.style.background = '#fff8e6';
+                    searchInfoTextEl.style.color = '#8a6116';
+                    searchInfoTextEl.textContent = 'Showing first 20 lockers. Search by city, state, or zip code to find lockers in your area.';
+                }
 
                 // Load saved preferences first if needed (so we know IDs for filtering)
                 if (savedPreferenceIds.length === 0 || originalSavedIds.length === 0) {
@@ -3429,6 +3532,9 @@
                     const isSelected = savedPreferenceIds.includes(locker.id.toString());
                     const locationText = [locker.city, locker.state, locker.zip].filter(Boolean).join(', ');
                     const fullAddress = locker.address ? (locationText ? `${locker.address}, ${locationText}` : locker.address) : locationText;
+                    const distanceText = locker.distance !== undefined && locker.distance !== Infinity
+                        ? `${locker.distance.toFixed(1)} mi`
+                        : '';
 
                     return `
                     <div class="locker-item ${isSelected ? 'selected' : ''}"
@@ -3438,7 +3544,7 @@
                             <svg width="12" height="12" viewBox="0 0 12 12" fill="white"><path d="M10 3L4.5 8.5L2 6" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         </div>
                         <div class="locker-info">
-                            <div class="locker-name">${locker.name || 'Locker'}</div>
+                            <div class="locker-name">${locker.name || 'Locker'}${distanceText ? ` <span style="color: #6d7175; font-weight: normal; font-size: 12px;">(${distanceText})</span>` : ''}</div>
                             <div class="locker-address">${fullAddress || 'Address not available'}</div>
                         </div>
                         ${locker.availability ? `
@@ -4095,6 +4201,17 @@
             // Clear form
             document.getElementById('manualOrderForm').reset();
 
+            // Clear availability cache and display
+            lockerAvailabilityCache = {};
+            document.getElementById('manual-locker-availability').innerHTML = '';
+
+            // Reset size to medium (default)
+            document.getElementById('manual-locker-size').value = '2';
+
+            // Set minimum pickup date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('manual-pickup-date').min = today;
+
             // Load locker options
             select.innerHTML = '<option value="">Loading lockers...</option>';
 
@@ -4120,6 +4237,85 @@
             document.getElementById('manualOrderModal').style.display = 'none';
         }
 
+        // Cache for locker availability data
+        let lockerAvailabilityCache = {};
+
+        // Update the availability display when locker or size selection changes
+        async function updateLockerAvailabilityDisplay() {
+            const lockerSelect = document.getElementById('manual-locker-select');
+            const sizeSelect = document.getElementById('manual-locker-size');
+            const availabilityDiv = document.getElementById('manual-locker-availability');
+
+            const lockerId = lockerSelect.value;
+            const requiredSize = parseInt(sizeSelect.value);
+
+            if (!lockerId) {
+                availabilityDiv.innerHTML = '';
+                return;
+            }
+
+            // Size names for display
+            const sizeNames = { 1: 'Small', 2: 'Medium', 3: 'Large', 4: 'X-Large' };
+            const requiredSizeName = sizeNames[requiredSize];
+
+            availabilityDiv.innerHTML = '<span style="color: #6d7175;">Checking availability...</span>';
+
+            try {
+                // Check if we have cached data
+                if (!lockerAvailabilityCache[lockerId]) {
+                    const response = await fetch(`/api/location-availability/${lockerId}`);
+                    if (response.ok) {
+                        lockerAvailabilityCache[lockerId] = await response.json();
+                    } else {
+                        throw new Error('Failed to fetch availability');
+                    }
+                }
+
+                const availability = lockerAvailabilityCache[lockerId];
+                const byType = availability.byType || [];
+
+                // Helper to convert Harbor size name to our size ID
+                function getLockerSizeIdFromName(typeName) {
+                    const name = (typeName || '').toLowerCase().trim();
+                    if (name.includes('small') && !name.includes('x-small')) return 1;
+                    if (name.includes('medium')) return 2;
+                    if (name.includes('large') && !name.includes('x-large') && !name.includes('extra')) return 3;
+                    if (name.includes('x-large') || name.includes('xlarge') || name.includes('extra-large') || name.includes('extra large')) return 4;
+                    return 2; // Default to medium
+                }
+
+                // Find suitable lockers (>= required size)
+                let suitableAvailable = 0;
+                let suitableSizes = [];
+
+                for (const type of byType) {
+                    const typeName = type.lockerType?.name || '';
+                    const harborSizeId = getLockerSizeIdFromName(typeName);
+                    const available = type.lockerAvailability?.availableLockers || 0;
+
+                    if (harborSizeId >= requiredSize && available > 0) {
+                        suitableAvailable += available;
+                        suitableSizes.push(`${typeName}: ${available}`);
+                    }
+                }
+
+                if (suitableAvailable > 0) {
+                    availabilityDiv.innerHTML = `<span style="color: #008060;">✓ ${suitableAvailable} locker${suitableAvailable > 1 ? 's' : ''} available (${suitableSizes.join(', ')})</span>`;
+                } else {
+                    // Show what IS available
+                    const allAvailable = byType
+                        .filter(t => (t.lockerAvailability?.availableLockers || 0) > 0)
+                        .map(t => t.lockerType?.name)
+                        .join(', ');
+
+                    availabilityDiv.innerHTML = `<span style="color: #bf0711;">⚠ No ${requiredSizeName} or larger available${allAvailable ? '. Available: ' + allAvailable : ''}</span>`;
+                }
+            } catch (error) {
+                console.error('Error checking availability:', error);
+                availabilityDiv.innerHTML = '<span style="color: #6d7175;">Could not check availability</span>';
+            }
+        }
+
         async function submitManualOrder(event) {
             event.preventDefault();
 
@@ -4130,6 +4326,8 @@
             const lockerId = lockerSelect.value;
             const lockerName = lockerSelect.options[lockerSelect.selectedIndex].dataset.name;
             const sendEmail = document.getElementById('manual-send-email').checked;
+            const requiredLockerSize = document.getElementById('manual-locker-size').value;
+            const preferredPickupDate = document.getElementById('manual-pickup-date').value || null;
 
             if (!orderNumber || !customerName || !customerEmail || !lockerId) {
                 alert('Please fill in all required fields');
@@ -4146,7 +4344,9 @@
                         customerEmail,
                         lockerId,
                         lockerName,
-                        sendEmail
+                        sendEmail,
+                        requiredLockerSize,
+                        preferredPickupDate
                     })
                 });
 
@@ -4232,41 +4432,70 @@
         function renderVariantRow(product, variant, showVariantTitle) {
             const lockerSizes = ['small', 'medium', 'large', 'x-large'];
             const dataKey = `${product.id}-${variant.id}`;
+            const isExcluded = variant.excluded === true;
 
             return `
-                <div class="variant-row" style="display: grid; grid-template-columns: 1fr repeat(3, 70px) 120px; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid #f0f0f0;" data-product-id="${product.id}" data-variant-id="${variant.id}" data-product-title="${product.title}" data-variant-title="${variant.title}">
+                <div class="variant-row ${isExcluded ? 'excluded' : ''}" style="display: grid; grid-template-columns: 1fr repeat(3, 70px) 120px 70px; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid #f0f0f0; ${isExcluded ? 'opacity: 0.5;' : ''}" data-product-id="${product.id}" data-variant-id="${variant.id}" data-product-title="${product.title}" data-variant-title="${variant.title}">
                     <div>
                         ${showVariantTitle ? `<span style="color: #6d7175; font-size: 14px;">${variant.title}</span>` : '<span style="color: #6d7175; font-size: 14px;">Default</span>'}
                         ${variant.sku ? `<span style="color: #999; font-size: 12px; margin-left: 8px;">SKU: ${variant.sku}</span>` : ''}
+                        ${isExcluded ? '<span style="color: #bf0711; font-size: 11px; margin-left: 8px;">(Excluded)</span>' : ''}
                     </div>
                     <div>
                         <input type="number" step="0.1" min="0" placeholder="L" class="dim-input dim-length"
                                value="${variant.length_inches || ''}"
-                               style="width: 60px; padding: 6px; border: 1px solid #c4cdd5; border-radius: 4px; text-align: center;">
+                               style="width: 60px; padding: 6px; border: 1px solid #c4cdd5; border-radius: 4px; text-align: center;" ${isExcluded ? 'disabled' : ''}>
                     </div>
                     <div>
                         <input type="number" step="0.1" min="0" placeholder="W" class="dim-input dim-width"
                                value="${variant.width_inches || ''}"
-                               style="width: 60px; padding: 6px; border: 1px solid #c4cdd5; border-radius: 4px; text-align: center;">
+                               style="width: 60px; padding: 6px; border: 1px solid #c4cdd5; border-radius: 4px; text-align: center;" ${isExcluded ? 'disabled' : ''}>
                     </div>
                     <div>
                         <input type="number" step="0.1" min="0" placeholder="H" class="dim-input dim-height"
                                value="${variant.height_inches || ''}"
-                               style="width: 60px; padding: 6px; border: 1px solid #c4cdd5; border-radius: 4px; text-align: center;">
+                               style="width: 60px; padding: 6px; border: 1px solid #c4cdd5; border-radius: 4px; text-align: center;" ${isExcluded ? 'disabled' : ''}>
                     </div>
                     <div>
-                        <select class="size-select" style="width: 110px; padding: 6px; border: 1px solid #c4cdd5; border-radius: 4px;">
+                        <select class="size-select" style="width: 110px; padding: 6px; border: 1px solid #c4cdd5; border-radius: 4px;" ${isExcluded ? 'disabled' : ''}>
                             <option value="">Auto</option>
                             ${lockerSizes.map(size => `<option value="${size}" ${variant.locker_size === size ? 'selected' : ''}>${size.charAt(0).toUpperCase() + size.slice(1)}</option>`).join('')}
                         </select>
+                    </div>
+                    <div style="text-align: center;">
+                        <input type="checkbox" class="exclude-checkbox" ${isExcluded ? 'checked' : ''}
+                               onchange="toggleExcluded(this)" title="Exclude from LockerDrop"
+                               style="width: 18px; height: 18px; cursor: pointer;">
                     </div>
                 </div>
             `;
         }
 
+        function toggleExcluded(checkbox) {
+            const row = checkbox.closest('.variant-row');
+            const isExcluded = checkbox.checked;
+            row.classList.toggle('excluded', isExcluded);
+            row.style.opacity = isExcluded ? '0.5' : '1';
+
+            // Disable/enable inputs
+            row.querySelectorAll('.dim-input, .size-select').forEach(input => {
+                input.disabled = isExcluded;
+            });
+
+            // Update the label
+            const nameDiv = row.querySelector('div:first-child');
+            const existingLabel = nameDiv.querySelector('span[style*="bf0711"]');
+            if (isExcluded && !existingLabel) {
+                nameDiv.insertAdjacentHTML('beforeend', '<span style="color: #bf0711; font-size: 11px; margin-left: 8px;">(Excluded)</span>');
+            } else if (!isExcluded && existingLabel) {
+                existingLabel.remove();
+            }
+        }
+
         async function saveProductSizes() {
             const rows = document.querySelectorAll('.variant-row');
             const products = [];
+            let excludedCount = 0;
 
             rows.forEach(row => {
                 const productId = row.dataset.productId;
@@ -4278,9 +4507,13 @@
                 const width = parseFloat(row.querySelector('.dim-width').value) || 0;
                 const height = parseFloat(row.querySelector('.dim-height').value) || 0;
                 const lockerSize = row.querySelector('.size-select').value;
+                const isExcluded = row.querySelector('.exclude-checkbox')?.checked || false;
 
-                // Only save if something was entered
-                if (length > 0 || width > 0 || height > 0 || lockerSize) {
+                // Count excluded products
+                if (isExcluded) excludedCount++;
+
+                // Save if dimensions/size entered OR if explicitly excluded
+                if (length > 0 || width > 0 || height > 0 || lockerSize || isExcluded) {
                     products.push({
                         product_id: productId,
                         variant_id: variantId,
@@ -4289,23 +4522,26 @@
                         length,
                         width,
                         height,
-                        locker_size: lockerSize || 'medium'
+                        locker_size: lockerSize || 'medium',
+                        excluded: isExcluded
                     });
                 }
             });
 
             if (products.length === 0) {
-                alert('No product sizes to save. Enter dimensions or select a locker size for at least one product.');
+                alert('No product sizes to save. Enter dimensions, select a locker size, or mark products as excluded.');
                 return;
             }
 
-            // Check for products without sizes and warn user
+            // Check for products without sizes (excluding those marked as excluded)
             const totalProducts = rows.length;
-            const unconfiguredCount = totalProducts - products.length;
+            const configuredOrExcluded = products.length;
+            const unconfiguredCount = totalProducts - configuredOrExcluded;
             if (unconfiguredCount > 0) {
                 const proceed = confirm(
                     `⚠️ ${unconfiguredCount} product${unconfiguredCount !== 1 ? 's' : ''} still ${unconfiguredCount !== 1 ? 'have' : 'has'} no size configured.\n\n` +
-                    `Products without sizes will use "Medium" as the default locker size.\n\n` +
+                    `Products without sizes will NOT be available for LockerDrop pickup.\n` +
+                    `Customers with unconfigured products in their cart won't see the locker option at checkout.\n\n` +
                     `Continue saving ${products.length} configured product${products.length !== 1 ? 's' : ''}?`
                 );
                 if (!proceed) return;
@@ -4343,6 +4579,230 @@
             } finally {
                 btn.classList.remove('btn-loading');
             }
+        }
+
+        // ============================================
+        // CSV IMPORT/EXPORT FUNCTIONS
+        // ============================================
+
+        // Download blank CSV template
+        function downloadCSVTemplate() {
+            const headers = ['Product ID', 'Product Title', 'Variant ID', 'Variant Title', 'SKU', 'Length (in)', 'Width (in)', 'Height (in)', 'Locker Size', 'Excluded'];
+            const exampleRow = ['123456789', 'Example Product', '987654321', 'Default', 'SKU-001', '10', '6', '4', 'small', 'false'];
+            const csvContent = headers.join(',') + '\n' + exampleRow.join(',') + '\n';
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'product-sizes-template.csv';
+            link.click();
+        }
+
+        // Export product sizes to CSV
+        function exportProductSizesCSV() {
+            if (!productsData || productsData.length === 0) {
+                alert('No products to export. Please wait for products to load.');
+                return;
+            }
+
+            const headers = ['Product ID', 'Product Title', 'Variant ID', 'Variant Title', 'SKU', 'Length (in)', 'Width (in)', 'Height (in)', 'Locker Size', 'Excluded'];
+            const rows = [headers.join(',')];
+
+            for (const product of productsData) {
+                for (const variant of product.variants) {
+                    // Use ="ID" format to prevent Excel from converting large numbers to scientific notation
+                    const row = [
+                        `="${product.id}"`,
+                        `"${(product.title || '').replace(/"/g, '""')}"`,
+                        variant.id ? `="${variant.id}"` : '',
+                        `"${(variant.title || 'Default').replace(/"/g, '""')}"`,
+                        variant.sku || '',
+                        variant.length_inches || '',
+                        variant.width_inches || '',
+                        variant.height_inches || '',
+                        variant.locker_size || '',
+                        variant.excluded ? 'true' : 'false'
+                    ];
+                    rows.push(row.join(','));
+                }
+            }
+
+            const csvContent = rows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `product-sizes-${shop.replace('.myshopify.com', '')}-${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        }
+
+        // Import product sizes from CSV
+        async function importProductSizesCSV(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const csvText = e.target.result;
+                    const lines = csvText.split(/\r?\n/).filter(line => line.trim());
+
+                    if (lines.length < 2) {
+                        alert('CSV file is empty or has no data rows.');
+                        input.value = '';
+                        return;
+                    }
+
+                    // Parse header to find column indices
+                    const headerLine = lines[0].toLowerCase();
+                    const headers = parseCSVLine(headerLine);
+
+                    // Find column indices (flexible matching)
+                    const colIndex = {
+                        productId: headers.findIndex(h => h.includes('product') && h.includes('id')),
+                        variantId: headers.findIndex(h => h.includes('variant') && h.includes('id')),
+                        sku: headers.findIndex(h => h.includes('sku')),
+                        length: headers.findIndex(h => h.includes('length') || h === 'l'),
+                        width: headers.findIndex(h => h.includes('width') || h === 'w'),
+                        height: headers.findIndex(h => h.includes('height') || h === 'h'),
+                        lockerSize: headers.findIndex(h => (h.includes('locker') || h.includes('size')) && !h.includes('excluded')),
+                        excluded: headers.findIndex(h => h.includes('excluded') || h.includes('exclude'))
+                    };
+
+                    // Must have product ID or SKU
+                    if (colIndex.productId === -1 && colIndex.sku === -1) {
+                        alert('CSV must have a "Product ID" or "SKU" column to match products.');
+                        input.value = '';
+                        return;
+                    }
+
+                    // Parse data rows
+                    const updates = [];
+                    let skipped = 0;
+                    let matched = 0;
+                    let skippedRows = []; // Track which rows were skipped for debugging
+
+                    console.log('CSV Import - Column indices:', colIndex);
+                    console.log('CSV Import - Products loaded:', productsData.length);
+
+                    for (let i = 1; i < lines.length; i++) {
+                        const values = parseCSVLine(lines[i]);
+                        if (values.length === 0) continue;
+
+                        // Get values and normalize (handle empty strings, whitespace)
+                        let productId = colIndex.productId >= 0 ? (values[colIndex.productId] || '').trim() : '';
+                        let variantId = colIndex.variantId >= 0 ? (values[colIndex.variantId] || '').trim() : '';
+                        const sku = colIndex.sku >= 0 ? (values[colIndex.sku] || '').trim() : '';
+                        const length = colIndex.length >= 0 ? parseFloat(values[colIndex.length]) || 0 : 0;
+                        const width = colIndex.width >= 0 ? parseFloat(values[colIndex.width]) || 0 : 0;
+                        const height = colIndex.height >= 0 ? parseFloat(values[colIndex.height]) || 0 : 0;
+                        const lockerSize = colIndex.lockerSize >= 0 ? (values[colIndex.lockerSize] || '').trim().toLowerCase() : '';
+                        const excludedVal = colIndex.excluded >= 0 ? (values[colIndex.excluded] || '').trim().toLowerCase() : '';
+                        const excluded = excludedVal === 'true' || excludedVal === 'yes' || excludedVal === '1';
+
+                        // Normalize IDs - handle Excel ="ID" format and extract just the digits
+                        // Also handles scientific notation (1.234E+12) by keeping original if it looks truncated
+                        productId = productId.replace(/^="?|"$/g, '').replace(/[^0-9]/g, '');
+                        variantId = variantId.replace(/^="?|"$/g, '').replace(/[^0-9]/g, '');
+
+                        // Find matching product/variant in loaded data
+                        let found = false;
+                        for (const product of productsData) {
+                            // Normalize product ID for comparison
+                            const prodIdStr = String(product.id).replace(/[^0-9]/g, '');
+
+                            for (const variant of product.variants) {
+                                const varIdStr = variant.id ? String(variant.id).replace(/[^0-9]/g, '') : '';
+
+                                // Match by product ID (required) and optionally variant ID
+                                const productMatches = productId && prodIdStr === productId;
+                                const variantMatches = !variantId || varIdStr === variantId;
+                                const matchByIds = productMatches && variantMatches;
+
+                                // Match by SKU (if provided)
+                                const matchBySku = sku && variant.sku && variant.sku.trim() === sku;
+
+                                if (matchByIds || matchBySku) {
+                                    // Update the variant data
+                                    if (length > 0) variant.length_inches = length;
+                                    if (width > 0) variant.width_inches = width;
+                                    if (height > 0) variant.height_inches = height;
+                                    if (lockerSize && ['small', 'medium', 'large', 'x-large'].includes(lockerSize)) {
+                                        variant.locker_size = lockerSize;
+                                    }
+                                    // Update excluded status if column exists in CSV
+                                    if (colIndex.excluded >= 0) {
+                                        variant.excluded = excluded;
+                                    }
+                                    found = true;
+                                    matched++;
+                                    break;
+                                }
+                            }
+                            if (found) break;
+                        }
+
+                        if (!found) {
+                            skipped++;
+                            if (skippedRows.length < 5) { // Only track first 5 for the alert
+                                skippedRows.push(`Row ${i + 1}: PID=${productId}, VID=${variantId}, SKU=${sku}`);
+                            }
+                        }
+                    }
+
+                    console.log('CSV Import complete:', { matched, skipped, skippedRows });
+
+                    // Re-render the products list with updated data
+                    renderProducts();
+
+                    // Show result
+                    let msg = `CSV Import Complete:\n\n✓ ${matched} product${matched !== 1 ? 's' : ''} matched and updated`;
+                    if (skipped > 0) {
+                        msg += `\n\n⚠ ${skipped} row${skipped !== 1 ? 's' : ''} skipped (no matching product found)`;
+                        if (skippedRows.length > 0) {
+                            msg += `\n\nSkipped rows:\n${skippedRows.join('\n')}`;
+                            if (skipped > 5) {
+                                msg += `\n... and ${skipped - 5} more`;
+                            }
+                        }
+                    }
+                    msg += `\n\nClick "Save All Changes" to save the imported sizes.`;
+                    alert(msg);
+
+                } catch (error) {
+                    console.error('CSV import error:', error);
+                    alert('Error parsing CSV: ' + error.message);
+                }
+
+                input.value = ''; // Reset file input
+            };
+
+            reader.readAsText(file);
+        }
+
+        // Parse a CSV line handling quoted fields
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                const nextChar = line[i + 1];
+
+                if (char === '"' && inQuotes && nextChar === '"') {
+                    current += '"';
+                    i++; // Skip next quote
+                } else if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
         }
 
         // ============================================
