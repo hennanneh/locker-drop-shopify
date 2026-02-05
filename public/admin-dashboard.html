@@ -4206,17 +4206,18 @@
 
         // Initialize
         window.onload = async function() {
-            // Validate token first
-            await validateToken();
-
-            // Check scopes for fulfillment permissions
-            checkScopes();
-
-            loadStats();
+            // Load dashboard data immediately (these only query our database)
             loadOrders();
+            loadStats();
             loadSubscription();
             loadSettings();
             updateRefreshTime();
+
+            // Validate Shopify token in background (don't block dashboard loading)
+            validateToken();
+
+            // Check scopes for fulfillment permissions
+            checkScopes();
 
             // Add event listener for free pickup checkbox
             const freePickupCheckbox = document.getElementById('free-pickup');
