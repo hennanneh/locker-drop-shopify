@@ -95,10 +95,11 @@
 
 ## Key Dependencies & Blockers
 
-- **Harbor Production Credentials:** Items 2, 10-12, 32 are blocked or dependent on Harbor production API access and answers to the email about error handling responsibilities.
-- **GraphQL Migration:** Item 5 (REST → GraphQL) is a hard Shopify requirement since April 2025. Touches many files — audit server.js and shopify.service.js for all REST calls.
-- **App Bridge + Embedded Experience:** Items 6-7 are related. The admin dashboard currently loads standalone. Shopify requires it embedded within Shopify Admin using App Bridge.
+- **Harbor Production Credentials:** Items 2, 10-12, 32 are blocked or dependent on Harbor production API access and answers to the email about error handling responsibilities. Email sent 2026-02-05, awaiting response.
+- ~~**GraphQL Migration:** Item 5 — RESOLVED. All REST Admin API calls migrated to GraphQL.~~
+- ~~**App Bridge + Embedded Experience:** Items 6-7 — RESOLVED. App Bridge added, embedded = true, dashboard redirects to Shopify Admin.~~
 - **Billing Decision:** Item 18 blocks item 19. Decide whether to keep $1/order shipping fee or activate subscriptions. Either way, must go through Shopify Billing API (1.2).
+- **SSL CA Certificate:** Item 8 code is done, but you still need to download the CA cert from DigitalOcean and set the `DB_CA_CERT` or `DB_CA_CERT_BASE64` env var on the server.
 
 ---
 
