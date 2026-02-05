@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Confirmation - {{ shop.name }}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f5; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding: 32px 40px; text-align: center; background-color: {{ shop.email_accent_color | default: '#5c6ac4' }};">
+              {% if shop.email_logo_url %}
+                <img src="{{ shop.email_logo_url }}" alt="{{ shop.name }}" style="max-height: 60px; max-width: 200px;">
+              {% else %}
+                <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">{{ shop.name }}</h1>
+              {% endif %}
+            </td>
+          </tr>
+
+          <!-- Order Confirmed -->
+          <tr>
+            <td style="padding: 40px 40px 20px; text-align: center;">
+              <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+                <table cellpadding="0" cellspacing="0"><tr>
+                  <td style="width: 64px; height: 64px; background-color: #dcfce7; border-radius: 50%; text-align: center; vertical-align: middle; font-size: 28px; line-height: 64px;">&#10003;</td>
+                </tr></table>
+              </td></tr></table>
+              <h1 style="margin: 16px 0 8px; color: #1a1a1a; font-size: 28px; font-weight: 600;">Order Confirmed</h1>
+              <p style="margin: 0; color: #6b7280; font-size: 16px;">Thank you for your order, {{ customer.first_name | default: "there" }}!</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 0 40px 30px; text-align: center;">
+              <p style="margin: 0; color: #6b7280; font-size: 14px;">Order {{ order_name }}</p>
+            </td>
+          </tr>
+
+          {% comment %}
+            =============================================
+            DETECT LOCKERDROP ORDER
+            =============================================
+            Priority 1: Read from order note_attributes (reliable, set by checkout extension)
+            Priority 2: Fallback to shipping line title parsing (backward compatibility)
+          {% endcomment %}
+          {% assign is_lockerdrop = false %}
+          {% assign lockerdrop_location = "" %}
+          {% assign lockerdrop_address = "" %}
+          {% assign lockerdrop_pickup_date = "" %}
+
+          {% comment %} Method 1: Read from note_attributes via the "attributes" hash {% endcomment %}
+          {% for attr in attributes %}
+            {% assign attr_name = attr | first %}
+            {% assign attr_value = attr | last %}
+            {% if attr_name == "LockerDrop Pickup" and attr_value != blank %}
+              {% assign is_lockerdrop = true %}
+              {% assign lockerdrop_raw = attr_value %}
+            {% endif %}
+          {% endfor %}
+
+          {% if is_lockerdrop %}
+            {% comment %}
+              Parse note_attribute value.
+              Format: "LockerDrop: Name (ID: 123)"
+              Or:     "LockerDrop: Name (ID: 123) | Pickup: 2026-02-10"
+            {% endcomment %}
+            {% if lockerdrop_raw contains " | Pickup: " %}
+              {% assign ld_parts = lockerdrop_raw | split: " | Pickup: " %}
+              {% assign lockerdrop_pickup_date = ld_parts | last %}
+              {% assign ld_main = ld_parts | first %}
+            {% else %}
+              {% assign ld_main = lockerdrop_raw %}
+            {% endif %}
+
+            {% assign ld_clean = ld_main | remove: "LockerDrop: " %}
+            {% if ld_clean contains " (ID:" %}
+              {% assign lockerdrop_location = ld_clean | split: " (ID:" | first %}
+            {% else %}
+              {% assign lockerdrop_location = ld_clean %}
+            {% endif %}
+
+            {% comment %} Supplement: get city/state from shipping line title if available {% endcomment %}
+            {% for shipping_method in shipping_lines %}
+              {% assign sl_lower = shipping_method.title | downcase %}
+              {% if sl_lower contains "lockerdrop" and shipping_method.title contains "@ " %}
+                {% assign ld_after_at = shipping_method.title | split: "@ " | last %}
+                {% if ld_after_at contains "(" %}
+                  {% assign ld_paren = ld_after_at | split: "(" | last | split: ")" | first %}
+                  {% if ld_paren != blank %}
+                    {% assign lockerdrop_address = ld_paren %}
+                  {% endif %}
+                {% endif %}
+                {% comment %} Also grab pickup date from title if not in note_attributes {% endcomment %}
+                {% if lockerdrop_pickup_date == blank or lockerdrop_pickup_date == "" %}
+                  {% if shipping_method.title contains " - Pickup " %}
+                    {% assign lockerdrop_pickup_date = shipping_method.title | split: " - Pickup " | last %}
+                  {% endif %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+
+          {% comment %} Method 2: Fallback — parse shipping line titles (backward compat) {% endcomment %}
+          {% unless is_lockerdrop %}
+            {% for shipping_method in shipping_lines %}
+              {% assign title_lower = shipping_method.title | downcase %}
+              {% if title_lower contains "lockerdrop" %}
+                {% assign is_lockerdrop = true %}
+
+                {% if shipping_method.title contains "@ " %}
+                  {% assign ld_after_at = shipping_method.title | split: "@ " | last %}
+
+                  {% comment %} Format: "LockerDrop @ Name (City, State) - Pickup Date" {% endcomment %}
+                  {% if ld_after_at contains " - Pickup " %}
+                    {% assign ld_name_part = ld_after_at | split: " - Pickup " | first %}
+                    {% assign lockerdrop_pickup_date = ld_after_at | split: " - Pickup " | last %}
+                  {% else %}
+                    {% assign ld_name_part = ld_after_at %}
+                  {% endif %}
+
+                  {% if ld_name_part contains "(" %}
+                    {% assign lockerdrop_location = ld_name_part | split: " (" | first %}
+                    {% assign lockerdrop_address = ld_name_part | split: "(" | last | split: ")" | first %}
+                  {% else %}
+                    {% assign lockerdrop_location = ld_name_part %}
+                  {% endif %}
+
+                {% elsif shipping_method.title contains " | " %}
+                  {% comment %} Legacy format: "LockerDrop @ Name | Address (Pickup Date)" {% endcomment %}
+                  {% assign after_at = shipping_method.title | split: "@ " | last %}
+                  {% assign parts = after_at | split: " | " %}
+                  {% assign lockerdrop_location = parts[0] %}
+                  {% assign address_date = parts[1] | split: " (Pickup " %}
+                  {% assign lockerdrop_address = address_date[0] %}
+                  {% assign lockerdrop_pickup_date = address_date[1] | remove: ")" %}
+
+                {% else %}
+                  {% comment %} Oldest format: "LockerDrop - Name (Pickup Date)" {% endcomment %}
+                  {% assign lockerdrop_location = shipping_method.title | remove: "LockerDrop - " | split: " (Pickup" | first %}
+                  {% assign lockerdrop_pickup_date = shipping_method.title | split: "(Pickup " | last | remove: ")" %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+          {% endunless %}
+
+          {% if is_lockerdrop %}
+          <!-- LockerDrop Pickup Section - SOLID BACKGROUND for email compatibility -->
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #5c6ac4; border-radius: 12px;">
+                <tr>
+                  <td style="padding: 24px;">
+                    <p style="margin: 0 0 4px; color: #c7d2fe; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Pickup Method</p>
+                    <h2 style="margin: 0 0 20px; color: #ffffff; font-size: 20px; font-weight: 600;">&#128230; LockerDrop Pickup</h2>
+                    <table width="100%" cellpadding="0" cellspacing="0" style="border-top: 1px solid #7c8adb;">
+                      <tr>
+                        <td width="50%" style="vertical-align: top; padding: 16px 12px 0 0;">
+                          <p style="margin: 0 0 4px; color: #c7d2fe; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Location</p>
+                          <p style="margin: 0; color: #ffffff; font-size: 16px; font-weight: 500;">{{ lockerdrop_location }}</p>
+                          {% if lockerdrop_address != blank and lockerdrop_address != "" %}
+                            <p style="margin: 4px 0 0; color: #e0e7ff; font-size: 13px;">{{ lockerdrop_address }}</p>
+                          {% endif %}
+                        </td>
+                        <td width="50%" style="vertical-align: top; padding: 16px 0 0 12px;">
+                          <p style="margin: 0 0 4px; color: #c7d2fe; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Pickup Date</p>
+                          <p style="margin: 0; color: #ffffff; font-size: 16px; font-weight: 500;">{{ lockerdrop_pickup_date }}</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- How It Works -->
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px; border-left: 4px solid #5c6ac4;">
+                <tr>
+                  <td style="padding: 20px;">
+                    <h3 style="margin: 0 0 16px; color: #1e293b; font-size: 16px; font-weight: 600;">How Locker Pickup Works</h3>
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr><td style="padding: 8px 0;">
+                        <table cellpadding="0" cellspacing="0"><tr>
+                          <td style="width: 28px; vertical-align: top;">
+                            <span style="display: inline-block; width: 22px; height: 22px; background-color: #5c6ac4; color: #ffffff; border-radius: 50%; text-align: center; line-height: 22px; font-size: 12px; font-weight: 700;">1</span>
+                          </td>
+                          <td style="color: #475569; font-size: 14px; line-height: 1.5; padding-left: 8px;"><strong style="color: #1e293b;">We'll prepare your order</strong> and drop it off at the locker</td>
+                        </tr></table>
+                      </td></tr>
+                      <tr><td style="padding: 8px 0;">
+                        <table cellpadding="0" cellspacing="0"><tr>
+                          <td style="width: 28px; vertical-align: top;">
+                            <span style="display: inline-block; width: 22px; height: 22px; background-color: #5c6ac4; color: #ffffff; border-radius: 50%; text-align: center; line-height: 22px; font-size: 12px; font-weight: 700;">2</span>
+                          </td>
+                          <td style="color: #475569; font-size: 14px; line-height: 1.5; padding-left: 8px;"><strong style="color: #1e293b;">You'll get a text and email</strong> with a link to open the locker</td>
+                        </tr></table>
+                      </td></tr>
+                      <tr><td style="padding: 8px 0;">
+                        <table cellpadding="0" cellspacing="0"><tr>
+                          <td style="width: 28px; vertical-align: top;">
+                            <span style="display: inline-block; width: 22px; height: 22px; background-color: #5c6ac4; color: #ffffff; border-radius: 50%; text-align: center; line-height: 22px; font-size: 12px; font-weight: 700;">3</span>
+                          </td>
+                          <td style="color: #475569; font-size: 14px; line-height: 1.5; padding-left: 8px;"><strong style="color: #1e293b;">Tap the link at the locker</strong> to open it and grab your package!</td>
+                        </tr></table>
+                      </td></tr>
+                    </table>
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 16px;"><tr>
+                      <td style="background-color: #fef3c7; border-radius: 6px; padding: 12px;">
+                        <p style="margin: 0; color: #92400e; font-size: 13px;">&#128161; <strong>Tip:</strong> The pickup link only works at the locker location. Make sure your phone has internet!</p>
+                      </td>
+                    </tr></table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          {% endif %}
+
+          <!-- Order Summary -->
+          <tr>
+            <td style="padding: 0 40px 16px;">
+              <h2 style="margin: 0; color: #1e293b; font-size: 18px; font-weight: 600; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px;">Order Summary</h2>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 0 40px 24px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                {% for line_item in line_items %}
+                <tr>
+                  <td style="padding: 12px 0; border-bottom: 1px solid #f1f5f9;">
+                    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                      <td width="60" style="vertical-align: top;">
+                        {% if line_item.image %}
+                          <img src="{{ line_item.image | img_url: 'compact_cropped' }}" alt="{{ line_item.title }}" style="width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0;">
+                        {% else %}
+                          <div style="width: 56px; height: 56px; background-color: #f1f5f9; border-radius: 6px;"></div>
+                        {% endif %}
+                      </td>
+                      <td style="vertical-align: top; padding-left: 12px;">
+                        <p style="margin: 0 0 4px; color: #1e293b; font-size: 14px; font-weight: 500;">{{ line_item.title }}</p>
+                        {% if line_item.variant_title != "Default Title" %}
+                          <p style="margin: 0 0 4px; color: #64748b; font-size: 13px;">{{ line_item.variant_title }}</p>
+                        {% endif %}
+                        <p style="margin: 0; color: #64748b; font-size: 13px;">Qty: {{ line_item.quantity }}</p>
+                      </td>
+                      <td style="vertical-align: top; text-align: right;">
+                        <p style="margin: 0; color: #1e293b; font-size: 14px; font-weight: 500;">{{ line_item.final_line_price | money }}</p>
+                      </td>
+                    </tr></table>
+                  </td>
+                </tr>
+                {% endfor %}
+              </table>
+            </td>
+          </tr>
+
+          <!-- Totals -->
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; border-radius: 8px;">
+                <tr><td style="padding: 12px 16px;">
+                  <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                    <td style="color: #64748b; font-size: 14px;">Subtotal</td>
+                    <td style="text-align: right; color: #1e293b; font-size: 14px;">{{ subtotal_price | money }}</td>
+                  </tr></table>
+                </td></tr>
+                {% for discount in discount_applications %}
+                <tr><td style="padding: 0 16px 12px;">
+                  <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                    <td style="color: #059669; font-size: 14px;">Discount ({{ discount.title }})</td>
+                    <td style="text-align: right; color: #059669; font-size: 14px;">-{{ discount.total_allocated_amount | money }}</td>
+                  </tr></table>
+                </td></tr>
+                {% endfor %}
+                <tr><td style="padding: 0 16px 12px;">
+                  <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                    <td style="color: #64748b; font-size: 14px;">{% if is_lockerdrop %}Locker Pickup{% else %}Shipping{% endif %}</td>
+                    <td style="text-align: right; color: #1e293b; font-size: 14px;">{% if shipping_price == 0 %}<span style="color: #059669; font-weight: 500;">FREE</span>{% else %}{{ shipping_price | money }}{% endif %}</td>
+                  </tr></table>
+                </td></tr>
+                {% if total_tax > 0 %}
+                <tr><td style="padding: 0 16px 12px;">
+                  <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                    <td style="color: #64748b; font-size: 14px;">Tax</td>
+                    <td style="text-align: right; color: #1e293b; font-size: 14px;">{{ total_tax | money }}</td>
+                  </tr></table>
+                </td></tr>
+                {% endif %}
+                <tr><td style="padding: 12px 16px; border-top: 1px solid #e2e8f0;">
+                  <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                    <td style="color: #1e293b; font-size: 16px; font-weight: 600;">Total</td>
+                    <td style="text-align: right; color: #1e293b; font-size: 18px; font-weight: 700;">{{ total_price | money }}</td>
+                  </tr></table>
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Contact & Location -->
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <table width="100%" cellpadding="0" cellspacing="0"><tr>
+                <td width="50%" style="vertical-align: top; padding-right: 20px;">
+                  <h3 style="margin: 0 0 12px; color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Contact</h3>
+                  <p style="margin: 0; color: #1e293b; font-size: 14px;">{{ email }}</p>
+                  {% if billing_address.phone %}<p style="margin: 4px 0 0; color: #475569; font-size: 14px;">{{ billing_address.phone }}</p>{% endif %}
+                </td>
+                <td width="50%" style="vertical-align: top; padding-left: 20px;">
+                  {% if is_lockerdrop %}
+                    <h3 style="margin: 0 0 12px; color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Pickup Location</h3>
+                    <p style="margin: 0; color: #1e293b; font-size: 14px; font-weight: 500;">{{ lockerdrop_location }}</p>
+                    {% if lockerdrop_address != blank and lockerdrop_address != "" %}
+                      <p style="margin: 4px 0 0; color: #475569; font-size: 14px;">{{ lockerdrop_address }}</p>
+                    {% endif %}
+                    <p style="margin: 4px 0 0; color: #5c6ac4; font-size: 13px; font-weight: 500;">&#128230; Locker Pickup</p>
+                  {% else %}
+                    <h3 style="margin: 0 0 12px; color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Ship To</h3>
+                    <p style="margin: 0; color: #1e293b; font-size: 14px; line-height: 1.6;">{{ shipping_address.name }}<br>{{ shipping_address.street }}<br>{{ shipping_address.city }}, {{ shipping_address.province_code }} {{ shipping_address.zip }}</p>
+                  {% endif %}
+                </td>
+              </tr></table>
+            </td>
+          </tr>
+
+          <!-- Payment -->
+          <tr>
+            <td style="padding: 0 40px 30px;">
+              <h3 style="margin: 0 0 12px; color: #64748b; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Payment</h3>
+              {% for transaction in transactions %}{% if transaction.status == "success" %}
+              <p style="margin: 0; color: #1e293b; font-size: 14px;">
+                {% if transaction.gateway_display_name == "shopify_payments" %}Card ending in {{ transaction.payment_details.credit_card_last_four_digits }}{% else %}{{ transaction.gateway_display_name | capitalize }}{% endif %} &mdash; <strong>{{ transaction.amount | money }}</strong>
+              </p>
+              {% endif %}{% endfor %}
+            </td>
+          </tr>
+
+          <!-- CTA Button -->
+          <tr>
+            <td style="padding: 0 40px 40px; text-align: center;">
+              <table cellpadding="0" cellspacing="0" style="margin: 0 auto;"><tr>
+                <td style="background-color: {{ shop.email_accent_color | default: '#5c6ac4' }}; border-radius: 6px;">
+                  <a href="{{ order_status_url }}" style="display: inline-block; color: #ffffff; padding: 14px 32px; text-decoration: none; font-size: 14px; font-weight: 600;">View Order Status</a>
+                </td>
+              </tr></table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 24px 40px; background-color: #f8fafc; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="margin: 0 0 8px; color: #64748b; font-size: 13px;">Questions? Contact us at {{ shop.email }}</p>
+              <p style="margin: 0; color: #94a3b8; font-size: 12px;">&copy; {{ 'now' | date: '%Y' }} {{ shop.name }}. All rights reserved.</p>
+              {% if is_lockerdrop %}<p style="margin: 12px 0 0; color: #94a3b8; font-size: 11px;">Locker pickup powered by LockerDrop</p>{% endif %}
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
