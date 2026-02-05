@@ -1269,12 +1269,18 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
-    <div class="header">
+    <div class="header" id="app-header">
         <div class="logo">🔐 LockerDrop.it</div>
         <div class="user-info">
             <span id="store-name"></span>
         </div>
     </div>
+    <script>
+        // Hide custom header when embedded in Shopify (App Bridge provides its own)
+        if (window.self !== window.top) {
+            document.getElementById('app-header').style.display = 'none';
+        }
+    </script>
 
     <!-- Reconnect Banner - shown when Shopify token is invalid -->
     <div id="reconnect-banner" style="display: none; background: #ffc107; color: #333; padding: 16px 24px; text-align: center; font-weight: 500;">
