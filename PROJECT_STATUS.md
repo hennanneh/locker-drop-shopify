@@ -1,7 +1,8 @@
-# PROJECT_STATUS.md — LockerDrop Shopify App
+# LockerDrop — Project Reference
 
 > Last Updated: 2026-02-05
 > Branch: `main`
+> See also: [UX_REVIEW.md](UX_REVIEW.md) | [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md)
 
 ---
 
@@ -13,6 +14,85 @@ LockerDrop is a Shopify app that enables merchants to offer smart locker pickup 
 **Stack:** Node.js / Express / PostgreSQL / Shopify Extensions (React + Liquid)
 **Logging:** pino (structured JSON in production, pretty-printed in dev)
 **Revenue Model:** Per-order fee ($1-$2 per locker transaction via Shopify usage-based billing)
+
+---
+
+## Architecture
+
+### System Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        CUSTOMER FLOW                             │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Customer visits Shopify store                               │
+│  2. Adds items to cart                                          │
+│  3. Enters shipping address                                     │
+│  4. Sees "LockerDrop Pickup - FREE" as shipping option          │
+│  5. Selects LockerDrop and completes purchase                   │
+│  6. Receives order confirmation with locker location + pickup   │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                        SELLER FLOW                               │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Seller receives order notification in admin dashboard       │
+│  2. Views order details (customer info, locker, drop-off link)  │
+│  3. Goes to locker location, opens drop-off link on phone       │
+│  4. Places package inside, closes door                          │
+│  5. System detects drop-off via Harbor callback                 │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                      CUSTOMER PICKUP                             │
+├─────────────────────────────────────────────────────────────────┤
+│  1. Customer receives "Ready for Pickup" email + SMS            │
+│  2. Goes to locker location, opens pickup link on phone         │
+│  3. Retrieves package, system auto-confirms pickup              │
+│  4. Locker released, Shopify order auto-fulfilled               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Technical Architecture
+
+```
+┌──────────────────┐
+│  Shopify Store   │
+│  (enna-test)     │
+└────────┬─────────┘
+         │ Customer selects LockerDrop shipping
+         ↓
+┌──────────────────────────────────────────────────────────────┐
+│                 APP SERVER (app.lockerdrop.it)                │
+├──────────────────────────────────────────────────────────────┤
+│  POST /carrier/rates          → Shipping rates at checkout   │
+│  GET  /admin/dashboard        → Seller dashboard             │
+│  GET  /api/*                  → REST API endpoints           │
+│  POST /webhooks/*             → Shopify + Harbor callbacks   │
+└────┬──────────────────────────────────────────────┬──────────┘
+     │                                               │
+     ↓                                               ↓
+┌──────────────────────────────┐  ┌────────────────────────────┐
+│   HARBOR LOCKERS API         │  │   POSTGRESQL DATABASE      │
+│   api.sandbox.harborlockers  │  │   - stores, orders         │
+│   .com                       │  │   - locker_preferences     │
+│   • dropoff/pickup requests  │  │   - shop_settings          │
+│   • locker availability      │  │   - product_locker_sizes   │
+│   • release lockers          │  │   - locker_events          │
+└──────────────────────────────┘  └────────────────────────────┘
+```
+
+### Order Creation Data Flow
+
+```
+Customer Places Order → Shopify fires orders/create webhook
+  → Server parses locker info from shipping address / note_attributes
+  → Saves order to DB (status: pending)
+  → Seller generates dropoff link → Harbor reserves locker (5-min exclusive)
+  → Seller drops off → Harbor callback → status: ready_for_pickup
+  → Email + SMS sent to customer with pickup link
+  → Customer picks up → Harbor callback → status: completed → locker released
+```
 
 ---
 
@@ -60,10 +140,6 @@ locker-drop-shopify/
 │       └── shopify.extension.toml
 │
 ├── disabled-extensions/               # Shopify Function (pickup points) — NOT DEPLOYED
-│   ├── src/index.js
-│   ├── src/fetch.js
-│   ├── src/run.js
-│   └── shopify.extension.toml
 │
 ├── public/
 │   ├── admin-dashboard.html           # Merchant dashboard (orders, lockers, settings, billing)
@@ -83,21 +159,17 @@ locker-drop-shopify/
 │       └── shopify-order-*.html       # Email template references
 │
 ├── docs/
-│   ├── SELLER_TRAINING_GUIDE.md
-│   ├── CUSTOMER_FAQ.md
-│   ├── FAQ.md
-│   ├── EMAIL_SETUP_GUIDE.md               # How merchants install the email template
-│   ├── email-template-order-confirmation.liquid  # Custom order confirmation email
-│   └── INCIDENT_RESPONSE_POLICY.md
+│   ├── SELLER_TRAINING_GUIDE.md       # Merchant education / how-to
+│   ├── CUSTOMER_FAQ.md                # Customer-facing FAQ
+│   ├── FAQ.md                         # Comprehensive seller + customer FAQ
+│   ├── EMAIL_SETUP_GUIDE.md           # How merchants install email template
+│   ├── email-template-order-confirmation.liquid
+│   ├── HARBOR_API_NOTES.md            # Harbor API behavior reference
+│   └── INCIDENT_RESPONSE_POLICY.md    # Security incident response plan
 │
-├── ARCHITECTURE.md
-├── BUILD_SUMMARY.md
-├── DEV_NOTES.md
-├── QUICK_START.md
-├── README.md
-├── UX_REVIEW.md
-├── ADMIN_SETUP_GUIDE.md
-└── FILES_MANIFEST.txt
+├── PROJECT_STATUS.md                  # This file — single source of truth
+├── UX_REVIEW.md                       # UI/UX documentation
+└── LAUNCH_CHECKLIST.md                # Task tracking / project management
 ```
 
 ---
@@ -325,9 +397,10 @@ locker-drop-shopify/
 
 ### Harbor Lockers API
 - **Auth:** OAuth 2.0 client credentials (token cached 4 min)
-- **Environment:** Sandbox (`api.sandbox.harborlockers.com`)
+- **Environment:** Sandbox (`api.sandbox.harborlockers.com`) — production keys available on request
 - **Operations:** Create dropoff/pickup requests, release lockers, check availability, list locations, manage deliveries
 - **Locker sizes:** small (1), medium (2), large (3), xlarge (4)
+- **Key behaviors:** 5-min exclusive reservation on dropoff, retry same link works, built-in "doesn't fit" flow — see `docs/HARBOR_API_NOTES.md`
 
 ### Shopify Admin API
 - **Version:** 2025-10 (GraphQL Admin API)
@@ -360,6 +433,7 @@ locker-drop-shopify/
 - **Where:** Checkout page, after shipping address
 - **What:** Displays nearby locker options as cards with distance, availability, and date picker
 - **Tech:** React (JSX), Shopify Checkout UI Extensions API
+- **Deploy:** `shopify app deploy` (requires Shopify Plus for checkout extensions)
 
 ### 2. lockerdrop-order-block (Admin UI Extension)
 - **Where:** Shopify Admin → Order Details page
@@ -375,13 +449,37 @@ locker-drop-shopify/
 - **cart-pickup-reminder:** Cart page reminder about locker pickup option
 - **how-it-works:** Compact 3-step explanation block
 - **how-it-works-page:** Full page with steps, benefits, and interactive locker finder map
-- **locker-finder:** Standalone map + zip code search
+- **locker-finder:** Standalone map + zip code search (Leaflet.js + OpenStreetMap)
 - **product-pickup-badge:** Product page badge showing locker eligibility
 - **promo-banner:** Promotional banner for any page
+- All blocks use merchant-customizable accent colors and real Harbor location data
 
 ### 5. disabled-extensions (Shopify Function — NOT DEPLOYED)
 - **What:** Alternative approach using native Shopify pickup points (Function API)
 - **Status:** Disabled, in `disabled-extensions/` directory
+
+---
+
+## Public Website
+
+### Landing Page (lockerdrop.it)
+- Marketing page with animated hero section, orange brand color scheme
+- Interactive locker finder with Leaflet.js map (350+ Harbor locations)
+- Email waitlist signup form (stored in `waitlist` PostgreSQL table)
+- Mobile responsive design
+
+### Locker Finder API
+- **Endpoint:** `GET /api/public/lockers?lat=X&lon=Y&limit=8`
+- **Data Source:** Static JSON (`/public/harbor-locations.json`) with 350+ locations
+- Search by zip code (geocoded via zippopotam.us), interactive map, distance-sorted
+
+### URL Routing
+| URL | Purpose |
+|-----|---------|
+| `lockerdrop.it` | Public landing/marketing page |
+| `app.lockerdrop.it/?shop=X` | Redirects to admin dashboard |
+| `app.lockerdrop.it/admin/dashboard` | Seller admin dashboard (embedded in Shopify Admin) |
+| `app.lockerdrop.it/api/*` | API endpoints |
 
 ---
 
@@ -421,33 +519,40 @@ locker-drop-shopify/
 
 ---
 
-## Known Issues & TODOs
+## Key Business Logic
 
-### Architecture / Technical Debt
-- **Monolithic server.js (~7500 lines)** — all routes, middleware, and business logic in one file; needs refactoring into modular route files
-- **Sandbox Harbor API hardcoded** — `api.sandbox.harborlockers.com` is hardcoded; blocked pending production credentials from Harbor
+### Locker Size Mapping
+| Size | ID | Max Dimensions (L x W x H) |
+|------|----|-----------------------------|
+| Small | 1 | 12" x 8" x 4" |
+| Medium | 2 | 16" x 12" x 8" |
+| Large | 3 | 20" x 16" x 12" |
+| X-Large | 4 | 24" x 20" x 16" |
 
-### Billing / Revenue
-- **Subscription system built but bypassed** — per-order fee ($1-$2) is the launch model; subscription tiers exist in code but are not enforced
-- **Need to implement Shopify `usageRecordCreate`** — to properly charge per-order via Shopify Billing API
+### Order Lifecycle
+```
+pending → pending_dropoff → dropped_off → ready_for_pickup → completed
+                                                            → cancelled (at any point)
+                                                            → expired (auto, after hold_time_days)
+```
 
-### Missing Functionality
-- **No returns support** — customer FAQ states returns are "not available yet"
-- **No multi-package orders** — cannot split an order across multiple lockers
-- **No volume-based size calculation** — only uses basic weight/dimensions, not cubic volume
+### Fulfillment Flow
+1. Customer selects locker at checkout (carrier rates or checkout extension)
+2. Order created in Shopify → webhook fires → order saved in DB
+3. Seller sees order in dashboard → generates dropoff link → drops off package
+4. Dropoff callback → status set to `ready_for_pickup` → email/SMS sent to customer
+5. Customer clicks pickup link → locker opens → picks up package
+6. Pickup callback → status set to `completed` → locker released → Shopify order fulfilled
 
-### Operational
-- **Geocoding dependency** — relies on external OpenStreetMap Nominatim API (rate-limited, no API key)
-- **No automated tests** — no test files or test framework configured
-- **No CI/CD pipeline** — no GitHub Actions or deployment automation
-
-### Security Considerations
-- **Access token stored in plaintext** — Shopify tokens stored as plain TEXT in database
-- **No CSRF protection** — POST endpoints rely on session + HMAC but no CSRF tokens
+### Distance Filtering
+- Geocodes customer zip code via OpenStreetMap
+- Haversine formula for distance calculation
+- Filters to within 100 miles of customer
+- Returns top 5 nearest locations with availability
 
 ---
 
-## Environment Variables Required
+## Environment Variables
 
 ```
 # Shopify
@@ -488,6 +593,116 @@ LOG_LEVEL=info                     # pino log level (trace/debug/info/warn/error
 
 ---
 
+## Developer Guide
+
+### Server Commands
+```bash
+npm install          # Install dependencies
+npm start            # Production (node server.js)
+npm run dev          # Development with auto-reload (nodemon)
+shopify app deploy   # Deploy Shopify extensions
+```
+
+### Server Environment
+- **Server:** root@138.197.216.202 (DigitalOcean)
+- **Process manager:** PM2 (`pm2 restart lockerdrop`, `pm2 logs lockerdrop --lines 100`)
+- **Harbor sandbox tower:** `0100000000000175`
+- **Test store:** `enna-test.myshopify.com`
+
+### Testing
+
+**Test store checkout:**
+1. Go to dev store, add product to cart
+2. Proceed to checkout, enter shipping address
+3. Verify "LockerDrop Pickup" appears as shipping option
+4. Complete order, check server logs for webhook
+
+**Testing checklist:**
+- [ ] Dashboard loads at `/admin/dashboard?shop=enna-test.myshopify.com`
+- [ ] Orders tab displays with filtering
+- [ ] My Lockers tab loads Harbor locations
+- [ ] Product Sizes tab shows products with size inputs
+- [ ] Settings tab saves changes
+- [ ] Test order places and appears in dashboard
+- [ ] Dropoff link opens Harbor locker flow
+
+**Harbor API test:**
+```bash
+# Get Harbor token
+curl -X POST "https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token" \
+  -d "grant_type=client_credentials&scope=service_provider&client_id=$HARBOR_CLIENT_ID&client_secret=$HARBOR_CLIENT_SECRET"
+
+# Check locker availability
+curl -X GET "https://api.sandbox.harborlockers.com/api/v1/towers/0100000000000175/locker-availability" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Troubleshooting
+
+**Dashboard shows blank page:**
+1. Check browser console (F12) for errors
+2. Verify server is running (`pm2 status`)
+3. Check server logs (`pm2 logs lockerdrop`)
+
+**"Shop parameter missing" error:**
+Add `?shop=enna-test.myshopify.com` to the URL
+
+**Lockers not loading:**
+1. Check Harbor API credentials in `.env`
+2. Test Harbor token endpoint (see curl above)
+3. Check server logs for API errors
+
+**LockerDrop not showing at checkout:**
+1. Verify carrier service is registered (check Shopify admin > Settings > Shipping)
+2. Make sure the test address is within 100 miles of an enabled locker
+3. Check ngrok/server URL hasn't changed
+
+---
+
+## User Flows (Step-by-Step)
+
+### Seller Flow
+
+| # | Step | Status | Files |
+|---|------|--------|-------|
+| 1 | **App Install** — Merchant clicks install link, redirected to Shopify OAuth consent screen | Implemented | `routes/auth.js` → `GET /auth/install` |
+| 2 | **OAuth Callback** — Shopify redirects back with auth code; app exchanges for access token, saves to DB, registers webhooks and carrier service | Implemented | `routes/auth.js` → `GET /auth/callback` → `services/shopify.service.js` |
+| 3 | **Dashboard Load** — Merchant visits `/admin/dashboard`; app verifies session/HMAC, serves dashboard HTML | Implemented | `server.js` → `public/admin-dashboard.html` |
+| 4 | **Onboarding Wizard** — If no lockers configured, 3-step wizard: Welcome → Select Lockers → Done | Implemented | `public/admin-dashboard.html` |
+| 5 | **Configure Lockers** — Search lockers by city/zip, enable/disable, view real-time availability | Implemented | My Lockers tab → `GET /api/lockers/:shop` |
+| 6 | **Configure Products** — Set product dimensions or locker size; exclude products; CSV import/export | Implemented | Product Sizes tab → `GET/POST /api/product-sizes/:shop` |
+| 7 | **Configure Settings** — Free pickup, processing days, fulfillment days, vacation days, hold time | Implemented | Settings tab → `GET/POST /api/settings/:shop` |
+| 8 | **Configure Branding** — Logo, primary color, success message, upsell products | Implemented | Settings tab → `GET/POST /api/branding/:shop` |
+| 9 | **Receive Order** — Customer places order → webhook → order saved with locker details | Implemented | `POST /webhooks/orders/create` |
+| 10 | **View Orders** — Orders appear in dashboard with status badges, filtering, search | Implemented | Orders tab → `GET /api/orders/:shop` |
+| 11 | **Generate Drop-off Link** — Creates Harbor dropoff request → returns secure URL | Implemented | `POST /api/generate-dropoff-link/:shop` |
+| 12 | **Drop Off Item** — Seller opens link → Harbor locker opens → places package | Implemented | Harbor handles physical interaction |
+| 13 | **Drop-off Callback** — Marks ready_for_pickup → generates pickup link → emails/SMS customer | Implemented | `POST /api/dropoff-complete` |
+| 14 | **Customer Picks Up** — Customer clicks pickup link → locker opens → takes package | Implemented | Harbor handles physical interaction |
+| 15 | **Pickup Callback** — Marks completed → releases locker → auto-fulfills Shopify order | Implemented | `POST /api/pickup-complete` |
+| 16 | **Manual Order** — Create orders manually from dashboard (non-Shopify sales) | Implemented | `POST /api/manual-order/:shop` |
+| 17 | **Resend Notification** — Resend pickup email/SMS from dashboard | Implemented | `POST /api/resend-notification/:orderNumber` |
+| 18 | **Cancel Order** — Cancel locker assignment, release back to Harbor | Implemented | `POST /api/cancel-locker/:shop/:orderId` |
+
+### Buyer Flow
+
+| # | Step | Status | Files |
+|---|------|--------|-------|
+| 1 | **Browse Store** — Product pages can show "Locker Pickup Available" badge | Implemented | `product-pickup-badge.liquid` |
+| 2 | **Add to Cart** — Cart can show locker pickup reminder | Implemented | `cart-pickup-reminder.liquid` |
+| 3 | **Checkout (Carrier Service)** — Locker locations appear as shipping options based on address, product sizes, availability | Implemented | `POST /carrier/rates` |
+| 4 | **Checkout (Extension)** — Interactive locker cards with distance, availability, date picker | Implemented | `Checkout.jsx` |
+| 5 | **Place Order** — Shopify creates order with locker info → webhook saves to DB | Implemented | `POST /webhooks/orders/create` |
+| 6 | **Thank You Page** — Confirmation with locker location, pickup date, 3-step instructions | Implemented | `ThankYou.js` |
+| 7 | **Order Status Page** — Live progress (Preparing → Ready → Picked Up) with pickup link | Implemented | `OrderStatus.js` |
+| 8 | **Pickup Notification** — Email + SMS with pickup link when seller drops off | Implemented | `POST /api/dropoff-complete` |
+| 9 | **Change Pickup Date** — 3-step verified flow via link in email | Implemented | `change-pickup-date.html` |
+| 10 | **Pick Up Item** — Open pickup link → locker opens → retrieve package | Implemented | Harbor handles |
+| 11 | **Pickup Success Page** — Branded confirmation with optional upsell products | Implemented | `pickup-success.html` |
+| 12 | **Auto-Fulfill** — Shopify order marked as fulfilled after pickup | Implemented | Shopify Fulfillment API |
+
+---
+
 ## Revenue Model
 
 **Launch model:** Per-order fee ($1-$2 per locker transaction) via Shopify usage-based billing (`appSubscriptionCreate` with usage line item + `usageRecordCreate` after each order). Zero cost to install — merchants only pay when customers use locker pickup.
@@ -501,115 +716,61 @@ LOG_LEVEL=info                     # pino log level (trace/debug/info/warn/error
 
 ---
 
-## Key Business Logic
+## Known Issues & TODOs
 
-### Locker Size Mapping
-| Size | ID | Max Dimensions (L x W x H) |
-|------|----|-----------------------------|
-| Small | 1 | 12" x 8" x 4" |
-| Medium | 2 | 16" x 12" x 8" |
-| Large | 3 | 20" x 16" x 12" |
-| X-Large | 4 | 24" x 20" x 16" |
+### Architecture / Technical Debt
+- **Monolithic server.js (~7500 lines)** — all routes, middleware, and business logic in one file; needs refactoring into modular route files
+- **Sandbox Harbor API hardcoded** — ~50 `api.sandbox.harborlockers.com` + ~22 `accounts.sandbox.harborlockers.com` URLs hardcoded in server.js; need to use env vars before production switch
 
-### Order Lifecycle
-```
-pending → pending_dropoff → dropped_off → ready_for_pickup → completed
-                                                            → cancelled (at any point)
-                                                            → expired (auto, after hold_time_days)
-```
+### Billing / Revenue
+- **Subscription system built but bypassed** — per-order fee ($1-$2) is the launch model; subscription tiers exist in code but are not enforced
+- **Need to implement Shopify `usageRecordCreate`** — to properly charge per-order via Shopify Billing API
 
-### Fulfillment Flow
-1. Customer selects locker at checkout (carrier rates or checkout extension)
-2. Order created in Shopify → webhook fires → order saved in DB
-3. Seller sees order in dashboard → generates dropoff link → drops off package
-4. Dropoff callback → status set to `ready_for_pickup` → email/SMS sent to customer
-5. Customer clicks pickup link → locker opens → picks up package
-6. Pickup callback → status set to `completed` → locker released → Shopify order fulfilled
+### Missing Functionality
+- **No returns support** — customer FAQ states returns are "not available yet"
+- **No multi-package orders** — cannot split an order across multiple lockers
+- **No super admin dashboard** — cross-store analytics, revenue reports, locker utilization (future feature)
 
-### Distance Filtering
-- Geocodes customer zip code via OpenStreetMap
-- Haversine formula for distance calculation
-- Filters to within 100 miles of customer
-- Returns top 5 nearest locations with availability
+### Operational
+- **Geocoding dependency** — relies on external OpenStreetMap Nominatim API (rate-limited, no API key)
+- **No automated tests** — no test files or test framework configured
+- **No CI/CD pipeline** — no GitHub Actions or deployment automation
+
+### Security Considerations
+- **Access token stored in plaintext** — Shopify tokens stored as plain TEXT in database
+- **No CSRF protection** — POST endpoints rely on session + HMAC but no CSRF tokens
 
 ---
 
-## User Flows (Step-by-Step)
+## Recently Completed (February 2026)
 
-### Seller Flow
+| Feature | Checklist Item | Notes |
+|---------|---------------|-------|
+| App uninstall cleanup | #1 | Releases lockers, deletes all shop data |
+| Hardcoded locker ID removed | #3 | All 4 instances of ID 329 removed |
+| PostgreSQL session store | #4 | `connect-pg-simple` sessions |
+| GraphQL migration | #5 | All REST Admin API calls → GraphQL |
+| App Bridge + embedded | #6-7 | CDN script, embedded=true, redirects |
+| SSL certificate validation | #8 | CA cert loaded from env var |
+| Harbor Q&A answered | #9 | See `docs/HARBOR_API_NOTES.md` |
+| Rate limiting | #13 | 3 tiers via `express-rate-limit` |
+| Locker expiry automation | #14 | `node-cron` every 6 hours |
+| Order update sync | #15 | `ORDERS_UPDATED` webhook |
+| Structured logging | #16 | pino replaces all console.log/error |
+| Frontend error tracking | #17 | Backend endpoint + client handlers |
+| Custom email template | — | `docs/email-template-order-confirmation.liquid` |
 
-| # | Step | Status | Files |
-|---|------|--------|-------|
-| 1 | **App Install** — Merchant clicks install link, redirected to Shopify OAuth consent screen | Implemented | `routes/auth.js` → `GET /auth/install` constructs OAuth URL with scopes and redirects to Shopify |
-| 2 | **OAuth Callback** — Shopify redirects back with auth code; app exchanges for access token, saves to DB, registers webhooks (`orders/create`, `orders/cancelled`) and carrier service | Implemented | `routes/auth.js` → `GET /auth/callback` → calls `services/shopify.service.js` (registerCarrierService, registerWebhooks) → saves token to `stores` table via `db.js` |
-| 3 | **Dashboard Load** — Merchant visits `/admin/dashboard`; app verifies session/HMAC, serves dashboard HTML; dashboard JS fetches stats, orders, settings, locker preferences | Implemented | `server.js` → `GET /admin/dashboard` (auth check + serve HTML) → `public/admin-dashboard.html` (JS calls `/api/stats/:shop`, `/api/orders/:shop`, `/api/settings/:shop`, `/api/locker-preferences/:shop`, `/api/subscription/:shop`) |
-| 4 | **Onboarding Wizard** — If no lockers configured, 3-step wizard appears: Welcome → Select Lockers → Done | Implemented | `public/admin-dashboard.html` (onboarding modal with map, locker search, and save) → `POST /api/locker-preferences/:shop` in `server.js` |
-| 5 | **Configure Lockers** — Merchant searches lockers by city/zip on "My Lockers" tab, enables/disables locations, views real-time availability | Implemented | `public/admin-dashboard.html` (My Lockers tab) → `server.js` → `GET /api/lockers/:shop` (search + filter + paginate), `GET /api/locker-availability/:shop` → `services/harbor.services.js` (getLocationAvailability) |
-| 6 | **Configure Products** — Merchant sets product dimensions or selects locker size per product; can exclude products from LockerDrop; CSV import/export | Implemented | `public/admin-dashboard.html` (Product Sizes tab) → `server.js` → `GET /api/products/:shop` (fetches from Shopify via GraphQL), `GET/POST /api/product-sizes/:shop` → `product_locker_sizes` table |
-| 7 | **Configure Settings** — Free pickup toggle, processing days, fulfillment days (M-F), vacation days, hold time | Implemented | `public/admin-dashboard.html` (Settings tab) → `server.js` → `GET/POST /api/settings/:shop` → `shop_settings` table |
-| 8 | **Configure Branding** (Enterprise) — Upload logo, set primary color, custom success message, upsell products | Implemented | `public/admin-dashboard.html` (Settings tab, branding section) → `server.js` → `GET/POST /api/branding/:shop`, `POST /api/branding/:shop/logo` (multer upload) |
-| 9 | **Receive Order** — Customer places order with locker pickup → Shopify fires `orders/create` webhook → app saves order to DB with locker details from shipping address | Implemented | `server.js` → `POST /webhooks/orders/create` → parses locker info from `shipping_address.address2` or note attributes → inserts into `orders` table, status = `pending` |
-| 10 | **View Order in Dashboard** — Order appears in Orders tab with status badge, locker location, customer info; seller can filter/sort | Implemented | `public/admin-dashboard.html` (Orders tab) → `server.js` → `GET /api/orders/:shop` |
-| 11 | **Generate Drop-off Link** — Seller clicks "Drop off" button on order → app creates Harbor dropoff request → returns secure URL | Implemented | `public/admin-dashboard.html` (dropoff button) → `server.js` → `POST /api/generate-dropoff-link/:shop` → `services/harbor.services.js` (createDropoffRequest) → saves `dropoff_link` + `dropoff_request_id` to `orders` table, status → `pending_dropoff` |
-| 12 | **Drop Off Item** — Seller opens dropoff link → Harbor locker opens → seller places package inside → locker closes | Implemented (Harbor handles physical interaction) | Seller's browser opens Harbor URL → Harbor API manages locker open/close → Harbor redirects to `GET /dropoff-success` |
-| 13 | **Drop-off Callback** — App receives confirmation → marks order `ready_for_pickup` → generates pickup link → sends email + SMS to customer | Implemented | `server.js` → `POST /api/dropoff-complete` (receives locker_id, tower_id from callback URL params) → `services/harbor.services.js` (createPickupRequest) → Resend email + Twilio SMS → `public/dropoff-success.html` shown to seller |
-| 14 | **Customer Picks Up** — Customer clicks pickup link → locker opens → takes package → locker closes | Implemented (Harbor handles physical interaction) | Customer's browser opens Harbor URL → Harbor redirects to `GET /pickup-success` |
-| 15 | **Pickup Callback** — App receives confirmation → marks order `completed` → releases locker in Harbor → auto-fulfills order in Shopify | Implemented | `server.js` → `POST /api/pickup-complete` → `services/harbor.services.js` (releaseLocker) → `services/shopify.service.js` (fulfillShopifyOrder via Fulfillment API) → `public/pickup-success.html` shown to customer |
-| 16 | **Manual Order Creation** — Seller can create orders manually from dashboard (not from Shopify checkout) | Implemented | `public/admin-dashboard.html` (manual order modal) → `server.js` → `POST /api/manual-order/:shop` |
-| 17 | **Resend Notification** — Seller can resend pickup email/SMS from dashboard | Implemented | `public/admin-dashboard.html` (resend button) → `server.js` → `POST /api/resend-notification/:orderNumber` |
-| 18 | **Cancel Order** — Seller cancels locker assignment, releases locker back to Harbor | Implemented | `public/admin-dashboard.html` (cancel button) → `server.js` → `POST /api/cancel-locker/:shop/:orderId` → `services/harbor.services.js` (releaseLocker) |
-| 19 | **Subscription Management** — View plan, upgrade, cancel | Implemented (but billing enforcement bypassed) | `public/admin-dashboard.html` (Billing tab) → `server.js` → `GET /api/subscription/:shop`, `POST /api/subscribe/:shop` → Shopify GraphQL (appSubscriptionCreate) |
+---
 
-### Buyer Flow
+## Related Documentation
 
-| # | Step | Status | Files |
-|---|------|--------|-------|
-| 1 | **Browse Store** — Customer browses Shopify storefront; product pages can show "Locker Pickup Available" badge | Implemented | `extensions/lockerdrop-theme/blocks/product-pickup-badge.liquid` (theme block, merchant must add to theme) |
-| 2 | **Add to Cart** — Customer adds items to cart; cart page can show locker pickup reminder | Implemented | `extensions/lockerdrop-theme/blocks/cart-pickup-reminder.liquid` (theme block, merchant must add to theme) |
-| 3 | **Checkout — Shipping Rates (Carrier Service path)** — Shopify calls carrier service → app returns locker locations as shipping options based on customer address, product sizes, and availability | Implemented | `routes/carrier.js` → `POST /carrier/rates` → calculates required locker size from cart items → queries `product_locker_sizes` → geocodes destination → `services/harbor.services.js` (getLocations, getLocationAvailability) → filters by distance (100mi) and size → returns top 5 as rate options |
-| 4 | **Checkout — Locker Selection (Checkout Extension path)** — Interactive UI in checkout: shows locker cards with distance + availability, date picker | Implemented | `extensions/lockerdrop-checkout/src/Checkout.jsx` → calls `GET /api/checkout/lockers` (server.js) → displays locker cards, auto-selects nearest → date picker calls `GET /api/available-pickup-dates/:shop` → selected locker written to shipping address `address2` field |
-| 5 | **Place Order** — Customer completes checkout; Shopify creates order with locker info in shipping address | Implemented | Standard Shopify checkout → fires `orders/create` webhook → `server.js` → `POST /webhooks/orders/create` → order saved to `orders` table |
-| 6 | **Thank You Page** — Confirmation with locker location, expected pickup date, and 3-step instructions | Implemented | `extensions/lockerdrop-thankyou/src/ThankYou.js` → calls `GET /api/customer/order-status/:orderId` (with retry logic, 6 attempts) → renders confirmation card with location, date, and steps |
-| 7 | **Order Status Page** — In customer account, shows live order progress (Preparing → Ready → Picked Up) with status badges | Implemented | `extensions/lockerdrop-thankyou/src/OrderStatus.js` → calls `GET /api/customer/order-status/:orderId` → renders progress steps and pickup link when ready |
-| 8 | **Receive Pickup Notification** — Customer gets email + SMS with pickup link when seller drops off package | Implemented | `server.js` → `POST /api/dropoff-complete` triggers Resend email + Twilio SMS with pickup link and locker location details |
-| 9 | **Change Pickup Date** (optional) — Customer can reschedule via link in email → verify email → select new date | Implemented | `public/change-pickup-date.html` (3-step flow) → `server.js` → `GET /api/order-pickup-details/:orderNumber`, `POST /api/verify-order-email/:orderNumber`, `GET /api/available-pickup-dates/:shop`, `POST /api/update-pickup-date/:shop/:orderNumber` |
-| 10 | **Pick Up Item** — Customer opens pickup link → Harbor locker opens → customer retrieves package | Implemented (Harbor handles physical interaction) | Customer opens Harbor pickup URL → Harbor opens locker → redirects to `/pickup-success` |
-| 11 | **Pickup Success Page** — Branded confirmation page with order number, optional upsell products | Implemented | `public/pickup-success.html` → calls `POST /api/pickup-complete` + `GET /api/branding/:shop` + `GET /api/upsell-products/:shop` → displays success with optional brand customization and upsell grid |
-| 12 | **Order Fulfilled in Shopify** — Shopify order automatically marked as fulfilled after pickup | Implemented | `server.js` → pickup-complete handler → `services/shopify.service.js` → Shopify Fulfillment API (`POST /admin/api/fulfillments.json`) |
-
-### Supplemental Flows
-
-| Flow | Status | Files |
-|------|--------|-------|
-| **Locker Finder (public)** — Anyone can search for nearby lockers via theme block or landing page | Implemented | `extensions/lockerdrop-theme/blocks/locker-finder.liquid`, `extensions/lockerdrop-theme/blocks/how-it-works-page.liquid`, `public/landing.html` → `GET /api/public/lockers` + Zippopotam.us geocoding |
-| **Admin Order Block** — Shopify admin sees locker status on order detail page | Implemented | `extensions/lockerdrop-order-block/src/OrderDetailsBlock.jsx` → `GET /api/order-locker-data/:shopifyOrderId` |
-| **Token Re-auth** — When Shopify token expires, dashboard shows re-auth prompt | Implemented | `server.js` → `GET /api/validate-token/:shop`, `GET /auth/reconnect` |
-| **Order Sync** — Backfill past orders from Shopify into LockerDrop DB | Implemented | `server.js` → `GET /api/sync-orders/:shop` |
-| **Emergency Locker Open** — Admin can force-open a locker | Implemented | `server.js` → `POST /api/emergency-open/:shop` |
-| **Waitlist Signup** — Landing page email collection | Implemented | `public/landing.html` → `server.js` → `GET /api/waitlist` |
-
-### Not Implemented / Gaps
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| **Returns via locker** | Not started | Customer FAQ says "not available yet" |
-| **Multi-package orders** | Not started | No support for splitting an order across multiple lockers |
-| **Automated tests** | Not started | No test framework or test files |
-| **CI/CD pipeline** | Not started | No deployment automation |
-| **Production Harbor API** | Blocked | Awaiting production credentials from Harbor (email sent 2026-02-05) |
-
-### Recently Completed (February 2026)
-
-| Feature | Item | Notes |
-|---------|------|-------|
-| **App uninstall cleanup** | #1 | Releases lockers, deletes all shop data |
-| **Hardcoded locker ID removed** | #3 | All 4 instances of ID 329 removed |
-| **PostgreSQL session store** | #4 | `connect-pg-simple` sessions |
-| **GraphQL migration** | #5 | All REST Admin API calls → GraphQL |
-| **App Bridge + embedded** | #6-7 | CDN script, embedded=true, redirects |
-| **SSL certificate validation** | #8 | CA cert loaded from env var |
-| **Rate limiting** | #13 | 3 tiers via `express-rate-limit` |
-| **Locker expiry automation** | #14 | `node-cron` every 6 hours |
-| **Order update sync** | #15 | `ORDERS_UPDATED` webhook |
-| **Structured logging** | #16 | pino replaces all console.log/error |
-| **Frontend error tracking** | #17 | Backend endpoint + client handlers |
+| File | Purpose |
+|------|---------|
+| [UX_REVIEW.md](UX_REVIEW.md) | Dashboard UI/UX, checkout extension, order modal details |
+| [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md) | Task tracking, priorities, blockers, execution order |
+| [docs/HARBOR_API_NOTES.md](docs/HARBOR_API_NOTES.md) | Harbor API behaviors (reservations, retries, production switch) |
+| [docs/SELLER_TRAINING_GUIDE.md](docs/SELLER_TRAINING_GUIDE.md) | Merchant education and how-to guides |
+| [docs/FAQ.md](docs/FAQ.md) | Comprehensive FAQ (seller + customer questions) |
+| [docs/CUSTOMER_FAQ.md](docs/CUSTOMER_FAQ.md) | Customer-facing FAQ |
+| [docs/EMAIL_SETUP_GUIDE.md](docs/EMAIL_SETUP_GUIDE.md) | Email template installation for merchants |
+| [docs/INCIDENT_RESPONSE_POLICY.md](docs/INCIDENT_RESPONSE_POLICY.md) | Security incident response plan |
