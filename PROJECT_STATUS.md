@@ -297,6 +297,9 @@ locker-drop-shopify/
 | POST | `/webhooks/orders/updated` | Shopify webhook — sync customer info, detect external fulfillment |
 | POST | `/webhooks/orders/cancelled` | Shopify webhook — handle cancellations |
 | POST | `/webhooks/app/uninstalled` | Shopify webhook — clean up shop data, release lockers |
+| POST | `/webhooks/customers/data_request` | GDPR — customer requests data export |
+| POST | `/webhooks/customers/redact` | GDPR — anonymize customer PII in orders |
+| POST | `/webhooks/shop/redact` | GDPR — delete all shop data (48hrs post-uninstall) |
 | GET | `/api/orders/:shop` | List all orders for a shop |
 | GET | `/api/sync-orders/:shop` | Manually sync past orders from Shopify |
 | GET | `/api/order-locker-data/:shopifyOrderId` | Get locker data for admin order block |
@@ -516,6 +519,7 @@ locker-drop-shopify/
 29. **SSL certificate validation** — CA cert loaded from `DB_CA_CERT` file path or `DB_CA_CERT_BASE64` env var
 30. **Embedded app experience** — dashboard redirects to Shopify Admin when accessed directly, App Bridge loaded from CDN
 31. **Custom email template** — order confirmation reads from `note_attributes`, with shipping line fallback; `docs/email-template-order-confirmation.liquid`
+32. **GDPR compliance webhooks** — `customers/data_request` (query for export), `customers/redact` (anonymize PII), `shop/redact` (full cleanup); declared in `shopify.app.toml`
 
 ---
 
@@ -759,6 +763,7 @@ Add `?shop=enna-test.myshopify.com` to the URL
 | Structured logging | #16 | pino replaces all console.log/error |
 | Frontend error tracking | #17 | Backend endpoint + client handlers |
 | Custom email template | — | `docs/email-template-order-confirmation.liquid` |
+| GDPR compliance webhooks | #38 | `customers/data_request`, `customers/redact`, `shop/redact` |
 
 ---
 
