@@ -10,7 +10,7 @@
 
 | Priority | Count | Done | Description |
 |----------|-------|------|-------------|
-| 🔴 CRITICAL | 9 | 4 ✅ | Must fix before any real merchant or app store submission |
+| 🔴 CRITICAL | 9 | 7 ✅ | Must fix before any real merchant or app store submission |
 | 🟡 HIGH | 12 | 0 | Should fix before launch |
 | 🟢 MEDIUM | 11 | 0 | Needed for app store review or best practices |
 | 🔵 LOW | 4 | 0 | Post-launch improvements |
@@ -28,9 +28,9 @@
 | 2 | Switch Harbor API from sandbox to production | Harbor | 🔴 CRITICAL | 🚫 Blocked | 1-2 hrs | Blocked until Harbor provides production credentials. Send email first. |
 | 3 | Remove hardcoded locker ID 329 default | Review | 🔴 CRITICAL | ✅ Done | 1-2 hrs | Removed all 4 instances. Sync orders now extract location from shipping lines/attributes. Regenerate endpoints return errors if no location assigned. Fallback uses seller's first enabled locker preference. |
 | 4 | Replace in-memory sessions with `connect-pg-simple` | Shopify | 🔴 CRITICAL | ✅ Done | 2-3 hrs | Installed `connect-pg-simple`. Sessions now stored in `user_sessions` table (auto-created). Survives server restarts. Uninstall handler also cleans up sessions. |
-| 5 | Migrate REST Admin API calls to GraphQL | Shopify 2.2.4 | 🔴 CRITICAL | 🔧 Needs Work | 4-8 hrs | Required since April 2025. Audit all REST calls in server.js and shopify.service.js. |
-| 6 | Add Shopify App Bridge latest version | Shopify 2.2.3 | 🔴 CRITICAL | 🔧 Needs Work | 2-4 hrs | Add app-bridge.js script tag before other scripts in dashboard. |
-| 7 | Ensure embedded app experience | Shopify 2.2.2 | 🔴 CRITICAL | 🔧 Needs Work | 3-5 hrs | Dashboard must load embedded in Shopify Admin, not standalone. |
+| 5 | Migrate REST Admin API calls to GraphQL | Shopify 2.2.4 | 🔴 CRITICAL | ✅ Done | 4-8 hrs | All REST Admin API calls migrated: shop.json → GraphQL `shop` query, orders.json → GraphQL `orders` query, webhooks.json → `webhookSubscriptionCreate`, carrier_services.json → `carrierServiceCreate`, fulfillments.json → `fulfillmentCreateV2`. OAuth endpoints (access_token, access_scopes, authorize) remain REST as required. shopify.service.js also fully migrated. |
+| 6 | Add Shopify App Bridge latest version | Shopify 2.2.3 | 🔴 CRITICAL | ✅ Done | 2-4 hrs | Added `cdn.shopify.com/shopifycloud/app-bridge.js` script tag. App Bridge auto-initializes when loaded via Shopify Admin. Added `isEmbedded` detection and `openExternalUrl` helper. |
+| 7 | Ensure embedded app experience | Shopify 2.2.2 | 🔴 CRITICAL | ✅ Done | 3-5 hrs | Set `embedded = true` in shopify.app.toml. Dashboard route redirects to Shopify Admin embedded URL when accessed directly (no `host` param). OAuth callback redirects to embedded app. Re-auth flow handles iframe breakout. |
 | 8 | Fix SSL `rejectUnauthorized: false` on DB connection | Review | 🔴 CRITICAL | ✅ Done | 1 hr | Updated `db.js` and `setup-database.js`. Now loads CA cert from `DB_CA_CERT` file path or `DB_CA_CERT_BASE64` env var. Falls back to unverified with warning if neither is set. Download CA cert from DigitalOcean dashboard and set the env var to complete. |
 | 9 | Clarify Harbor error handling responsibilities | Harbor | 🔴 CRITICAL | ⏳ Waiting | N/A | Email sent to Harbor on 2026-02-05. Awaiting response. Answers determine scope of items 10-14. |
 
@@ -106,7 +106,7 @@
 
 1. ~~**TODAY:** Send the Harbor email (item 9).~~ **DONE** — Email sent 2026-02-05.
 2. ~~**This week:** Items 1, 3, 4, 8 (quick critical fixes).~~ **DONE** — All 4 completed by Claude Code.
-3. **Next up:** Items 5-7 (GraphQL migration + App Bridge + embedded experience). These are the remaining Phase 1 critical blockers.
+3. ~~**Next up:** Items 5-7 (GraphQL migration + App Bridge + embedded experience).~~ **DONE** — All 3 completed by Claude Code.
 4. **Then:** Items 13-16 (rate limiting, cron jobs, logging). Plus Harbor-dependent items (10-12) once answers arrive. Billing cleanup (18-19).
 5. **Week 3-4:** Begin submission prep (20-28). Submit to Shopify App Store. Start Phase 4 while waiting for review.
 

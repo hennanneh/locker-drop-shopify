@@ -443,7 +443,9 @@ app.get('/auth/callback', async (req, res) => {
         req.session.authenticatedAt = Date.now();
         console.log(`🔐 Session created for ${shop}`);
 
-        res.redirect(`/admin/dashboard?shop=${shop}`);
+        // Redirect to embedded app in Shopify Admin
+        const shopHost = Buffer.from(`${shop}/admin`).toString('base64').replace(/=+$/, '');
+        res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}`);
     } catch (error) {
         console.error('OAuth error:', error);
         res.status(500).send('Installation failed');
@@ -487,17 +489,14 @@ app.get('/api/validate-token/:shop', async (req, res) => {
 
         const accessToken = result.rows[0].access_token;
 
-        // Test the token with a simple API call
-        const testResponse = await axios.get(
-            `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/shop.json`,
-            { headers: { 'X-Shopify-Access-Token': accessToken } }
-        );
+        // Test the token with a GraphQL call
+        const shopData = await shopifyGraphQL(shop, accessToken, `{ shop { name email } }`);
 
-        if (testResponse.data && testResponse.data.shop) {
+        if (shopData?.shop) {
             return res.json({
                 valid: true,
-                shopName: testResponse.data.shop.name,
-                email: testResponse.data.shop.email
+                shopName: shopData.shop.name,
+                email: shopData.shop.email
             });
         } else {
             return res.json({ valid: false, error: 'Invalid response', needsReconnect: true });
@@ -588,21 +587,27 @@ app.get('/api/store-location/:shop', async (req, res) => {
 
         const accessToken = result.rows[0].access_token;
 
-        // Fetch shop info including address
-        const shopResponse = await axios.get(
-            `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/shop.json`,
-            { headers: { 'X-Shopify-Access-Token': accessToken } }
-        );
+        // Fetch shop info including address via GraphQL
+        const shopData = await shopifyGraphQL(shop, accessToken, `{
+            shop {
+                billingAddress {
+                    zip
+                    city
+                    province
+                    country
+                }
+            }
+        }`);
 
-        const shopData = shopResponse.data.shop;
+        const addr = shopData.shop.billingAddress;
 
         return res.json({
             success: true,
             location: {
-                zip: shopData.zip,
-                city: shopData.city,
-                province: shopData.province,
-                country: shopData.country_name
+                zip: addr.zip,
+                city: addr.city,
+                province: addr.province,
+                country: addr.country
             }
         });
 
@@ -1145,6 +1150,15 @@ function requireApiAuth(req, res, next) {
 
 app.get('/admin/dashboard', requireAuth, (req, res) => {
     const shop = req.query.shop;
+    const host = req.query.host;
+
+    // If no host param and shop exists, redirect to embedded app URL in Shopify Admin
+    // This ensures the app always loads inside the Shopify Admin iframe
+    if (shop && !host) {
+        const shopHost = Buffer.from(`${shop}/admin`).toString('base64').replace(/=+$/, '');
+        return res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}`);
+    }
+
     res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
 });
 
@@ -1203,19 +1217,26 @@ app.get('/api/order-locker-data/:shopifyOrderId', async (req, res) => {
                 }
 
                 if (accessToken) {
-                    // Fetch order from Shopify
-                    const shopifyResponse = await axios.get(
-                        `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/orders/${shopifyOrderId}.json`,
-                        {
-                            headers: { 'X-Shopify-Access-Token': accessToken }
+                    // Fetch order from Shopify via GraphQL
+                    const orderData = await shopifyGraphQL(shop, accessToken, `{
+                        order(id: "gid://shopify/Order/${shopifyOrderId}") {
+                            legacyResourceId
+                            name
+                            shippingLines(first: 5) {
+                                edges {
+                                    node {
+                                        title
+                                    }
+                                }
+                            }
                         }
-                    );
+                    }`);
 
-                    const shopifyOrder = shopifyResponse.data.order;
+                    const shopifyOrder = orderData.order;
 
                     // Check if shipping method is LockerDrop
-                    const hasLockerDropShipping = shopifyOrder.shipping_lines?.some(line =>
-                        line.title?.toLowerCase().includes('lockerdrop')
+                    const hasLockerDropShipping = shopifyOrder?.shippingLines?.edges?.some(edge =>
+                        edge.node.title?.toLowerCase().includes('lockerdrop')
                     );
 
                     if (hasLockerDropShipping) {
@@ -1223,7 +1244,7 @@ app.get('/api/order-locker-data/:shopifyOrderId', async (req, res) => {
                         // This could happen if webhook failed - return pending status
                         return res.json({
                             orderId: shopifyOrderId,
-                            orderNumber: shopifyOrder.order_number?.toString() || shopifyOrder.name,
+                            orderNumber: shopifyOrder.name?.replace('#', ''),
                             status: 'pending',
                             shop: shop,
                             isLockerDropOrder: true,
@@ -1274,19 +1295,72 @@ app.get('/api/sync-orders/:shop', async (req, res) => {
             return res.status(401).json({ error: 'Not authenticated' });
         }
         
-        // Get orders with LockerDrop shipping from Shopify
-        const response = await axios.get(
-            `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/orders.json?status=any&limit=250`,
-            {
-                headers: {
-                    'X-Shopify-Access-Token': accessToken
+        // Get orders with LockerDrop shipping from Shopify via GraphQL
+        const ordersData = await shopifyGraphQL(shop, accessToken, `{
+            orders(first: 250, sortKey: CREATED_AT, reverse: true) {
+                edges {
+                    node {
+                        id
+                        legacyResourceId
+                        name
+                        email
+                        createdAt
+                        customer {
+                            firstName
+                            lastName
+                            email
+                        }
+                        shippingLines(first: 5) {
+                            edges {
+                                node {
+                                    title
+                                    code
+                                }
+                            }
+                        }
+                        shippingAddress {
+                            address2
+                        }
+                        note
+                        customAttributes {
+                            key
+                            value
+                        }
+                    }
                 }
             }
-        );
-        
+        }`);
+
+        // Transform GraphQL response to match expected format
+        const orders = ordersData.orders.edges.map(edge => {
+            const node = edge.node;
+            return {
+                id: node.legacyResourceId,
+                order_number: node.name?.replace('#', ''),
+                name: node.name,
+                email: node.email || node.customer?.email,
+                customer: node.customer ? {
+                    first_name: node.customer.firstName,
+                    last_name: node.customer.lastName
+                } : null,
+                shipping_lines: node.shippingLines.edges.map(e => ({
+                    title: e.node.title,
+                    code: e.node.code
+                })),
+                shipping_address: node.shippingAddress ? {
+                    address2: node.shippingAddress.address2
+                } : null,
+                note_attributes: node.customAttributes?.map(a => ({
+                    name: a.key,
+                    value: a.value
+                })),
+                created_at: node.createdAt
+            };
+        });
+
         let syncedCount = 0;
-        
-        for (const order of response.data.orders) {
+
+        for (const order of orders) {
             // Check if order has LockerDrop shipping
             const hasLockerDrop = order.shipping_lines?.some(line => 
                 line.title?.toLowerCase().includes('lockerdrop')
@@ -4746,13 +4820,30 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
             const accessToken = accessTokens.get(shop) || (await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop])).rows[0]?.access_token;
 
             if (accessToken && order.shopify_order_id) {
-                // Fetch order from Shopify to get line items
-                const shopifyOrder = await axios.get(
-                    `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/orders/${order.shopify_order_id}.json`,
-                    { headers: { 'X-Shopify-Access-Token': accessToken }}
-                );
+                // Fetch order from Shopify via GraphQL to get line items
+                const orderData = await shopifyGraphQL(shop, accessToken, `{
+                    order(id: "gid://shopify/Order/${order.shopify_order_id}") {
+                        lineItems(first: 50) {
+                            edges {
+                                node {
+                                    product {
+                                        legacyResourceId
+                                    }
+                                    variant {
+                                        legacyResourceId
+                                    }
+                                    quantity
+                                }
+                            }
+                        }
+                    }
+                }`);
 
-                const lineItems = shopifyOrder.data.order?.line_items || [];
+                const lineItems = (orderData.order?.lineItems?.edges || []).map(e => ({
+                    product_id: e.node.product?.legacyResourceId,
+                    variant_id: e.node.variant?.legacyResourceId,
+                    quantity: e.node.quantity
+                }));
                 console.log(`📦 Order has ${lineItems.length} line items`);
 
                 // Check product size requirements
@@ -4882,37 +4973,40 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
 // Register webhooks after OAuth
 async function registerWebhooks(shop, accessToken) {
     const webhooks = [
-        { topic: 'orders/create', address: 'https://app.lockerdrop.it/webhooks/orders/create' },
-        { topic: 'orders/cancelled', address: 'https://app.lockerdrop.it/webhooks/orders/cancelled' },
-        { topic: 'app/uninstalled', address: 'https://app.lockerdrop.it/webhooks/app/uninstalled' }
+        { topic: 'ORDERS_CREATE', callbackUrl: 'https://app.lockerdrop.it/webhooks/orders/create' },
+        { topic: 'ORDERS_CANCELLED', callbackUrl: 'https://app.lockerdrop.it/webhooks/orders/cancelled' },
+        { topic: 'APP_UNINSTALLED', callbackUrl: 'https://app.lockerdrop.it/webhooks/app/uninstalled' }
     ];
 
     for (const wh of webhooks) {
         try {
-            const webhook = await axios.post(
-                `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/webhooks.json`,
-                {
-                    webhook: {
-                        topic: wh.topic,
-                        address: wh.address,
-                        format: 'json'
-                    }
-                },
-                {
-                    headers: {
-                        'X-Shopify-Access-Token': accessToken,
-                        'Content-Type': 'application/json'
+            const result = await shopifyGraphQL(shop, accessToken, `
+                mutation webhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
+                    webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+                        webhookSubscription { id }
+                        userErrors { field message }
                     }
                 }
-            );
-            console.log(`✅ Webhook registered: ${wh.topic}`);
-        } catch (error) {
-            // Ignore "already exists" errors
-            if (error.response?.data?.errors?.webhook?.[0]?.includes('already been taken')) {
-                console.log(`ℹ️ Webhook ${wh.topic} already registered`);
+            `, {
+                topic: wh.topic,
+                webhookSubscription: {
+                    callbackUrl: wh.callbackUrl,
+                    format: 'JSON'
+                }
+            });
+
+            const errors = result.webhookSubscriptionCreate?.userErrors;
+            if (errors && errors.length > 0) {
+                if (errors[0].message?.includes('already been taken') || errors[0].message?.includes('already exists')) {
+                    console.log(`ℹ️ Webhook ${wh.topic} already registered`);
+                } else {
+                    console.error(`❌ Error registering ${wh.topic}:`, errors);
+                }
             } else {
-                console.error(`❌ Error registering ${wh.topic}:`, error.response?.data || error.message);
+                console.log(`✅ Webhook registered: ${wh.topic}`);
             }
+        } catch (error) {
+            console.error(`❌ Error registering ${wh.topic}:`, error.message);
         }
     }
 }
@@ -6473,27 +6567,38 @@ async function getAccessToken(shop, code) {
 async function registerCarrierService(shop, accessToken) {
     try {
         console.log('🚚 Registering carrier service...');
-        const response = await axios.post(
-            `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/carrier_services.json`,
-            {
-                carrier_service: {
-                    name: 'LockerDrop',
-                    callback_url: `https://app.lockerdrop.it/carrier-service/rates`,
-                    service_discovery: true
-                }
-            },
-            {
-                headers: {
-                    'X-Shopify-Access-Token': accessToken,
-                    'Content-Type': 'application/json'
+        const result = await shopifyGraphQL(shop, accessToken, `
+            mutation carrierServiceCreate($input: DeliveryCarrierServiceCreateInput!) {
+                carrierServiceCreate(input: $input) {
+                    carrierService {
+                        id
+                        name
+                    }
+                    userErrors {
+                        field
+                        message
+                    }
                 }
             }
-        );
+        `, {
+            input: {
+                name: 'LockerDrop',
+                callbackUrl: 'https://app.lockerdrop.it/carrier-service/rates',
+                active: true,
+                serviceDiscovery: true
+            }
+        });
 
-        console.log('✅ Carrier service registered:', response.data);
-        return response.data.carrier_service;
+        const errors = result.carrierServiceCreate?.userErrors;
+        if (errors && errors.length > 0) {
+            console.log('⚠️ Carrier service registration:', errors[0].message);
+            return null;
+        }
+
+        console.log('✅ Carrier service registered:', result.carrierServiceCreate.carrierService);
+        return result.carrierServiceCreate.carrierService;
     } catch (error) {
-        console.error('❌ Carrier service error:', error.response?.data || error.message);
+        console.error('❌ Carrier service error:', error.message);
         throw error;
     }
 }
@@ -6513,27 +6618,30 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
             }
         }
 
-        // First, get the fulfillment orders for this order
-        const fulfillmentOrdersResponse = await axios.get(
-            `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/orders/${shopifyOrderId}/fulfillment_orders.json`,
-            {
-                headers: {
-                    'X-Shopify-Access-Token': accessToken,
-                    'Content-Type': 'application/json'
+        // Get fulfillment orders via GraphQL
+        const orderData = await shopifyGraphQL(shop, accessToken, `{
+            order(id: "gid://shopify/Order/${shopifyOrderId}") {
+                fulfillmentOrders(first: 10) {
+                    edges {
+                        node {
+                            id
+                            status
+                        }
+                    }
                 }
             }
-        );
+        }`);
 
-        const fulfillmentOrders = fulfillmentOrdersResponse.data.fulfillment_orders;
+        const fulfillmentOrders = orderData.order?.fulfillmentOrders?.edges?.map(e => e.node) || [];
 
-        if (!fulfillmentOrders || fulfillmentOrders.length === 0) {
+        if (fulfillmentOrders.length === 0) {
             console.log(`⚠️ No fulfillment orders found for order ${shopifyOrderId}`);
             return { success: false, message: 'No fulfillment orders found' };
         }
 
         // Find open fulfillment orders
         const openFulfillmentOrders = fulfillmentOrders.filter(fo =>
-            fo.status === 'open' || fo.status === 'in_progress'
+            fo.status === 'OPEN' || fo.status === 'IN_PROGRESS'
         );
 
         if (openFulfillmentOrders.length === 0) {
@@ -6541,42 +6649,47 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
             return { success: true, message: 'Order already fulfilled' };
         }
 
-        // Create fulfillment for each open fulfillment order
+        // Create fulfillment via GraphQL
         for (const fo of openFulfillmentOrders) {
-            const fulfillmentResponse = await axios.post(
-                `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/fulfillments.json`,
-                {
-                    fulfillment: {
-                        line_items_by_fulfillment_order: [
-                            {
-                                fulfillment_order_id: fo.id
-                            }
-                        ],
-                        notify_customer: true,
-                        tracking_info: {
-                            company: 'LockerDrop',
-                            number: `LOCKER-${shopifyOrderId}`,
-                            url: 'https://app.lockerdrop.it'
-                        },
-                        message: 'Your order has been picked up from the locker. Thank you for using LockerDrop!'
-                    }
-                },
-                {
-                    headers: {
-                        'X-Shopify-Access-Token': accessToken,
-                        'Content-Type': 'application/json'
+            const fulfillResult = await shopifyGraphQL(shop, accessToken, `
+                mutation fulfillmentCreateV2($fulfillment: FulfillmentV2Input!) {
+                    fulfillmentCreateV2(fulfillment: $fulfillment) {
+                        fulfillment {
+                            id
+                            status
+                        }
+                        userErrors {
+                            field
+                            message
+                        }
                     }
                 }
-            );
+            `, {
+                fulfillment: {
+                    lineItemsByFulfillmentOrder: [
+                        { fulfillmentOrderId: fo.id }
+                    ],
+                    notifyCustomer: true,
+                    trackingInfo: {
+                        company: 'LockerDrop',
+                        number: `LOCKER-${shopifyOrderId}`,
+                        url: 'https://app.lockerdrop.it'
+                    }
+                }
+            });
 
-            console.log(`✅ Fulfillment created for order ${shopifyOrderId}:`, fulfillmentResponse.data.fulfillment?.id);
+            const errors = fulfillResult.fulfillmentCreateV2?.userErrors;
+            if (errors && errors.length > 0) {
+                console.error(`❌ Fulfillment error for order ${shopifyOrderId}:`, errors);
+            } else {
+                console.log(`✅ Fulfillment created for order ${shopifyOrderId}:`, fulfillResult.fulfillmentCreateV2?.fulfillment?.id);
+            }
         }
 
         return { success: true, message: 'Order fulfilled in Shopify' };
     } catch (error) {
-        const errorData = error.response?.data;
-        const errorMessage = errorData?.errors || error.message;
-        console.error(`❌ Error fulfilling order ${shopifyOrderId} in Shopify:`, errorData || error.message);
+        const errorMessage = error.response?.data?.errors?.[0]?.message || error.message;
+        console.error(`❌ Error fulfilling order ${shopifyOrderId} in Shopify:`, errorMessage);
 
         // Check for permission/scope error
         if (errorMessage && (

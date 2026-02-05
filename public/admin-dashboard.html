@@ -1259,6 +1259,8 @@
             margin-bottom: 4px;
         }
     </style>
+    <!-- Shopify App Bridge -->
+    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <!-- Leaflet JS -->
@@ -2380,6 +2382,24 @@
         // Get shop from URL
         const urlParams = new URLSearchParams(window.location.search);
         const shop = urlParams.get('shop');
+        const hostParam = urlParams.get('host');
+
+        // Initialize Shopify App Bridge for embedded app experience
+        const isEmbedded = window.self !== window.top;
+        if (window.shopify) {
+            console.log('✅ Shopify App Bridge loaded (embedded:', isEmbedded, ')');
+        } else if (shop) {
+            console.log('ℹ️ App Bridge not available — running outside Shopify Admin');
+        }
+
+        // Helper to open external URLs (breaks out of iframe when embedded)
+        function openExternalUrl(url) {
+            if (isEmbedded) {
+                window.open(url, '_blank');
+            } else {
+                window.location.href = url;
+            }
+        }
 
         if (!shop) {
             alert('Shop parameter missing! Please access this page from Shopify.');
@@ -4114,7 +4134,12 @@
 
         // Reconnect to Shopify
         function reconnectToShopify() {
-            window.location.href = `/auth/reconnect?shop=${shop}`;
+            if (isEmbedded && window.shopify) {
+                // Use App Bridge to redirect the top-level page for re-auth
+                window.top.location.href = `/auth/reconnect?shop=${shop}`;
+            } else {
+                window.location.href = `/auth/reconnect?shop=${shop}`;
+            }
         }
 
         // Check Shopify scopes for fulfillment permissions
