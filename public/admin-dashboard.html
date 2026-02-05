@@ -1259,6 +1259,8 @@
             margin-bottom: 4px;
         }
     </style>
+    <!-- Save native fetch before App Bridge patches it -->
+    <script>window.__nativeFetch = window.fetch.bind(window);</script>
     <!-- Shopify App Bridge -->
     <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
     <!-- Leaflet CSS -->
@@ -2448,7 +2450,7 @@
         // Check if user needs onboarding (no locker preferences saved)
         async function checkOnboardingNeeded() {
             try {
-                const response = await fetch(`/api/locker-preferences/${shop}`);
+                const response = await window.__nativeFetch(`/api/locker-preferences/${shop}`);
                 const preferences = await response.json();
 
                 // Check if user has skipped onboarding before
@@ -2663,7 +2665,7 @@
             container.innerHTML = '<p style="color: #6d7175;">Loading availability...</p>';
 
             try {
-                const response = await fetch(`/api/locker-availability/${shop}`);
+                const response = await window.__nativeFetch(`/api/locker-availability/${shop}`);
                 if (!response.ok) throw new Error('Failed to fetch availability');
                 const data = await response.json();
                 renderAvailability(data);
@@ -2775,7 +2777,7 @@
         // Load Dashboard Stats
         async function loadStats() {
             try {
-                const response = await fetch(`/api/stats/${shop}`);
+                const response = await window.__nativeFetch(`/api/stats/${shop}`);
                 const stats = await response.json();
 
                 const pendingCount = stats.pendingDropoffs || 0;
@@ -2891,7 +2893,7 @@
         // Load All Orders
         async function loadOrders() {
             try {
-                const response = await fetch(`/api/orders/${shop}`);
+                const response = await window.__nativeFetch(`/api/orders/${shop}`);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
@@ -3062,7 +3064,7 @@
         // View Order Modal
         async function viewOrder(orderNumber) {
             try {
-                const response = await fetch(`/api/orders/${shop}`);
+                const response = await window.__nativeFetch(`/api/orders/${shop}`);
                 const orders = await response.json();
 
                 const order = orders.find(o => o.orderNumber === orderNumber);
@@ -3157,7 +3159,7 @@
             if (!confirm(`Resend ${typeLabel} notification for order #${orderNumber}?`)) return;
 
             try {
-                const response = await fetch(`/api/resend-notification/${orderNumber}`, {
+                const response = await window.__nativeFetch(`/api/resend-notification/${orderNumber}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ type })
@@ -3189,7 +3191,7 @@
             if (!confirm(`Regenerate pickup link for order #${orderNumber}?\n\nUse this if the current link shows an error or has expired.`)) return;
 
             try {
-                const response = await fetch(`/api/emergency-open/${shop}`, {
+                const response = await window.__nativeFetch(`/api/emergency-open/${shop}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -3224,7 +3226,7 @@
                 btn.innerHTML = '⏳ Regenerating...';
                 btn.disabled = true;
 
-                const response = await fetch(`/api/regenerate-order-link/${shop}/${orderNumber}`, {
+                const response = await window.__nativeFetch(`/api/regenerate-order-link/${shop}/${orderNumber}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
@@ -3252,7 +3254,7 @@
             if (!confirm('Sync all LockerDrop orders from Shopify?')) return;
 
             try {
-                const response = await fetch(`/api/sync-orders/${shop}`);
+                const response = await window.__nativeFetch(`/api/sync-orders/${shop}`);
                 const result = await response.json();
 
                 if (result.success) {
@@ -3274,7 +3276,7 @@
             const encodedOrderId = encodeURIComponent(orderId);
 
             try {
-                const response = await fetch(`/api/order/${shop}/${encodedOrderId}/status`, {
+                const response = await window.__nativeFetch(`/api/order/${shop}/${encodedOrderId}/status`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: 'ready' })
@@ -3302,7 +3304,7 @@
             const encodedOrderId = encodeURIComponent(orderId);
 
             try {
-                const response = await fetch(`/api/order/${shop}/${encodedOrderId}/resend-email`, {
+                const response = await window.__nativeFetch(`/api/order/${shop}/${encodedOrderId}/resend-email`, {
                     method: 'POST'
                 });
 
@@ -3329,7 +3331,7 @@
             const encodedOrderId = encodeURIComponent(orderId);
 
             try {
-                const response = await fetch(`/api/order/${shop}/${encodedOrderId}/cancel-locker`, {
+                const response = await window.__nativeFetch(`/api/order/${shop}/${encodedOrderId}/cancel-locker`, {
                     method: 'POST'
                 });
 
@@ -3458,7 +3460,7 @@
 
             try {
                 // Fetch store location
-                const response = await fetch(`/api/store-location/${shop}`);
+                const response = await window.__nativeFetch(`/api/store-location/${shop}`);
                 const data = await response.json();
 
                 if (data.success && data.location) {
@@ -3530,7 +3532,7 @@
 
                 // Load saved preferences first if needed (so we know IDs for filtering)
                 if (savedPreferenceIds.length === 0 || originalSavedIds.length === 0) {
-                    const prefsResponse = await fetch(`/api/locker-preferences/${shop}`);
+                    const prefsResponse = await window.__nativeFetch(`/api/locker-preferences/${shop}`);
                     const preferences = await prefsResponse.json();
                     savedPreferenceIds = preferences.map(p => p.location_id.toString());
                     // Store original state for change detection
@@ -3548,7 +3550,7 @@
                 if (myLockersOnly) url += `&saved_only=true`;
 
                 // Load available lockers
-                const response = await fetch(url);
+                const response = await window.__nativeFetch(url);
                 const data = await response.json();
 
                 // Handle both old format (array) and new format (object with lockers and pagination)
@@ -3737,7 +3739,7 @@
             btn.textContent = 'Saving...';
 
             try {
-                const response = await fetch(`/api/locker-preferences/${shop}`, {
+                const response = await window.__nativeFetch(`/api/locker-preferences/${shop}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ selectedLockers })
@@ -3810,7 +3812,7 @@
                 // Update pricing display
                 updatePricingDisplay(freePickup);
 
-                const response = await fetch(`/api/settings/${shop}`, {
+                const response = await window.__nativeFetch(`/api/settings/${shop}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -3857,7 +3859,7 @@
                     return;
                 }
 
-                const response = await fetch(`/api/settings/${shop}`, {
+                const response = await window.__nativeFetch(`/api/settings/${shop}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -3892,7 +3894,7 @@
         // Load Settings
         async function loadSettings() {
             try {
-                const response = await fetch(`/api/settings/${shop}`);
+                const response = await window.__nativeFetch(`/api/settings/${shop}`);
                 const data = await response.json();
 
                 // Checkout extension
@@ -4147,7 +4149,7 @@
         // Validate Shopify token on load
         async function validateToken() {
             try {
-                const response = await fetch(`/api/validate-token/${shop}`);
+                const response = await window.__nativeFetch(`/api/validate-token/${shop}`);
                 const result = await response.json();
 
                 if (!result.valid) {
@@ -4184,7 +4186,7 @@
             }
 
             try {
-                const response = await fetch(`/api/check-scopes/${shop}`);
+                const response = await window.__nativeFetch(`/api/check-scopes/${shop}`);
                 const result = await response.json();
 
                 if (result.needsReauth && result.missingScopes && result.missingScopes.length > 0) {
@@ -4204,8 +4206,8 @@
             sessionStorage.setItem('scopeWarningDismissed', 'true');
         }
 
-        // Initialize
-        window.onload = async function() {
+        // Initialize immediately (script is at bottom of body, DOM is ready)
+        (async function init() {
             // Load dashboard data immediately (these only query our database)
             loadOrders();
             loadStats();
@@ -4228,7 +4230,7 @@
             }
 
             // Add event listeners for fulfillment settings to update preview
-            document.getElementById('processing-days').addEventListener('change', updatePickupPreview);
+            document.getElementById('processing-days')?.addEventListener('change', updatePickupPreview);
             document.querySelectorAll('.fulfillment-day').forEach(cb => {
                 cb.addEventListener('change', updatePickupPreview);
             });
@@ -4239,7 +4241,7 @@
                 loadStats();
                 updateRefreshTime();
             }, 30000);
-        };
+        })();
 
         // Close modal when clicking outside
         window.onclick = function(event) {
@@ -4276,7 +4278,7 @@
             select.innerHTML = '<option value="">Loading lockers...</option>';
 
             try {
-                const response = await fetch(`/api/locker-preferences/${shop}`);
+                const response = await window.__nativeFetch(`/api/locker-preferences/${shop}`);
                 const preferences = await response.json();
 
                 if (preferences.length === 0) {
@@ -4323,7 +4325,7 @@
             try {
                 // Check if we have cached data
                 if (!lockerAvailabilityCache[lockerId]) {
-                    const response = await fetch(`/api/location-availability/${lockerId}`);
+                    const response = await window.__nativeFetch(`/api/location-availability/${lockerId}`);
                     if (response.ok) {
                         lockerAvailabilityCache[lockerId] = await response.json();
                     } else {
@@ -4395,7 +4397,7 @@
             }
 
             try {
-                const response = await fetch(`/api/manual-order/${shop}`, {
+                const response = await window.__nativeFetch(`/api/manual-order/${shop}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -4434,7 +4436,7 @@
             container.innerHTML = '<p>Loading products from Shopify...</p>';
 
             try {
-                const response = await fetch(`/api/products/${shop}`);
+                const response = await window.__nativeFetch(`/api/products/${shop}`);
                 const data = await response.json();
 
                 if (!response.ok) {
@@ -4613,7 +4615,7 @@
             btn.textContent = 'Saving...';
 
             try {
-                const response = await fetch(`/api/product-sizes/${shop}`, {
+                const response = await window.__nativeFetch(`/api/product-sizes/${shop}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ products })
@@ -4873,7 +4875,7 @@
 
         async function loadSubscription() {
             try {
-                const response = await fetch(`/api/subscription/${shop}`);
+                const response = await window.__nativeFetch(`/api/subscription/${shop}`);
                 const data = await response.json();
                 currentSubscription = data;
                 renderSubscriptionStatus(data);
@@ -4978,7 +4980,7 @@
             }
 
             try {
-                const response = await fetch(`/api/subscribe/${shop}`, {
+                const response = await window.__nativeFetch(`/api/subscribe/${shop}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ planId })
@@ -5004,7 +5006,7 @@
             }
 
             try {
-                const response = await fetch(`/api/subscription/cancel/${shop}`, {
+                const response = await window.__nativeFetch(`/api/subscription/cancel/${shop}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
@@ -5059,7 +5061,7 @@
             }
 
             try {
-                const response = await fetch(`/api/subscription/dev-switch/${shop}`, {
+                const response = await window.__nativeFetch(`/api/subscription/dev-switch/${shop}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ planId })
@@ -5091,7 +5093,7 @@
                     previewLink.href = `/pickup-success?order=PREVIEW&status=success&shop=${shop}`;
                 }
 
-                const response = await fetch(`/api/branding/${shop}`);
+                const response = await window.__nativeFetch(`/api/branding/${shop}`);
                 const data = await response.json();
 
                 if (!data.enabled) {
@@ -5182,7 +5184,7 @@
                 const formData = new FormData();
                 formData.append('logo', file);
 
-                const response = await fetch(`/api/branding/${shop}/logo`, {
+                const response = await window.__nativeFetch(`/api/branding/${shop}/logo`, {
                     method: 'POST',
                     body: formData
                 });
@@ -5218,7 +5220,7 @@
             if (!confirm('Remove your logo?')) return;
 
             try {
-                const response = await fetch(`/api/branding/${shop}/logo`, {
+                const response = await window.__nativeFetch(`/api/branding/${shop}/logo`, {
                     method: 'DELETE'
                 });
 
@@ -5273,7 +5275,7 @@
         // Load all products for the picker
         async function loadProductsForPicker() {
             try {
-                const response = await fetch(`/api/products/${shop}`);
+                const response = await window.__nativeFetch(`/api/products/${shop}`);
                 const data = await response.json();
                 allProducts = data.products || [];
             } catch (error) {
@@ -5443,7 +5445,7 @@
             };
 
             try {
-                const response = await fetch(`/api/branding/${shop}`, {
+                const response = await window.__nativeFetch(`/api/branding/${shop}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(settings)

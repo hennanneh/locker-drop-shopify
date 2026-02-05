@@ -780,10 +780,11 @@ app.get('/', (req, res) => {
         return res.sendFile(path.join(__dirname, 'public', 'landing.html'));
     }
 
-    // For app.lockerdrop.it - if shop param exists, redirect to dashboard
+    // For app.lockerdrop.it - if shop param exists, serve dashboard directly (no redirect)
     if (shop) {
-        const dashboardUrl = `/admin/dashboard?shop=${encodeURIComponent(shop)}${hostParam ? '&host=' + encodeURIComponent(hostParam) : ''}`;
-        return res.redirect(dashboardUrl);
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.set('Pragma', 'no-cache');
+        return res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
     }
 
     // No shop param on app subdomain - redirect to dashboard selection or show simple page
@@ -1208,6 +1209,8 @@ app.get('/admin/dashboard', requireAuth, (req, res) => {
         return res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}`);
     }
 
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Pragma', 'no-cache');
     res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
 });
 
