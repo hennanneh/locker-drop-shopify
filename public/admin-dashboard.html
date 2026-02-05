@@ -2379,6 +2379,40 @@
     </div>
 
     <script>
+        // Frontend error tracking - send errors to server
+        window.onerror = function(message, source, lineno, colno, error) {
+            try {
+                fetch('/api/errors', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        stack: error ? error.stack : null,
+                        source: 'admin-dashboard',
+                        context: { source: source, line: lineno, col: colno },
+                        url: window.location.href,
+                        userAgent: navigator.userAgent
+                    })
+                }).catch(() => {}); // Don't let error tracking cause more errors
+            } catch(e) {}
+        };
+        window.addEventListener('unhandledrejection', function(event) {
+            try {
+                fetch('/api/errors', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: event.reason ? (event.reason.message || String(event.reason)) : 'Unhandled promise rejection',
+                        stack: event.reason ? event.reason.stack : null,
+                        source: 'admin-dashboard',
+                        context: { type: 'unhandledrejection' },
+                        url: window.location.href,
+                        userAgent: navigator.userAgent
+                    })
+                }).catch(() => {});
+            } catch(e) {}
+        });
+
         // Get shop from URL
         const urlParams = new URLSearchParams(window.location.search);
         const shop = urlParams.get('shop');

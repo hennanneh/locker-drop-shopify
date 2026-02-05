@@ -20,6 +20,22 @@ import {
   ScrollView,
 } from '@shopify/ui-extensions-react/checkout';
 
+// Report frontend errors to backend
+function reportError(message, error, context = {}) {
+  try {
+    fetch('https://app.lockerdrop.it/api/errors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        stack: error?.stack || null,
+        source: 'checkout-extension',
+        context
+      })
+    }).catch(() => {});
+  } catch(e) {}
+}
+
 // Main extension export
 export default reactExtension(
   'purchase.checkout.delivery-address.render-after',
@@ -102,6 +118,7 @@ function LockerDropPickup() {
       }
     } catch (err) {
       console.error('Error fetching lockers:', err);
+      reportError('Error fetching lockers', err, { zip: shippingAddress?.zip });
       setError('Unable to load pickup locations');
     } finally {
       setLoading(false);
@@ -128,6 +145,7 @@ function LockerDropPickup() {
       }
     } catch (err) {
       console.error('Error fetching available dates:', err);
+      reportError('Error fetching available dates', err);
     } finally {
       setDatesLoading(false);
     }
@@ -166,6 +184,7 @@ function LockerDropPickup() {
       });
     } catch (err) {
       console.error('Error updating address:', err);
+      reportError('Error updating address with locker info', err);
     }
   }
 

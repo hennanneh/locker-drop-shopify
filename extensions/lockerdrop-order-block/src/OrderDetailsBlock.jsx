@@ -11,6 +11,22 @@ import {
   Divider,
 } from '@shopify/ui-extensions-react/admin';
 
+// Report frontend errors to backend
+function reportError(message, error, context = {}) {
+  try {
+    fetch('https://app.lockerdrop.it/api/errors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        stack: error?.stack || null,
+        source: 'order-block-extension',
+        context
+      })
+    }).catch(() => {});
+  } catch(e) {}
+}
+
 // The target for the order details page block
 export default reactExtension('admin.order-details.block.render', () => <OrderDetailsBlock />);
 
@@ -56,6 +72,7 @@ function OrderDetailsBlock() {
         const lockerData = await response.json();
         setData(lockerData);
       } catch (err) {
+        reportError('Error fetching locker data for order', err);
         setError(err);
       } finally {
         setLoading(false);

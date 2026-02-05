@@ -1,6 +1,6 @@
 # LockerDrop Launch Checklist
 
-> **Last Updated:** 2026-02-05 (updated by Claude Code)
+> **Last Updated:** 2026-02-05 (Phase 2 items 13-17 completed by Claude Code)
 > **Sources:** Project Review | Harbor Checklist | Shopify App Store Requirements
 > **Estimated Total:** 100-160 hours across all phases
 
@@ -11,9 +11,9 @@
 | Priority | Count | Done | Description |
 |----------|-------|------|-------------|
 | 🔴 CRITICAL | 9 | 7 ✅ | Must fix before any real merchant or app store submission |
-| 🟡 HIGH | 12 | 0 | Should fix before launch |
+| 🟡 HIGH | 12 | 5 ✅ | Should fix before launch |
 | 🟢 MEDIUM | 11 | 0 | Needed for app store review or best practices |
-| 🔵 LOW | 4 | 0 | Post-launch improvements |
+| 🔵 LOW | 5 | 0 | Post-launch improvements |
 
 ---
 
@@ -46,12 +46,12 @@
 | 10 | Build stuck order detection for failed Harbor callbacks | Harbor | 🟡 HIGH | ⬜ Not Started | 3-4 hrs | If dropoff/pickup callback never fires, orders get stuck indefinitely. |
 | 11 | Add locker size change flow for sellers | Harbor | 🟡 HIGH | ⬜ Not Started | 3-4 hrs | Package won't fit: cancel request, release locker, generate new link for different size. |
 | 12 | Add retry/troubleshooting on success pages | Harbor | 🟡 HIGH | ⬜ Not Started | 2-3 hrs | "Locker didn't open" flow: retry button + contact support link. |
-| 13 | Add `express-rate-limit` to public API endpoints | Review | 🟡 HIGH | ⬜ Not Started | 1-2 hrs | Public endpoints like /api/public/lockers have no rate limiting. |
-| 14 | Add `node-cron` job for locker expiry | Review | 🟡 HIGH | ⬜ Not Started | 3-4 hrs | Orders past hold_time_days sit forever. Need expiry warnings + auto-release. |
-| 15 | Add `orders/updated` webhook handler | Review | 🟡 HIGH | ⬜ Not Started | 2-3 hrs | Changes in Shopify after order creation aren't synced. |
-| 16 | Add structured logging (winston or pino) | Harbor | 🟡 HIGH | ⬜ Not Started | 3-4 hrs | Harbor checklist: error logging front and backend. logs/ exists but untracked. |
-| 17 | Add frontend error tracking to dashboard + extensions | Harbor | 🟡 HIGH | ⬜ Not Started | 2-3 hrs | Harbor checklist: enable error logging in FRONT and BACKEND. |
-| 18 | Decide and clean up billing model | Review | 🟡 HIGH | 🔧 Needs Work | 2-4 hrs | Subscription system built but bypassed. $1/order active. Pick one, remove other. |
+| 13 | Add `express-rate-limit` to public API endpoints | Review | 🟡 HIGH | ✅ Done | 1-2 hrs | Three rate limiters: `publicApiLimiter` (30/min), `checkoutLimiter` (60/min), `webhookLimiter` (120/min). Applied to all public, checkout, and webhook routes. |
+| 14 | Add `node-cron` job for locker expiry | Review | 🟡 HIGH | ✅ Done | 3-4 hrs | Cron runs every 6 hours. Finds orders past `hold_time_days`, releases lockers via Harbor API, marks orders as `expired`, emails customer + seller. Also sends 1-day warning emails for orders approaching expiry. |
+| 15 | Add `orders/updated` webhook handler | Review | 🟡 HIGH | ✅ Done | 2-3 hrs | `ORDERS_UPDATED` webhook registered on install. Handler syncs customer name/email/phone from Shopify. Detects external fulfillment and marks orders as completed. Skips completed/cancelled/expired orders. |
+| 16 | Add structured logging (pino) | Harbor | 🟡 HIGH | ✅ Done | 3-4 hrs | Replaced all 417 `console.log`/`console.error` calls with `pino` structured logger. JSON output in production, pretty-printed in development. Log level configurable via `LOG_LEVEL` env var. |
+| 17 | Add frontend error tracking to dashboard + extensions | Harbor | 🟡 HIGH | ✅ Done | 2-3 hrs | Added `POST /api/errors` endpoint. Dashboard has `window.onerror` + `unhandledrejection` handlers. Checkout extension and order block extension report errors with `reportError()` helper. All errors logged via pino with source, stack trace, and context. |
+| 18 | Decide and clean up billing model | Review | 🟡 HIGH | 🔧 Needs Work | 2-4 hrs | **Decision made:** Per-order fee (Strategy 1) for launch. Use Shopify Billing API `usageRecordCreate` after each order. Remove or disable subscription code. See `lockerdrop-pricing-strategies.jsx` for all 5 strategies. |
 | 19 | Ensure billing plan changes work without reinstall | Shopify 1.2.3 | 🟡 HIGH | 🔧 Needs Work | 2-3 hrs | Merchants must upgrade/downgrade without contacting support. |
 
 ---
@@ -90,6 +90,19 @@
 | 34 | Set up CI/CD pipeline | Review | 🔵 LOW | ⬜ Not Started | 4-6 hrs | No GitHub Actions. Automate deploy to DigitalOcean. |
 | 35 | Add returns via locker support | Review | 🔵 LOW | ⬜ Not Started | 16-24 hrs | Customer FAQ says "not available yet." Future feature. |
 | 36 | Add multi-package order support | Review | 🔵 LOW | ⬜ Not Started | 8-12 hrs | Split orders across multiple lockers. Future feature. |
+| 37 | Evolve pricing to tiered subscription model | Review | 🔵 LOW | ⬜ Not Started | 8-12 hrs | Strategy 2 or 3 from `lockerdrop-pricing-strategies.jsx`. Add Shopify Managed Pricing or hybrid subscription+usage. Gate premium features (branding, analytics, multi-locker) behind paid tiers. Implement after 10+ merchants prove product-market fit. |
+
+---
+
+## Pricing Strategy
+
+> **Launch Model (Strategy 1):** Pure Per-Order Fee — $1-$2 per locker transaction via Shopify usage-based billing.
+> **Future Options:** See `lockerdrop-pricing-strategies.jsx` for 5 strategies with full analysis:
+> 1. Pure Per-Order Fee (launch) — $1-$2/order, zero friction
+> 2. Tiered Subscription — Free / $19 / $49 plans
+> 3. Subscription + Usage Hybrid — $9/mo base + $0.75/order
+> 4. Commission on Shipping Fee — % of customer-facing charge
+> 5. Marketplace Revenue Share — 15-25% of Harbor transaction
 
 ---
 
@@ -98,8 +111,8 @@
 - **Harbor Production Credentials:** Items 2, 10-12, 32 are blocked or dependent on Harbor production API access and answers to the email about error handling responsibilities. Email sent 2026-02-05, awaiting response.
 - ~~**GraphQL Migration:** Item 5 — RESOLVED. All REST Admin API calls migrated to GraphQL.~~
 - ~~**App Bridge + Embedded Experience:** Items 6-7 — RESOLVED. App Bridge added, embedded = true, dashboard redirects to Shopify Admin.~~
-- **Billing Decision:** Item 18 blocks item 19. Decide whether to keep $1/order shipping fee or activate subscriptions. Either way, must go through Shopify Billing API (1.2).
-- **SSL CA Certificate:** Item 8 code is done, but you still need to download the CA cert from DigitalOcean and set the `DB_CA_CERT` or `DB_CA_CERT_BASE64` env var on the server.
+- **Billing Decision:** Item 18 blocks item 19. Decision made: per-order fee for launch. Needs implementation via Shopify `usageRecordCreate`. Remove or disable subscription code.
+- ~~**SSL CA Certificate:** Item 8 — RESOLVED. CA cert loaded from `DB_CA_CERT=./ca-certificate.crt` in `.env`.~~
 
 ---
 
@@ -108,8 +121,9 @@
 1. ~~**TODAY:** Send the Harbor email (item 9).~~ **DONE** — Email sent 2026-02-05.
 2. ~~**This week:** Items 1, 3, 4, 8 (quick critical fixes).~~ **DONE** — All 4 completed by Claude Code.
 3. ~~**Next up:** Items 5-7 (GraphQL migration + App Bridge + embedded experience).~~ **DONE** — All 3 completed by Claude Code.
-4. **Then:** Items 13-16 (rate limiting, cron jobs, logging). Plus Harbor-dependent items (10-12) once answers arrive. Billing cleanup (18-19).
-5. **Week 3-4:** Begin submission prep (20-28). Submit to Shopify App Store. Start Phase 4 while waiting for review.
+4. ~~**Then:** Items 13-17 (rate limiting, cron jobs, logging, error tracking).~~ **DONE** — All 5 completed by Claude Code.
+5. **Next:** Harbor-dependent items (10-12) once answers arrive. Billing cleanup (18-19) with per-order fee via Shopify Billing API.
+6. **Week 3-4:** Begin submission prep (20-28). Submit to Shopify App Store. Start Phase 4 while waiting for review.
 
 ---
 

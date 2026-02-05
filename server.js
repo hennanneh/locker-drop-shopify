@@ -3,11 +3,23 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
+const rateLimit = require('express-rate-limit');
+const cron = require('node-cron');
+const pino = require('pino');
 const axios = require('axios');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+
+// Structured logger
+const logger = pino({
+    level: process.env.LOG_LEVEL || 'info',
+    transport: process.env.NODE_ENV !== 'production' ? {
+        target: 'pino-pretty',
+        options: { colorize: true }
+    } : undefined
+});
 
 // Configure multer for logo uploads
 const logoStorage = multer.diskStorage({
@@ -53,7 +65,7 @@ const twilioFromNumber = process.env.TWILIO_PHONE_NUMBER;
 // SMS helper function
 async function sendSMS(to, message) {
     if (!twilioClient || !twilioFromNumber) {
-        console.log(`📱 SMS service not configured. Would send to ${to}: ${message}`);
+        logger.info(`📱 SMS service not configured. Would send to ${to}: ${message}`);
         return { success: false, reason: 'SMS service not configured' };
     }
 
@@ -71,10 +83,10 @@ async function sendSMS(to, message) {
             from: twilioFromNumber,
             to: formattedNumber
         });
-        console.log(`✅ SMS sent to ${formattedNumber}: ${result.sid}`);
+        logger.info(`✅ SMS sent to ${formattedNumber}: ${result.sid}`);
         return { success: true, sid: result.sid };
     } catch (error) {
-        console.error(`❌ Failed to send SMS to ${to}:`, error.message);
+        logger.error(`❌ Failed to send SMS to ${to}:`, error.message);
         return { success: false, error: error.message };
     }
 }
@@ -82,7 +94,7 @@ async function sendSMS(to, message) {
 // Email helper function
 async function sendEmail(to, subject, html) {
     if (!resend) {
-        console.log(`📧 Email service not configured. Would send to ${to}: ${subject}`);
+        logger.info(`📧 Email service not configured. Would send to ${to}: ${subject}`);
         return { success: false, reason: 'Email service not configured' };
     }
 
@@ -93,10 +105,10 @@ async function sendEmail(to, subject, html) {
             subject: subject,
             html: html
         });
-        console.log(`✅ Email sent to ${to}: ${subject}`);
+        logger.info(`✅ Email sent to ${to}: ${subject}`);
         return { success: true, id: result.id };
     } catch (error) {
-        console.error(`❌ Failed to send email to ${to}:`, error.message);
+        logger.error(`❌ Failed to send email to ${to}:`, error.message);
         return { success: false, error: error.message };
     }
 }
@@ -117,7 +129,7 @@ async function shopifyGraphQL(shop, accessToken, query, variables = {}) {
     );
 
     if (response.data.errors) {
-        console.error('GraphQL errors:', response.data.errors);
+        logger.error('GraphQL errors:', response.data.errors);
         throw new Error(response.data.errors[0]?.message || 'GraphQL query failed');
     }
 
@@ -380,6 +392,43 @@ app.use((req, res, next) => {
     next();
 });
 
+// Rate limiters for public endpoints
+const publicApiLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 30, // 30 requests per minute
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' }
+});
+
+const checkoutLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 60, // Higher limit for checkout flow
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' }
+});
+
+const webhookLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 120, // Webhooks need higher limits
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+// Apply rate limiters to public routes
+app.use('/api/public/', publicApiLimiter);
+app.use('/api/pickup-points', publicApiLimiter);
+app.use('/api/waitlist', publicApiLimiter);
+app.use('/api/customer/', publicApiLimiter);
+app.use('/api/order-pickup-details/', publicApiLimiter);
+app.use('/api/verify-order-email/', publicApiLimiter);
+app.use('/api/update-pickup-date/', publicApiLimiter);
+app.use('/api/available-pickup-dates/', publicApiLimiter);
+app.use('/api/checkout/', checkoutLimiter);
+app.use('/carrier/', checkoutLimiter);
+app.use('/webhooks/', webhookLimiter);
+
 // Store access tokens (use a database in production)
 const accessTokens = new Map();
 
@@ -419,35 +468,35 @@ app.get('/auth/callback', async (req, res) => {
                 'INSERT INTO stores (shop, access_token) VALUES ($1, $2) ON CONFLICT (shop) DO UPDATE SET access_token = $2',
                 [shop, accessToken]
             );
-            console.log('✅ Token saved to database for', shop);
+            logger.info('✅ Token saved to database for', shop);
         } catch (dbError) {
-            console.error('❌ Database save error:', dbError);
+            logger.error('❌ Database save error:', dbError);
         }
 
         // Register webhooks and carrier service (don't fail if they already exist)
         try {
             await registerWebhooks(shop, accessToken);
         } catch (e) {
-            console.log('⚠️ Webhook registration skipped:', e.message);
+            logger.info('⚠️ Webhook registration skipped:', e.message);
         }
 
         try {
             await registerCarrierService(shop, accessToken);
         } catch (e) {
-            console.log('⚠️ Carrier service registration skipped (may already exist):', e.message);
+            logger.info('⚠️ Carrier service registration skipped (may already exist):', e.message);
         }
 
         // Create authenticated session
         req.session.authenticated = true;
         req.session.shop = shop;
         req.session.authenticatedAt = Date.now();
-        console.log(`🔐 Session created for ${shop}`);
+        logger.info(`🔐 Session created for ${shop}`);
 
         // Redirect to embedded app in Shopify Admin
         const shopHost = Buffer.from(`${shop}/admin`).toString('base64').replace(/=+$/, '');
         res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}`);
     } catch (error) {
-        console.error('OAuth error:', error);
+        logger.error('OAuth error:', error);
         res.status(500).send('Installation failed');
     }
 });
@@ -459,7 +508,7 @@ app.get('/auth/reconnect', (req, res) => {
         return res.status(400).send('Shop parameter required');
     }
 
-    console.log(`🔄 Reconnect requested for ${shop}`);
+    logger.info(`🔄 Reconnect requested for ${shop}`);
 
     const redirectUri = `https://app.lockerdrop.it/auth/callback`;
     const scopes = 'write_shipping,read_orders,write_orders,read_products,write_products,read_shipping,read_fulfillments,write_fulfillments';
@@ -503,7 +552,7 @@ app.get('/api/validate-token/:shop', async (req, res) => {
         }
 
     } catch (error) {
-        console.error(`❌ Token validation failed for ${shop}:`, error.response?.data || error.message);
+        logger.error(`❌ Token validation failed for ${shop}:`, error.response?.data || error.message);
 
         // Check if it's an auth error
         const isAuthError = error.response?.status === 401 ||
@@ -564,7 +613,7 @@ app.get('/api/check-scopes/:shop', async (req, res) => {
         });
 
     } catch (error) {
-        console.error(`❌ Scope check failed for ${shop}:`, error.response?.data || error.message);
+        logger.error(`❌ Scope check failed for ${shop}:`, error.response?.data || error.message);
         return res.json({
             valid: false,
             error: error.response?.data?.errors || error.message,
@@ -612,7 +661,7 @@ app.get('/api/store-location/:shop', async (req, res) => {
         });
 
     } catch (error) {
-        console.error(`❌ Store location fetch failed for ${shop}:`, error.response?.data || error.message);
+        logger.error(`❌ Store location fetch failed for ${shop}:`, error.response?.data || error.message);
         return res.json({ success: false, error: error.message });
     }
 });
@@ -678,7 +727,7 @@ app.get('/auth/register-carrier/:shop', async (req, res) => {
             </html>
         `);
     } catch (error) {
-        console.error('Carrier registration error:', error.response?.data || error);
+        logger.error('Carrier registration error:', error.response?.data || error);
         res.status(500).send(`
             <html>
                 <head>
@@ -724,7 +773,7 @@ app.get('/', (req, res) => {
     const hostname = req.headers['x-forwarded-host'] || req.headers.host || req.hostname || '';
     const cleanHostname = hostname.split(':')[0]; // Remove port if present
 
-    console.log(`🌐 Root request - hostname: ${cleanHostname}, shop: ${shop || 'none'}`);
+    logger.info(`🌐 Root request - hostname: ${cleanHostname}, shop: ${shop || 'none'}`);
 
     // If this is the main domain (lockerdrop.it), serve the public landing page
     if (cleanHostname === 'lockerdrop.it' || cleanHostname === 'www.lockerdrop.it') {
@@ -776,12 +825,12 @@ const MIN_AVAILABLE_BUFFER = 2;
 app.post('/carrier/rates', async (req, res) => {
     try {
         const { rate } = req.body;
-        console.log('📍 Shipping rate request received [v2-size-filter]');
-        console.log('📦 Rate items:', rate?.items?.length || 0, 'items');
+        logger.info('📍 Shipping rate request received [v2-size-filter]');
+        logger.info('📦 Rate items:', rate?.items?.length || 0, 'items');
 
         // Get shop domain from Shopify header
         const shopDomain = req.headers['x-shopify-shop-domain'];
-        console.log(`🏪 Shop: ${shopDomain || 'unknown'}`);
+        logger.info(`🏪 Shop: ${shopDomain || 'unknown'}`);
 
         // Get shop settings (including fulfillment settings for pickup date calculation)
         let freePickup = false;
@@ -802,7 +851,7 @@ app.post('/carrier/rates', async (req, res) => {
                     useNativePickup = settings.use_checkout_extension || false;
                 }
             } catch (e) {
-                console.log('Could not check shop settings:', e.message);
+                logger.info('Could not check shop settings:', e.message);
             }
         }
 
@@ -813,7 +862,7 @@ app.post('/carrier/rates', async (req, res) => {
         // If checkout extension is enabled, return a single generic LockerDrop rate
         // The checkout extension UI handles the specific locker selection
         if (useNativePickup) {
-            console.log('🔀 Checkout extension enabled - returning single LockerDrop rate');
+            logger.info('🔀 Checkout extension enabled - returning single LockerDrop rate');
             const price = freePickup ? '0' : '100';
             return res.json({
                 rates: [{
@@ -826,7 +875,7 @@ app.post('/carrier/rates', async (req, res) => {
             });
         }
 
-        console.log(`📅 Expected pickup: ${pickupDateFormatted}`);
+        logger.info(`📅 Expected pickup: ${pickupDateFormatted}`);
 
         const destination = rate.destination;
         let lat = destination.latitude;
@@ -834,12 +883,12 @@ app.post('/carrier/rates', async (req, res) => {
 
         // If no coordinates provided, try to geocode from zip code
         if (!lat || !lon) {
-            console.log(`📍 No coordinates provided, attempting zip code geocode for: ${destination.postal_code}`);
+            logger.info(`📍 No coordinates provided, attempting zip code geocode for: ${destination.postal_code}`);
             const geocoded = await geocodeZipCode(destination.postal_code, destination.country || 'US');
             if (geocoded) {
                 lat = geocoded.latitude;
                 lon = geocoded.longitude;
-                console.log(`📍 Using geocoded coordinates from zip: ${lat}, ${lon}`);
+                logger.info(`📍 Using geocoded coordinates from zip: ${lat}, ${lon}`);
             }
         }
 
@@ -848,7 +897,7 @@ app.post('/carrier/rates', async (req, res) => {
         let requiredSizeName = 'medium';
 
         if (shopDomain && rate.items && rate.items.length > 0) {
-            console.log(`📦 First item: product_id=${rate.items[0].product_id}, variant_id=${rate.items[0].variant_id}`);
+            logger.info(`📦 First item: product_id=${rate.items[0].product_id}, variant_id=${rate.items[0].variant_id}`);
             try {
                 // Get shop access token for fetching product dimensions
                 let shopAccessToken = accessTokens.get(shopDomain);
@@ -868,33 +917,33 @@ app.post('/carrier/rates', async (req, res) => {
                         quantity: item.quantity
                     }));
 
-                    console.log(`📦 Calculating dimensions for ${lineItems.length} line items...`);
+                    logger.info(`📦 Calculating dimensions for ${lineItems.length} line items...`);
                     const productDimensions = await getProductDimensionsFromOrder(shopDomain, shopAccessToken, lineItems);
-                    console.log(`📦 Got ${productDimensions.length} product dimensions`);
+                    logger.info(`📦 Got ${productDimensions.length} product dimensions`);
                     requiredLockerTypeId = calculateRequiredLockerSize(productDimensions);
 
                     // If any product is not configured for LockerDrop, don't offer it
                     if (requiredLockerTypeId === null) {
-                        console.log('❌ One or more products not configured for LockerDrop - hiding option at checkout');
+                        logger.info('❌ One or more products not configured for LockerDrop - hiding option at checkout');
                         return res.json({ rates: [] });
                     }
 
                     requiredSizeName = LOCKER_SIZES.find(s => s.id === requiredLockerTypeId)?.name?.toLowerCase() || 'medium';
-                    console.log(`📦 Required locker size for cart: ${requiredSizeName} (type ${requiredLockerTypeId})`);
+                    logger.info(`📦 Required locker size for cart: ${requiredSizeName} (type ${requiredLockerTypeId})`);
                 } else {
-                    console.log(`⚠️ No access token found for ${shopDomain}`);
+                    logger.info(`⚠️ No access token found for ${shopDomain}`);
                     // No token means we can't verify product sizes - don't offer LockerDrop
                     return res.json({ rates: [] });
                 }
             } catch (sizeError) {
-                console.log(`⚠️ Could not calculate locker size: ${sizeError.message} - hiding LockerDrop option`);
+                logger.info(`⚠️ Could not calculate locker size: ${sizeError.message} - hiding LockerDrop option`);
                 return res.json({ rates: [] });
             }
         }
 
         // If no coordinates, return empty (can't check availability without location)
         if (!lat || !lon) {
-            console.log('❌ No coordinates available (even after geocode attempt)');
+            logger.info('❌ No coordinates available (even after geocode attempt)');
             return res.json({ rates: [] });
         }
 
@@ -909,16 +958,16 @@ app.post('/carrier/rates', async (req, res) => {
                 enabledLocationIds = prefsResult.rows.map(r => r.location_id);
 
                 if (enabledLocationIds.length === 0) {
-                    console.log('❌ No locker locations enabled for this shop - hiding LockerDrop at checkout');
+                    logger.info('❌ No locker locations enabled for this shop - hiding LockerDrop at checkout');
                     return res.json({ rates: [] });
                 }
-                console.log(`🔧 Shop has ${enabledLocationIds.length} enabled locations: ${enabledLocationIds.join(', ')}`);
+                logger.info(`🔧 Shop has ${enabledLocationIds.length} enabled locations: ${enabledLocationIds.join(', ')}`);
             } catch (e) {
-                console.log('⚠️ Could not check locker preferences:', e.message);
+                logger.info('⚠️ Could not check locker preferences:', e.message);
             }
         }
 
-        console.log(`📍 Customer location: ${lat}, ${lon}`);
+        logger.info(`📍 Customer location: ${lat}, ${lon}`);
 
         // Get Harbor token
         const tokenResponse = await axios.post(
@@ -945,7 +994,7 @@ app.post('/carrier/rates', async (req, res) => {
             : allLocations;
 
         if (enabledLocations.length === 0) {
-            console.log('❌ None of the enabled locations match Harbor locations');
+            logger.info('❌ None of the enabled locations match Harbor locations');
             return res.json({ rates: [] });
         }
 
@@ -1007,27 +1056,27 @@ app.post('/carrier/rates', async (req, res) => {
 
                 // Only show locations with enough buffer to prevent race conditions
                 if (hasRequiredSizeAvailable && availableForRequiredSize >= MIN_AVAILABLE_BUFFER) {
-                    console.log(`✅ Location ${location.name}: ${availableForRequiredSize} lockers available (${requiredSizeName}+, min ${MIN_AVAILABLE_BUFFER})`);
+                    logger.info(`✅ Location ${location.name}: ${availableForRequiredSize} lockers available (${requiredSizeName}+, min ${MIN_AVAILABLE_BUFFER})`);
                     availableLocations.push({ ...location, availableCount: availableForRequiredSize });
                 } else {
-                    console.log(`❌ Location ${location.name}: Only ${availableForRequiredSize} ${requiredSizeName}+ lockers (need ${MIN_AVAILABLE_BUFFER}+)`);
+                    logger.info(`❌ Location ${location.name}: Only ${availableForRequiredSize} ${requiredSizeName}+ lockers (need ${MIN_AVAILABLE_BUFFER}+)`);
                 }
             } catch (availError) {
-                console.log(`⚠️ Could not check availability for ${location.name}:`, availError.message);
+                logger.info(`⚠️ Could not check availability for ${location.name}:`, availError.message);
             }
 
             if (availableLocations.length >= MAX_LOCKERS_TO_SHOW) break;
         }
 
         if (availableLocations.length === 0) {
-            console.log(`❌ No lockers available with required size: ${requiredSizeName}`);
+            logger.info(`❌ No lockers available with required size: ${requiredSizeName}`);
             return res.json({ rates: [] });
         }
 
         // Set price based on free pickup setting
         const price = freePickup ? '0' : '100'; // $0 if free, $1.00 otherwise
-        console.log(`💰 Price: ${freePickup ? 'FREE (seller absorbs fee)' : '$1.00'}`);
-        console.log(`✅ Returning ${availableLocations.length} available locker options (pickup: ${pickupDateFormatted})`);
+        logger.info(`💰 Price: ${freePickup ? 'FREE (seller absorbs fee)' : '$1.00'}`);
+        logger.info(`✅ Returning ${availableLocations.length} available locker options (pickup: ${pickupDateFormatted})`);
 
         const rates = availableLocations.map(location => {
             // Build full address from Harbor location fields
@@ -1049,7 +1098,7 @@ app.post('/carrier/rates', async (req, res) => {
 
         res.json({ rates });
     } catch (error) {
-        console.error('Error calculating rates:', error);
+        logger.error('Error calculating rates:', error);
         res.status(500).json({ rates: [] });
     }
 });
@@ -1096,11 +1145,11 @@ async function requireAuth(req, res, next) {
                 req.session.authenticated = true;
                 req.session.shop = shop;
                 req.session.authenticatedAt = Date.now();
-                console.log(`🔐 Session created via HMAC for ${shop}`);
+                logger.info(`🔐 Session created via HMAC for ${shop}`);
                 return next();
             }
         } catch (e) {
-            console.log(`⚠️ HMAC verification error: ${e.message}`);
+            logger.info(`⚠️ HMAC verification error: ${e.message}`);
         }
     }
 
@@ -1113,16 +1162,16 @@ async function requireAuth(req, res, next) {
                 req.session.authenticated = true;
                 req.session.shop = shop;
                 req.session.authenticatedAt = Date.now();
-                console.log(`🔐 Session created via host verification for ${shop}`);
+                logger.info(`🔐 Session created via host verification for ${shop}`);
                 return next();
             }
         } catch (dbError) {
-            console.error('Database error during auth:', dbError);
+            logger.error('Database error during auth:', dbError);
         }
     }
 
     // Not authenticated - redirect to OAuth
-    console.log(`🔒 Unauthorized access attempt to dashboard for ${shop}`);
+    logger.info(`🔒 Unauthorized access attempt to dashboard for ${shop}`);
     res.redirect(`/auth/install?shop=${shop}`);
 }
 
@@ -1140,7 +1189,7 @@ function requireApiAuth(req, res, next) {
     }
 
     // For API calls, return 401 instead of redirecting
-    console.log(`🔒 Unauthorized API access attempt for ${shop}`);
+    logger.info(`🔒 Unauthorized API access attempt for ${shop}`);
     return res.status(401).json({
         error: 'Unauthorized',
         message: 'Please log in through the Shopify admin to access this resource.',
@@ -1260,7 +1309,7 @@ app.get('/api/order-locker-data/:shopifyOrderId', async (req, res) => {
                     }
                 }
             } catch (shopifyError) {
-                console.error('Error fetching from Shopify:', shopifyError.message);
+                logger.error('Error fetching from Shopify:', shopifyError.message);
             }
         }
 
@@ -1270,7 +1319,7 @@ app.get('/api/order-locker-data/:shopifyOrderId', async (req, res) => {
             message: 'No LockerDrop data'
         });
     } catch (error) {
-        console.error('Error fetching order locker data:', error);
+        logger.error('Error fetching order locker data:', error);
         res.status(500).json({ error: 'Failed to fetch order data' });
     }
 });
@@ -1419,7 +1468,7 @@ app.get('/api/sync-orders/:shop', async (req, res) => {
         
         res.json({ success: true, synced: syncedCount });
     } catch (error) {
-        console.error('Error syncing orders:', error);
+        logger.error('Error syncing orders:', error);
         res.status(500).json({ error: 'Failed to sync orders' });
     }
 });
@@ -1460,7 +1509,7 @@ async function geocodeLocation(query) {
             return coords;
         }
     } catch (err) {
-        console.log(`⚠️ Geocoding error for "${query}": ${err.message}`);
+        logger.info(`⚠️ Geocoding error for "${query}": ${err.message}`);
     }
 
     return null;
@@ -1511,10 +1560,10 @@ async function getLockerLocations() {
 
         // Update cache
         lockerLocationsCache = { data: lockers, timestamp: now };
-        console.log(`📍 Loaded ${lockers.length} locker locations from static file`);
+        logger.info(`📍 Loaded ${lockers.length} locker locations from static file`);
         return lockers;
     } catch (error) {
-        console.error('Failed to load static locker locations:', error.message);
+        logger.error('Failed to load static locker locations:', error.message);
         // Fall back to API if static file fails
         return null;
     }
@@ -1593,9 +1642,9 @@ app.get('/api/lockers/:shop', async (req, res) => {
             searchCoords = await geocodeLocation(searchQuery);
             if (searchCoords) {
                 useDistanceSearch = true;
-                console.log(`📍 Geocoded "${searchQuery}" to ${searchCoords.lat}, ${searchCoords.lon}`);
+                logger.info(`📍 Geocoded "${searchQuery}" to ${searchCoords.lat}, ${searchCoords.lon}`);
             } else {
-                console.log(`⚠️ Could not geocode "${searchQuery}", using text search`);
+                logger.info(`⚠️ Could not geocode "${searchQuery}", using text search`);
             }
 
             if (useDistanceSearch && searchCoords) {
@@ -1619,10 +1668,10 @@ app.get('/api/lockers/:shop', async (req, res) => {
 
                 if (distanceResults.length > 0) {
                     lockers = distanceResults;
-                    console.log(`📍 Found ${lockers.length} lockers within ${maxDistanceMiles} miles of "${searchQuery}"`);
+                    logger.info(`📍 Found ${lockers.length} lockers within ${maxDistanceMiles} miles of "${searchQuery}"`);
                 } else {
                     // No lockers within 50 miles - fall back to text search
-                    console.log(`📍 No lockers within ${maxDistanceMiles} miles of "${searchQuery}", trying text search`);
+                    logger.info(`📍 No lockers within ${maxDistanceMiles} miles of "${searchQuery}", trying text search`);
                     useDistanceSearch = false;
                 }
             }
@@ -1643,7 +1692,7 @@ app.get('/api/lockers/:shop', async (req, res) => {
 
                     return searchTerms.every(term => lockerText.includes(term));
                 });
-                console.log(`📝 Text search for "${searchQuery}" found ${lockers.length} lockers`);
+                logger.info(`📝 Text search for "${searchQuery}" found ${lockers.length} lockers`);
             }
         }
 
@@ -1657,7 +1706,7 @@ app.get('/api/lockers/:shop', async (req, res) => {
 
         // Fetch availability for each locker IN PARALLEL if requested (much faster)
         if (includeAvailability === 'true' && paginatedLockers.length > 0) {
-            console.log(`📦 Fetching availability for ${paginatedLockers.length} lockers...`);
+            logger.info(`📦 Fetching availability for ${paginatedLockers.length} lockers...`);
             // Get Harbor token once
             const tokenResponse = await axios.post(
                 'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
@@ -1693,11 +1742,11 @@ app.get('/api/lockers/:shop', async (req, res) => {
 
                     // If no availability data was parsed, set to null so frontend doesn't render empty badges
                     if (Object.keys(locker.availability).length === 0) {
-                        console.log(`📦 No availability data for locker ${locker.id} (${locker.name}):`, JSON.stringify(availability).substring(0, 200));
+                        logger.info(`📦 No availability data for locker ${locker.id} (${locker.name}):`, JSON.stringify(availability).substring(0, 200));
                         locker.availability = null;
                     }
                 } catch (availError) {
-                    console.log(`⚠️ Failed to fetch availability for locker ${locker.id}: ${availError.message}`);
+                    logger.info(`⚠️ Failed to fetch availability for locker ${locker.id}: ${availError.message}`);
                     locker.availability = null;
                 }
             });
@@ -1733,7 +1782,7 @@ app.get('/api/lockers/:shop', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching lockers:', error.response?.data || error.message);
+        logger.error('Error fetching lockers:', error.response?.data || error.message);
         res.status(500).json({ error: 'Failed to fetch lockers', details: error.response?.data || error.message });
     }
 });
@@ -1747,7 +1796,7 @@ app.post('/api/order/:shop/:orderId/status', async (req, res) => {
         // Remove # prefix if present (orderId comes as "#1029" from the modal)
         const orderNumber = orderId.replace(/^#/, '');
 
-        console.log(`📝 Updating order status: shop=${shop}, orderNumber=${orderNumber}, status=${status}`);
+        logger.info(`📝 Updating order status: shop=${shop}, orderNumber=${orderNumber}, status=${status}`);
 
         // Map the status from frontend to database status
         let dbStatus;
@@ -1766,11 +1815,11 @@ app.post('/api/order/:shop/:orderId/status', async (req, res) => {
         );
 
         if (result.rows.length === 0) {
-            console.log(`❌ Order not found: ${orderNumber}`);
+            logger.info(`❌ Order not found: ${orderNumber}`);
             return res.status(404).json({ error: 'Order not found' });
         }
 
-        console.log(`✅ Order ${orderNumber} updated to status: ${dbStatus}`);
+        logger.info(`✅ Order ${orderNumber} updated to status: ${dbStatus}`);
 
         // Generate pickup link and send notification when status is "ready_for_pickup"
         if (dbStatus === 'ready_for_pickup') {
@@ -1787,7 +1836,7 @@ app.post('/api/order/:shop/:orderId/status', async (req, res) => {
                 // Generate pickup link if not already created and we have a locker_id
                 if (!pickupUrl && order.locker_id) {
                     try {
-                        console.log(`🔗 Generating pickup link for order #${orderNumber}, locker_id: ${order.locker_id}`);
+                        logger.info(`🔗 Generating pickup link for order #${orderNumber}, locker_id: ${order.locker_id}`);
 
                         // Get Harbor token
                         const tokenResponse = await axios.post(
@@ -1813,7 +1862,7 @@ app.post('/api/order/:shop/:orderId/status', async (req, res) => {
                         );
 
                         pickupUrl = pickupResponse.data.linkToken;
-                        console.log(`✅ Pickup link generated: ${pickupUrl}`);
+                        logger.info(`✅ Pickup link generated: ${pickupUrl}`);
 
                         // Save pickup link to database
                         await db.query(
@@ -1821,7 +1870,7 @@ app.post('/api/order/:shop/:orderId/status', async (req, res) => {
                             [pickupUrl, pickupResponse.data.id, order.id]
                         );
                     } catch (pickupError) {
-                        console.error(`❌ Error generating pickup link:`, pickupError.response?.data || pickupError.message);
+                        logger.error(`❌ Error generating pickup link:`, pickupError.response?.data || pickupError.message);
                     }
                 }
 
@@ -1872,7 +1921,7 @@ app.post('/api/order/:shop/:orderId/status', async (req, res) => {
 
         res.json({ success: true, message: `Order ${orderNumber} marked as ${dbStatus}` });
     } catch (error) {
-        console.error('Error updating order status:', error);
+        logger.error('Error updating order status:', error);
         res.status(500).json({ error: 'Failed to update order status' });
     }
 });
@@ -1882,7 +1931,7 @@ app.post('/api/pickup-complete', async (req, res) => {
     try {
         const { orderNumber, requestId, status } = req.body;
 
-        console.log(`📦 Pickup complete callback: order=${orderNumber}, requestId=${requestId}, status=${status}`);
+        logger.info(`📦 Pickup complete callback: order=${orderNumber}, requestId=${requestId}, status=${status}`);
 
         if (!orderNumber) {
             return res.status(400).json({ error: 'Order number required' });
@@ -1895,17 +1944,17 @@ app.post('/api/pickup-complete', async (req, res) => {
         );
 
         if (result.rows.length === 0) {
-            console.log(`⚠️ Order ${orderNumber} not found or already completed`);
+            logger.info(`⚠️ Order ${orderNumber} not found or already completed`);
             return res.json({ success: true, message: 'Order already processed or not found' });
         }
 
         const order = result.rows[0];
-        console.log(`✅ Order #${orderNumber} marked as completed (picked up by customer)`);
+        logger.info(`✅ Order #${orderNumber} marked as completed (picked up by customer)`);
 
         // Release the locker in Harbor
         if (order.tower_id && order.locker_id) {
             try {
-                console.log(`🔓 Releasing locker ${order.locker_id} in tower ${order.tower_id}...`);
+                logger.info(`🔓 Releasing locker ${order.locker_id} in tower ${order.tower_id}...`);
                 const tokenResponse = await axios.post(
                     'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
                     `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
@@ -1918,25 +1967,25 @@ app.post('/api/pickup-complete', async (req, res) => {
                     {},
                     { headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }}
                 );
-                console.log(`✅ Locker released successfully:`, releaseResponse.data?.status?.name || 'released');
+                logger.info(`✅ Locker released successfully:`, releaseResponse.data?.status?.name || 'released');
             } catch (releaseError) {
-                console.log(`⚠️ Could not release locker: ${releaseError.response?.data?.detail || releaseError.message}`);
+                logger.info(`⚠️ Could not release locker: ${releaseError.response?.data?.detail || releaseError.message}`);
             }
         } else {
-            console.log(`⚠️ Cannot release locker - missing tower_id (${order.tower_id}) or locker_id (${order.locker_id})`);
+            logger.info(`⚠️ Cannot release locker - missing tower_id (${order.tower_id}) or locker_id (${order.locker_id})`);
         }
 
         // Fulfill the order in Shopify
         let fulfillmentWarning = null;
         if (order.shop && order.shopify_order_id) {
-            console.log(`🛍️ Fulfilling order ${order.shopify_order_id} in Shopify...`);
+            logger.info(`🛍️ Fulfilling order ${order.shopify_order_id} in Shopify...`);
             const fulfillResult = await fulfillShopifyOrder(order.shop, order.shopify_order_id);
             if (fulfillResult.success) {
-                console.log(`✅ Order fulfilled in Shopify: ${fulfillResult.message}`);
+                logger.info(`✅ Order fulfilled in Shopify: ${fulfillResult.message}`);
             } else {
-                console.log(`⚠️ Shopify fulfillment issue: ${fulfillResult.message}`);
+                logger.info(`⚠️ Shopify fulfillment issue: ${fulfillResult.message}`);
                 if (fulfillResult.needsReauth) {
-                    console.log(`🔐 Re-authorization needed: ${fulfillResult.reauthUrl}`);
+                    logger.info(`🔐 Re-authorization needed: ${fulfillResult.reauthUrl}`);
                     fulfillmentWarning = {
                         type: 'reauth_required',
                         message: 'Auto-fulfillment failed: App needs re-authorization to access fulfillment permissions.',
@@ -1945,11 +1994,11 @@ app.post('/api/pickup-complete', async (req, res) => {
                 }
             }
         } else {
-            console.log(`⚠️ Cannot fulfill in Shopify - missing shop (${order.shop}) or shopify_order_id (${order.shopify_order_id})`);
+            logger.info(`⚠️ Cannot fulfill in Shopify - missing shop (${order.shop}) or shopify_order_id (${order.shopify_order_id})`);
         }
 
         // Log for seller notification (in production, you might send an email or push notification)
-        console.log(`📧 Notify seller: Customer picked up order #${orderNumber}`);
+        logger.info(`📧 Notify seller: Customer picked up order #${orderNumber}`);
 
         const response = { success: true, message: `Order ${orderNumber} marked as completed` };
         if (fulfillmentWarning) {
@@ -1957,7 +2006,7 @@ app.post('/api/pickup-complete', async (req, res) => {
         }
         res.json(response);
     } catch (error) {
-        console.error('Error processing pickup complete:', error);
+        logger.error('Error processing pickup complete:', error);
         res.status(500).json({ error: 'Failed to process pickup completion' });
     }
 });
@@ -1968,7 +2017,7 @@ app.post('/api/order/:shop/:orderId/cancel-locker', async (req, res) => {
         const { shop, orderId } = req.params;
         const orderNumber = orderId.replace(/^#/, '');
 
-        console.log(`🚫 Cancelling locker request for order #${orderNumber}`);
+        logger.info(`🚫 Cancelling locker request for order #${orderNumber}`);
 
         // Get the order details
         const orderResult = await db.query(
@@ -1998,18 +2047,18 @@ app.post('/api/order/:shop/:orderId/cancel-locker', async (req, res) => {
                 const accessToken = tokenResponse.data.access_token;
 
                 // Release the locker in Harbor
-                console.log(`   🔓 Releasing locker ${order.locker_id} in tower ${order.tower_id}...`);
+                logger.info(`   🔓 Releasing locker ${order.locker_id} in tower ${order.tower_id}...`);
                 const releaseResponse = await axios.post(
                     `https://api.sandbox.harborlockers.com/api/v1/towers/${order.tower_id}/lockers/${order.locker_id}/release-locker`,
                     {},
                     { headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }}
                 );
-                console.log(`   ✅ Locker released:`, releaseResponse.data?.status?.name || 'released');
+                logger.info(`   ✅ Locker released:`, releaseResponse.data?.status?.name || 'released');
             } catch (harborError) {
-                console.log(`   ⚠️ Could not release locker: ${harborError.response?.data?.detail || harborError.message}`);
+                logger.info(`   ⚠️ Could not release locker: ${harborError.response?.data?.detail || harborError.message}`);
             }
         } else if (order.locker_id) {
-            console.log(`   ⚠️ Cannot release locker - missing tower_id`);
+            logger.info(`   ⚠️ Cannot release locker - missing tower_id`);
         }
 
         // Update order in database - clear locker info and set status to cancelled
@@ -2024,11 +2073,11 @@ app.post('/api/order/:shop/:orderId/cancel-locker', async (req, res) => {
             [order.id]
         );
 
-        console.log(`✅ Order #${orderNumber} locker request cancelled`);
+        logger.info(`✅ Order #${orderNumber} locker request cancelled`);
 
         res.json({ success: true, message: 'Locker request cancelled' });
     } catch (error) {
-        console.error('Error cancelling locker request:', error);
+        logger.error('Error cancelling locker request:', error);
         res.status(500).json({ error: 'Failed to cancel locker request' });
     }
 });
@@ -2038,7 +2087,7 @@ app.post('/api/dropoff-complete', async (req, res) => {
     try {
         const { orderNumber, requestId, status, lockerId, towerId } = req.body;
 
-        console.log(`📦 Dropoff complete callback: order=${orderNumber}, requestId=${requestId}, status=${status}, lockerId=${lockerId}`);
+        logger.info(`📦 Dropoff complete callback: order=${orderNumber}, requestId=${requestId}, status=${status}, lockerId=${lockerId}`);
 
         if (!orderNumber) {
             return res.status(400).json({ error: 'Order number required' });
@@ -2051,7 +2100,7 @@ app.post('/api/dropoff-complete', async (req, res) => {
         );
 
         if (orderResult.rows.length === 0) {
-            console.log(`⚠️ Order ${orderNumber} not found`);
+            logger.info(`⚠️ Order ${orderNumber} not found`);
             return res.json({ success: false, message: 'Order not found' });
         }
 
@@ -2060,7 +2109,7 @@ app.post('/api/dropoff-complete', async (req, res) => {
         // Use locker_id from order first (most reliable), then callback, then fetch from Harbor
         // The order's locker_id is set when the dropoff link is created, so it should be correct
         let finalLockerId = order.locker_id || lockerId;
-        console.log(`📍 Locker ID sources - order.locker_id: ${order.locker_id}, callback lockerId: ${lockerId}, using: ${finalLockerId}`);
+        logger.info(`📍 Locker ID sources - order.locker_id: ${order.locker_id}, callback lockerId: ${lockerId}, using: ${finalLockerId}`);
 
         // Get Harbor token
         const tokenResponse = await axios.post(
@@ -2074,16 +2123,16 @@ app.post('/api/dropoff-complete', async (req, res) => {
         let finalTowerId = towerId;
         if (!finalLockerId && requestId) {
             try {
-                console.log(`🔍 Fetching locker info from dropoff request ${requestId}`);
+                logger.info(`🔍 Fetching locker info from dropoff request ${requestId}`);
                 const requestInfo = await axios.get(
                     `https://api.sandbox.harborlockers.com/api/v1/locker-open-requests/${requestId}`,
                     { headers: { 'Authorization': `Bearer ${accessToken}` }}
                 );
                 finalLockerId = requestInfo.data.lockerId || requestInfo.data.locker?.id;
                 finalTowerId = requestInfo.data.towerId || finalTowerId;
-                console.log(`📍 Found locker ID: ${finalLockerId}, tower ID: ${finalTowerId}`);
+                logger.info(`📍 Found locker ID: ${finalLockerId}, tower ID: ${finalTowerId}`);
             } catch (e) {
-                console.log(`⚠️ Could not fetch request info: ${e.response?.status || e.message}`);
+                logger.info(`⚠️ Could not fetch request info: ${e.response?.status || e.message}`);
             }
         }
 
@@ -2093,14 +2142,14 @@ app.post('/api/dropoff-complete', async (req, res) => {
                 "UPDATE orders SET locker_id = $1, tower_id = $2 WHERE order_number = $3",
                 [finalLockerId, finalTowerId || null, orderNumber]
             );
-            console.log(`📍 Updated order with locker_id: ${finalLockerId}, tower_id: ${finalTowerId}`);
+            logger.info(`📍 Updated order with locker_id: ${finalLockerId}, tower_id: ${finalTowerId}`);
         }
 
         // Generate pickup link if we have a locker_id
         let pickupLink = null;
         if (finalLockerId) {
             try {
-                console.log(`🔗 Generating pickup link for order #${orderNumber} (locker: ${finalLockerId})`);
+                logger.info(`🔗 Generating pickup link for order #${orderNumber} (locker: ${finalLockerId})`);
 
                 // Create pickup request
                 const pickupResponse = await axios.post(
@@ -2117,12 +2166,12 @@ app.post('/api/dropoff-complete', async (req, res) => {
                 );
 
                 pickupLink = pickupResponse.data.linkToken;
-                console.log(`✅ Pickup link generated: ${pickupLink}`);
+                logger.info(`✅ Pickup link generated: ${pickupLink}`);
             } catch (pickupError) {
-                console.error(`❌ Error generating pickup link:`, pickupError.response?.data || pickupError.message);
+                logger.error(`❌ Error generating pickup link:`, pickupError.response?.data || pickupError.message);
             }
         } else {
-            console.log(`⚠️ No locker_id available, cannot generate pickup link`);
+            logger.info(`⚠️ No locker_id available, cannot generate pickup link`);
         }
 
         // Update order status to ready_for_pickup and save pickup link
@@ -2131,7 +2180,7 @@ app.post('/api/dropoff-complete', async (req, res) => {
             [pickupLink, orderNumber]
         );
 
-        console.log(`✅ Order #${orderNumber} marked as ready_for_pickup`);
+        logger.info(`✅ Order #${orderNumber} marked as ready_for_pickup`);
 
         // Send email to customer with pickup link
         if (order.customer_email && pickupLink) {
@@ -2180,7 +2229,7 @@ app.post('/api/dropoff-complete', async (req, res) => {
                 </div>
                 `
             );
-            console.log(`📧 Pickup email sent to ${order.customer_email}`);
+            logger.info(`📧 Pickup email sent to ${order.customer_email}`);
         }
 
         // Send SMS to customer
@@ -2189,12 +2238,12 @@ app.post('/api/dropoff-complete', async (req, res) => {
                 order.customer_phone,
                 `LockerDrop: Your order #${orderNumber} is ready for pickup! Open your locker here: ${pickupLink}`
             );
-            console.log(`📱 Pickup SMS sent to ${order.customer_phone}`);
+            logger.info(`📱 Pickup SMS sent to ${order.customer_phone}`);
         }
 
         res.json({ success: true, message: `Order ${orderNumber} ready for pickup, customer notified` });
     } catch (error) {
-        console.error('Error processing dropoff complete:', error);
+        logger.error('Error processing dropoff complete:', error);
         res.status(500).json({ error: 'Failed to process dropoff completion' });
     }
 });
@@ -2273,7 +2322,7 @@ app.post('/api/resend-notification/:orderNumber', (req, res, next) => {
                 `
             );
             emailSent = true;
-            console.log(`📧 Resent pickup email to ${order.customer_email} for order #${orderNumber}`);
+            logger.info(`📧 Resent pickup email to ${order.customer_email} for order #${orderNumber}`);
         }
 
         // Send SMS
@@ -2283,7 +2332,7 @@ app.post('/api/resend-notification/:orderNumber', (req, res, next) => {
                 `LockerDrop Reminder: Your order #${orderNumber} is waiting for pickup! Open your locker here: ${order.pickup_link}`
             );
             smsSent = true;
-            console.log(`📱 Resent pickup SMS to ${order.customer_phone} for order #${orderNumber}`);
+            logger.info(`📱 Resent pickup SMS to ${order.customer_phone} for order #${orderNumber}`);
         }
 
         if (!emailSent && !smsSent) {
@@ -2297,7 +2346,7 @@ app.post('/api/resend-notification/:orderNumber', (req, res, next) => {
             smsSent
         });
     } catch (error) {
-        console.error('Error resending notification:', error);
+        logger.error('Error resending notification:', error);
         res.status(500).json({ error: 'Failed to resend notification' });
     }
 });
@@ -2408,7 +2457,7 @@ async function resetMonthlyOrderCounts() {
         UPDATE subscriptions
         SET orders_this_month = 0, billing_cycle_start = NOW(), updated_at = NOW()
     `);
-    console.log('📅 Monthly order counts reset');
+    logger.info('📅 Monthly order counts reset');
 }
 
 // Get subscription status
@@ -2438,7 +2487,7 @@ app.get('/api/subscription/:shop', async (req, res) => {
             features: plan.features || {}
         });
     } catch (error) {
-        console.error('Error getting subscription:', error);
+        logger.error('Error getting subscription:', error);
         res.status(500).json({ error: 'Failed to get subscription' });
     }
 });
@@ -2473,7 +2522,7 @@ app.get('/api/settings/:shop', async (req, res) => {
             useCheckoutExtension: settings.use_checkout_extension || false
         });
     } catch (error) {
-        console.error('Error getting settings:', error);
+        logger.error('Error getting settings:', error);
         res.status(500).json({ error: 'Failed to get settings' });
     }
 });
@@ -2505,10 +2554,10 @@ app.post('/api/settings/:shop', requireApiAuth, async (req, res) => {
             useCheckoutExtension || false
         ]);
 
-        console.log(`✅ Settings saved for ${shop}: freePickup=${freePickup}, processingDays=${processingDays}, useCheckoutExtension=${useCheckoutExtension}`);
+        logger.info(`✅ Settings saved for ${shop}: freePickup=${freePickup}, processingDays=${processingDays}, useCheckoutExtension=${useCheckoutExtension}`);
         res.json({ success: true });
     } catch (error) {
-        console.error('Error saving settings:', error);
+        logger.error('Error saving settings:', error);
         res.status(500).json({ error: 'Failed to save settings' });
     }
 });
@@ -2575,7 +2624,7 @@ app.get('/api/available-pickup-dates/:shop', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error getting available pickup dates:', error);
+        logger.error('Error getting available pickup dates:', error);
         res.status(500).json({ error: 'Failed to get available dates' });
     }
 });
@@ -2636,7 +2685,7 @@ app.get('/api/order-pickup-details/:orderNumber', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error getting order pickup details:', error);
+        logger.error('Error getting order pickup details:', error);
         res.status(500).json({ error: 'Failed to load order details' });
     }
 });
@@ -2663,7 +2712,7 @@ app.post('/api/verify-order-email/:orderNumber', async (req, res) => {
         res.json({ verified: true });
 
     } catch (error) {
-        console.error('Error verifying email:', error);
+        logger.error('Error verifying email:', error);
         res.status(500).json({ error: 'Failed to verify email' });
     }
 });
@@ -2721,16 +2770,16 @@ app.post('/api/update-pickup-date/:shop/:orderNumber', async (req, res) => {
                 </div>`
             );
         } catch (emailErr) {
-            console.error('Failed to send date update email:', emailErr);
+            logger.error('Failed to send date update email:', emailErr);
             // Don't fail the request if email fails
         }
 
-        console.log(`Pickup date updated for order ${cleanOrderNumber}: ${order.preferred_pickup_date} -> ${newDate}`);
+        logger.info(`Pickup date updated for order ${cleanOrderNumber}: ${order.preferred_pickup_date} -> ${newDate}`);
 
         res.json({ success: true, newDate });
 
     } catch (error) {
-        console.error('Error updating pickup date:', error);
+        logger.error('Error updating pickup date:', error);
         res.status(500).json({ error: 'Failed to update pickup date' });
     }
 });
@@ -2856,7 +2905,7 @@ app.post('/api/subscribe/:shop', async (req, res) => {
         const result = response.data.data.appSubscriptionCreate;
 
         if (result.userErrors && result.userErrors.length > 0) {
-            console.error('Shopify billing error:', result.userErrors);
+            logger.error('Shopify billing error:', result.userErrors);
             return res.status(400).json({ error: result.userErrors[0].message });
         }
 
@@ -2867,7 +2916,7 @@ app.post('/api/subscribe/:shop', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error creating subscription:', error.response?.data || error.message);
+        logger.error('Error creating subscription:', error.response?.data || error.message);
         res.status(500).json({ error: 'Failed to create subscription' });
     }
 });
@@ -2896,13 +2945,13 @@ app.get('/api/subscription/confirm', async (req, res) => {
             WHERE shop = $4
         `, [plan, charge_id, planConfig.orderLimit, shop]);
 
-        console.log(`✅ Subscription activated: ${shop} -> ${plan}`);
+        logger.info(`✅ Subscription activated: ${shop} -> ${plan}`);
 
         // Redirect to dashboard with success message
         res.redirect(`/admin/dashboard?shop=${shop}&billing=success&plan=${plan}`);
 
     } catch (error) {
-        console.error('Error confirming subscription:', error);
+        logger.error('Error confirming subscription:', error);
         res.redirect(`/admin/dashboard?shop=${req.query.shop}&billing=error`);
     }
 });
@@ -2947,7 +2996,7 @@ app.post('/api/subscription/cancel/:shop', async (req, res) => {
                     { headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' } }
                 );
             } catch (e) {
-                console.log('Could not cancel Shopify subscription:', e.message);
+                logger.info('Could not cancel Shopify subscription:', e.message);
             }
         }
 
@@ -2961,7 +3010,7 @@ app.post('/api/subscription/cancel/:shop', async (req, res) => {
         res.json({ success: true, message: 'Subscription cancelled' });
 
     } catch (error) {
-        console.error('Error cancelling subscription:', error);
+        logger.error('Error cancelling subscription:', error);
         res.status(500).json({ error: 'Failed to cancel subscription' });
     }
 });
@@ -2992,11 +3041,11 @@ app.post('/api/subscription/dev-switch/:shop', async (req, res) => {
             WHERE shop = $3
         `, [planId, plan.orderLimit, shop]);
 
-        console.log(`🔧 DEV: Switched ${shop} to ${planId} plan`);
+        logger.info(`🔧 DEV: Switched ${shop} to ${planId} plan`);
         res.json({ success: true, plan: planId, message: `Switched to ${plan.name} plan` });
 
     } catch (error) {
-        console.error('Error switching plan:', error);
+        logger.error('Error switching plan:', error);
         res.status(500).json({ error: 'Failed to switch plan' });
     }
 });
@@ -3009,19 +3058,19 @@ app.post('/api/subscription/dev-switch/:shop', async (req, res) => {
 app.get('/api/products/:shop', async (req, res) => {
     try {
         const { shop } = req.params;
-        console.log(`📦 Loading products for shop: ${shop}`);
+        logger.info(`📦 Loading products for shop: ${shop}`);
 
         // Get access token
         let accessToken = accessTokens.get(shop);
         if (!accessToken) {
-            console.log(`   Looking up token in database...`);
+            logger.info(`   Looking up token in database...`);
             const result = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop]);
             if (result.rows.length > 0) {
                 accessToken = result.rows[0].access_token;
                 accessTokens.set(shop, accessToken);
-                console.log(`   Found token: ${accessToken.substring(0, 15)}...`);
+                logger.info(`   Found token: ${accessToken.substring(0, 15)}...`);
             } else {
-                console.log(`   No token found for shop: ${shop}`);
+                logger.info(`   No token found for shop: ${shop}`);
             }
         }
 
@@ -3030,9 +3079,9 @@ app.get('/api/products/:shop', async (req, res) => {
         }
 
         // Fetch products from Shopify (using GraphQL API)
-        console.log(`   Fetching products from Shopify GraphQL API...`);
+        logger.info(`   Fetching products from Shopify GraphQL API...`);
         const shopifyProducts = await fetchProductsGraphQL(shop, accessToken, 250);
-        console.log(`   Fetched ${shopifyProducts.length} products`);
+        logger.info(`   Fetched ${shopifyProducts.length} products`);
 
         // Get existing size mappings from our database
         const sizeMappings = await db.query(
@@ -3078,7 +3127,7 @@ app.get('/api/products/:shop', async (req, res) => {
 
         res.json({ products });
     } catch (error) {
-        console.error('Error fetching products:', error.response?.data || error.message);
+        logger.error('Error fetching products:', error.response?.data || error.message);
 
         // Check if it's an auth error
         if (error.response?.status === 401 || error.response?.data?.errors?.includes('Invalid API key')) {
@@ -3129,7 +3178,7 @@ app.post('/api/product-sizes/:shop', async (req, res) => {
 
         res.json({ success: true, message: `Saved ${products.length} product settings` });
     } catch (error) {
-        console.error('Error saving product sizes:', error);
+        logger.error('Error saving product sizes:', error);
         res.status(500).json({ error: 'Failed to save product sizes' });
     }
 });
@@ -3144,7 +3193,7 @@ app.get('/api/product-sizes/:shop', async (req, res) => {
         );
         res.json({ sizes: result.rows });
     } catch (error) {
-        console.error('Error fetching product sizes:', error);
+        logger.error('Error fetching product sizes:', error);
         res.status(500).json({ error: 'Failed to fetch product sizes' });
     }
 });
@@ -3236,7 +3285,7 @@ app.get('/api/stats/:shop', async (req, res) => {
             nextDropoffLocation
         });
     } catch (error) {
-        console.error('Error loading stats:', error);
+        logger.error('Error loading stats:', error);
         res.status(500).json({ error: 'Failed to load stats' });
     }
 });
@@ -3270,7 +3319,7 @@ app.get('/api/orders/:shop', auditCustomerDataAccess('view_orders'), async (req,
 
         res.json(result.rows);
     } catch (error) {
-        console.error('Error loading orders:', error);
+        logger.error('Error loading orders:', error);
         res.status(500).json({ error: 'Failed to load orders' });
     }
 });
@@ -3297,7 +3346,7 @@ app.post('/api/locker-preferences/:shop', async (req, res) => {
         
         res.json({ success: true, message: 'Preferences saved' });
     } catch (error) {
-        console.error('Error saving preferences:', error);
+        logger.error('Error saving preferences:', error);
         res.status(500).json({ error: 'Failed to save preferences' });
     }
 });
@@ -3312,7 +3361,7 @@ app.get('/api/locker-preferences/:shop', async (req, res) => {
         );
         res.json(result.rows);
     } catch (error) {
-        console.error('Error fetching preferences:', error);
+        logger.error('Error fetching preferences:', error);
         res.status(500).json({ error: 'Failed to fetch preferences' });
     }
 });
@@ -3393,7 +3442,7 @@ app.get('/api/locker-availability/:shop', async (req, res) => {
                     lastUpdated: new Date().toISOString()
                 });
             } catch (availError) {
-                console.error(`Failed to get availability for locker ${pref.location_id}:`, availError.message);
+                logger.error(`Failed to get availability for locker ${pref.location_id}:`, availError.message);
                 locationsWithAvailability.push({
                     id: pref.location_id,
                     name: pref.location_name,
@@ -3410,7 +3459,7 @@ app.get('/api/locker-availability/:shop', async (req, res) => {
             minAvailableBuffer: MIN_AVAILABLE_BUFFER
         });
     } catch (error) {
-        console.error('Error fetching locker availability:', error);
+        logger.error('Error fetching locker availability:', error);
         res.status(500).json({ error: 'Failed to fetch availability', details: error.message });
     }
 });
@@ -3440,7 +3489,7 @@ app.get('/api/location-availability/:locationId', async (req, res) => {
 
         res.json(availabilityResponse.data);
     } catch (error) {
-        console.error('Error fetching single locker availability:', error.message);
+        logger.error('Error fetching single locker availability:', error.message);
         res.status(500).json({ error: 'Failed to fetch availability', details: error.message });
     }
 });
@@ -3454,7 +3503,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
     try {
         const { address, shop, lat, lon, products } = req.query;
 
-        console.log(`📍 Checkout locker request: address="${address}", shop="${shop}"`);
+        logger.info(`📍 Checkout locker request: address="${address}", shop="${shop}"`);
 
         // Get shop settings for pickup date calculation
         let processingDays = 1;
@@ -3473,7 +3522,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
                     freePickup = settings.free_pickup !== false; // Default to true if not set
                 }
             } catch (e) {
-                console.log('⚠️ Could not fetch shop settings for pickup date:', e.message);
+                logger.info('⚠️ Could not fetch shop settings for pickup date:', e.message);
             }
         }
 
@@ -3481,7 +3530,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
         const { pickupDate } = calculatePickupDate(processingDays, fulfillmentDays, vacationDays);
         const pickupDateFormatted = formatPickupDate(pickupDate);
         const pickupDateISO = pickupDate.toISOString().split('T')[0];
-        console.log(`📅 Checkout pickup date: ${pickupDateFormatted}`);
+        logger.info(`📅 Checkout pickup date: ${pickupDateFormatted}`);
 
         // Check if shop has enabled any locker locations
         let enabledLocationIds = [];
@@ -3494,12 +3543,12 @@ app.get('/api/checkout/lockers', async (req, res) => {
                 enabledLocationIds = prefsResult.rows.map(r => r.location_id);
 
                 if (enabledLocationIds.length === 0) {
-                    console.log('❌ No locker locations enabled for this shop - returning empty');
+                    logger.info('❌ No locker locations enabled for this shop - returning empty');
                     return res.json({ lockers: [], requiredSize: 'medium', requiredSizeId: 2, pickupDate: pickupDateFormatted, pickupDateISO: pickupDateISO, freePickup });
                 }
-                console.log(`🔧 Shop has ${enabledLocationIds.length} enabled locations: ${enabledLocationIds.join(', ')}`);
+                logger.info(`🔧 Shop has ${enabledLocationIds.length} enabled locations: ${enabledLocationIds.join(', ')}`);
             } catch (e) {
-                console.log('⚠️ Could not check locker preferences:', e.message);
+                logger.info('⚠️ Could not check locker preferences:', e.message);
             }
         }
 
@@ -3510,7 +3559,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
         if (products && shop) {
             try {
                 const cartProducts = JSON.parse(decodeURIComponent(products));
-                console.log(`📦 Cart products for size calculation:`, cartProducts.length, 'items');
+                logger.info(`📦 Cart products for size calculation:`, cartProducts.length, 'items');
 
                 // Get shop access token
                 let shopAccessToken = accessTokens.get(shop);
@@ -3529,7 +3578,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
 
                     // If any product is not configured for LockerDrop, return empty
                     if (requiredLockerTypeId === null) {
-                        console.log('❌ One or more products not configured for LockerDrop - returning empty lockers');
+                        logger.info('❌ One or more products not configured for LockerDrop - returning empty lockers');
                         return res.json({
                             lockers: [],
                             pickupDate: null,
@@ -3538,10 +3587,10 @@ app.get('/api/checkout/lockers', async (req, res) => {
                     }
 
                     requiredSizeName = LOCKER_SIZES.find(s => s.id === requiredLockerTypeId)?.name?.toLowerCase() || 'medium';
-                    console.log(`📦 Required locker size for cart: ${requiredSizeName} (type ${requiredLockerTypeId})`);
+                    logger.info(`📦 Required locker size for cart: ${requiredSizeName} (type ${requiredLockerTypeId})`);
                 }
             } catch (parseError) {
-                console.log(`⚠️ Could not parse products for size calculation: ${parseError.message}`);
+                logger.info(`⚠️ Could not parse products for size calculation: ${parseError.message}`);
             }
         }
 
@@ -3571,7 +3620,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
             : allLocations;
 
         if (enabledLocations.length === 0) {
-            console.log('❌ None of the enabled locations match Harbor locations');
+            logger.info('❌ None of the enabled locations match Harbor locations');
             return res.json({ lockers: [], requiredSize: requiredSizeName, requiredSizeId: requiredLockerTypeId, pickupDate: pickupDateFormatted, pickupDateISO: pickupDateISO, freePickup });
         }
 
@@ -3588,13 +3637,13 @@ app.get('/api/checkout/lockers', async (req, res) => {
                 if (geocoded) {
                     customerLat = geocoded.latitude;
                     customerLon = geocoded.longitude;
-                    console.log(`📍 Geocoded zip ${zipMatch[1]} to: ${customerLat}, ${customerLon}`);
+                    logger.info(`📍 Geocoded zip ${zipMatch[1]} to: ${customerLat}, ${customerLon}`);
                 }
             }
         }
 
         if (!customerLat || !customerLon) {
-            console.log('⚠️ No coordinates available, will sort by name');
+            logger.info('⚠️ No coordinates available, will sort by name');
         }
 
         // Check availability and calculate distances
@@ -3614,7 +3663,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
 
                 if (availability.byType && Array.isArray(availability.byType)) {
                     // New API format with per-type availability
-                    console.log(`📦 Location ${location.name} availability by type:`, JSON.stringify(availability.byType.map(t => ({
+                    logger.info(`📦 Location ${location.name} availability by type:`, JSON.stringify(availability.byType.map(t => ({
                         id: t.lockerType?.id,
                         name: t.lockerType?.name,
                         available: t.lockerAvailability?.availableLockers
@@ -3632,9 +3681,9 @@ app.get('/api/checkout/lockers', async (req, res) => {
                         if (harborSizeId >= requiredLockerTypeId && available > 0) {
                             hasRequiredSizeAvailable = true;
                             availableForRequiredSize += available;
-                            console.log(`  ✓ ${typeName} (id:${typeId}, sizeId:${harborSizeId}): ${available} available - FITS required size ${requiredSizeName}`);
+                            logger.info(`  ✓ ${typeName} (id:${typeId}, sizeId:${harborSizeId}): ${available} available - FITS required size ${requiredSizeName}`);
                         } else if (available > 0) {
-                            console.log(`  ✗ ${typeName} (id:${typeId}, sizeId:${harborSizeId}): ${available} available - TOO SMALL for ${requiredSizeName}`);
+                            logger.info(`  ✗ ${typeName} (id:${typeId}, sizeId:${harborSizeId}): ${available} available - TOO SMALL for ${requiredSizeName}`);
                         }
                     }
                 } else if (availability.lockerAvailability) {
@@ -3671,10 +3720,10 @@ app.get('/api/checkout/lockers', async (req, res) => {
                         availability: availability
                     });
                 } else {
-                    console.log(`📦 Location ${location.name} (ID: ${location.id}) skipped - only ${availableForRequiredSize} ${requiredSizeName}+ lockers (need ${MIN_AVAILABLE_BUFFER}+)`);
+                    logger.info(`📦 Location ${location.name} (ID: ${location.id}) skipped - only ${availableForRequiredSize} ${requiredSizeName}+ lockers (need ${MIN_AVAILABLE_BUFFER}+)`);
                 }
             } catch (availError) {
-                console.log(`⚠️ Could not check availability for ${location.name} (ID: ${location.id}):`, availError.message);
+                logger.info(`⚠️ Could not check availability for ${location.name} (ID: ${location.id}):`, availError.message);
             }
         }
 
@@ -3692,7 +3741,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
         // Now limit to 5 nearest locations
         const topLockers = availableLockers.slice(0, 5);
 
-        console.log(`✅ Found ${availableLockers.length} available locations, returning top ${topLockers.length} nearest`);
+        logger.info(`✅ Found ${availableLockers.length} available locations, returning top ${topLockers.length} nearest`);
 
         res.json({
             lockers: topLockers,
@@ -3703,7 +3752,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
             freePickup
         });
     } catch (error) {
-        console.error('Error fetching checkout lockers:', error.response?.data || error.message);
+        logger.error('Error fetching checkout lockers:', error.response?.data || error.message);
         res.status(500).json({ error: 'Failed to fetch lockers', lockers: [] });
     }
 });
@@ -3718,7 +3767,7 @@ app.post('/api/checkout/reserve-locker', async (req, res) => {
     try {
         const { locationId, lockerTypeId, shop, customerEmail, customerPhone, pickupDate } = req.body;
 
-        console.log(`🔒 Checkout reservation request: location=${locationId}, size=${lockerTypeId}, shop=${shop}`);
+        logger.info(`🔒 Checkout reservation request: location=${locationId}, size=${lockerTypeId}, shop=${shop}`);
 
         // Validate required fields
         if (!locationId || !lockerTypeId || !shop) {
@@ -3745,7 +3794,7 @@ app.post('/api/checkout/reserve-locker', async (req, res) => {
 
         for (const size of sizesToTry) {
             try {
-                console.log(`🔗 Trying ${size.name} locker (type ${size.id}) for reservation...`);
+                logger.info(`🔗 Trying ${size.name} locker (type ${size.id}) for reservation...`);
                 dropoffLink = await generateDropoffLink(
                     locationId,
                     size.id,
@@ -3753,11 +3802,11 @@ app.post('/api/checkout/reserve-locker', async (req, res) => {
                     reservationRef
                 );
                 usedSize = size.name;
-                console.log(`✅ Reservation success with ${size.name} locker!`);
+                logger.info(`✅ Reservation success with ${size.name} locker!`);
                 break;
             } catch (sizeError) {
                 const errorDetail = sizeError.response?.data?.detail || sizeError.message;
-                console.log(`   ❌ ${size.name} failed: ${errorDetail}`);
+                logger.info(`   ❌ ${size.name} failed: ${errorDetail}`);
                 if (!errorDetail.includes('No locker available')) {
                     throw sizeError;
                 }
@@ -3765,7 +3814,7 @@ app.post('/api/checkout/reserve-locker', async (req, res) => {
         }
 
         if (!dropoffLink) {
-            console.log(`❌ No lockers available for reservation at location ${locationId}`);
+            logger.info(`❌ No lockers available for reservation at location ${locationId}`);
             return res.status(409).json({
                 success: false,
                 error: 'no_availability',
@@ -3798,7 +3847,7 @@ app.post('/api/checkout/reserve-locker', async (req, res) => {
             ]
         );
 
-        console.log(`✅ Reservation created: ${reservationRef} (expires in 30 min)`);
+        logger.info(`✅ Reservation created: ${reservationRef} (expires in 30 min)`);
 
         res.json({
             success: true,
@@ -3808,7 +3857,7 @@ app.post('/api/checkout/reserve-locker', async (req, res) => {
             expiresIn: 30 * 60 // seconds
         });
     } catch (error) {
-        console.error('Error creating locker reservation:', error.response?.data || error.message);
+        logger.error('Error creating locker reservation:', error.response?.data || error.message);
         res.status(500).json({
             success: false,
             error: 'reservation_failed',
@@ -3837,7 +3886,7 @@ app.get('/api/checkout/reservation/:ref', async (req, res) => {
             reservation: result.rows[0]
         });
     } catch (error) {
-        console.error('Error checking reservation:', error.message);
+        logger.error('Error checking reservation:', error.message);
         res.status(500).json({ valid: false, error: 'Failed to check reservation' });
     }
 });
@@ -3855,9 +3904,9 @@ function getHarborLocations() {
         try {
             const locationsPath = path.join(__dirname, 'public', 'harbor-locations.json');
             harborLocationsCache = JSON.parse(fs.readFileSync(locationsPath, 'utf8'));
-            console.log(`📍 Loaded ${harborLocationsCache.length} Harbor locations from static file`);
+            logger.info(`📍 Loaded ${harborLocationsCache.length} Harbor locations from static file`);
         } catch (err) {
-            console.error('Error loading Harbor locations:', err.message);
+            logger.error('Error loading Harbor locations:', err.message);
             harborLocationsCache = [];
         }
     }
@@ -3868,7 +3917,7 @@ app.get('/api/public/lockers', async (req, res) => {
     try {
         const { lat, lon, limit = 6 } = req.query;
 
-        console.log(`📍 Public locker finder request: lat=${lat}, lon=${lon}, limit=${limit}`);
+        logger.info(`📍 Public locker finder request: lat=${lat}, lon=${lon}, limit=${limit}`);
 
         // Validate coordinates
         if (!lat || !lon) {
@@ -3907,7 +3956,7 @@ app.get('/api/public/lockers', async (req, res) => {
         // Limit results
         const results = locationsWithDistance.slice(0, resultLimit);
 
-        console.log(`✅ Public locker finder returning ${results.length} locations`);
+        logger.info(`✅ Public locker finder returning ${results.length} locations`);
 
         // Add CORS headers for theme extension
         res.header('Access-Control-Allow-Origin', '*');
@@ -3916,7 +3965,7 @@ app.get('/api/public/lockers', async (req, res) => {
 
         res.json({ locations: results });
     } catch (error) {
-        console.error('Error in public locker finder:', error.message);
+        logger.error('Error in public locker finder:', error.message);
         res.status(500).json({ error: 'Failed to fetch lockers', locations: [] });
     }
 });
@@ -3937,11 +3986,11 @@ app.post('/api/waitlist', async (req, res) => {
             [email.toLowerCase().trim()]
         );
 
-        console.log(`📧 Waitlist signup: ${email}`);
+        logger.info(`📧 Waitlist signup: ${email}`);
 
         res.json({ success: true, message: 'Added to waitlist' });
     } catch (error) {
-        console.error('Waitlist signup error:', error.message);
+        logger.error('Waitlist signup error:', error.message);
         res.status(500).json({ error: 'Failed to join waitlist' });
     }
 });
@@ -3956,7 +4005,7 @@ app.get('/api/customer/order-status/:orderId', async (req, res) => {
     try {
         const { orderId } = req.params;
 
-        console.log(`📦 Customer order status request for order: ${orderId}`);
+        logger.info(`📦 Customer order status request for order: ${orderId}`);
 
         // Add CORS headers
         res.header('Access-Control-Allow-Origin', '*');
@@ -4008,7 +4057,7 @@ app.get('/api/customer/order-status/:orderId', async (req, res) => {
                     ].filter(Boolean).join(', ');
                 }
             } catch (locErr) {
-                console.error('Error fetching location address:', locErr.message);
+                logger.error('Error fetching location address:', locErr.message);
             }
         }
 
@@ -4038,11 +4087,11 @@ app.get('/api/customer/order-status/:orderId', async (req, res) => {
             createdAt: order.created_at
         };
 
-        console.log(`✅ Returning order status: ${order.status} for order ${orderId}`);
+        logger.info(`✅ Returning order status: ${order.status} for order ${orderId}`);
 
         res.json(response);
     } catch (error) {
-        console.error('Error fetching customer order status:', error.message);
+        logger.error('Error fetching customer order status:', error.message);
         res.status(500).json({ error: 'Failed to fetch order status' });
     }
 });
@@ -4065,11 +4114,11 @@ app.get('/api/pickup-points', async (req, res) => {
     try {
         const { lat, lon, zip, shop } = req.query;
 
-        console.log(`📍 Pickup Points Function request: lat=${lat}, lon=${lon}, zip=${zip}, shop=${shop}`);
+        logger.info(`📍 Pickup Points Function request: lat=${lat}, lon=${lon}, zip=${zip}, shop=${shop}`);
 
         // Validate coordinates
         if (!lat || !lon) {
-            console.log('❌ No coordinates provided');
+            logger.info('❌ No coordinates provided');
             return res.json({ lockers: [], pickupDate: null, pickupDateISO: null });
         }
 
@@ -4093,7 +4142,7 @@ app.get('/api/pickup-points', async (req, res) => {
                     freePickup = settings.free_pickup || false;
                 }
             } catch (e) {
-                console.log('⚠️ Could not fetch shop settings:', e.message);
+                logger.info('⚠️ Could not fetch shop settings:', e.message);
             }
         }
 
@@ -4101,7 +4150,7 @@ app.get('/api/pickup-points', async (req, res) => {
         const { pickupDate } = calculatePickupDate(processingDays, fulfillmentDays, vacationDays);
         const pickupDateFormatted = formatPickupDate(pickupDate);
         const pickupDateISO = pickupDate.toISOString().split('T')[0];
-        console.log(`📅 Pickup Points pickup date: ${pickupDateFormatted}`);
+        logger.info(`📅 Pickup Points pickup date: ${pickupDateFormatted}`);
 
         // Check if shop has enabled any locker locations
         let enabledLocationIds = [];
@@ -4114,12 +4163,12 @@ app.get('/api/pickup-points', async (req, res) => {
                 enabledLocationIds = prefsResult.rows.map(r => r.location_id);
 
                 if (enabledLocationIds.length === 0) {
-                    console.log('❌ No locker locations enabled for this shop');
+                    logger.info('❌ No locker locations enabled for this shop');
                     return res.json({ lockers: [], pickupDate: pickupDateFormatted, pickupDateISO: pickupDateISO });
                 }
-                console.log(`🔧 Shop has ${enabledLocationIds.length} enabled locations`);
+                logger.info(`🔧 Shop has ${enabledLocationIds.length} enabled locations`);
             } catch (e) {
-                console.log('⚠️ Could not check locker preferences:', e.message);
+                logger.info('⚠️ Could not check locker preferences:', e.message);
             }
         }
 
@@ -4149,7 +4198,7 @@ app.get('/api/pickup-points', async (req, res) => {
             : allLocations;
 
         if (enabledLocations.length === 0) {
-            console.log('❌ None of the enabled locations match Harbor locations');
+            logger.info('❌ None of the enabled locations match Harbor locations');
             return res.json({ lockers: [], pickupDate: pickupDateFormatted, pickupDateISO: pickupDateISO });
         }
 
@@ -4199,17 +4248,17 @@ app.get('/api/pickup-points', async (req, res) => {
                         hours: { is24_7: true }, // Harbor lockers are 24/7
                         cost: freePickup ? null : { amount: "1.00", currencyCode: "USD" }
                     });
-                    console.log(`✅ Location ${location.name}: ${totalAvailable} lockers available`);
+                    logger.info(`✅ Location ${location.name}: ${totalAvailable} lockers available`);
                 }
             } catch (availError) {
-                console.log(`⚠️ Could not check availability for ${location.name}:`, availError.message);
+                logger.info(`⚠️ Could not check availability for ${location.name}:`, availError.message);
             }
 
             // Limit to 3 available locations
             if (availableLockers.length >= 3) break;
         }
 
-        console.log(`✅ Returning ${availableLockers.length} pickup points`);
+        logger.info(`✅ Returning ${availableLockers.length} pickup points`);
 
         res.json({
             lockers: availableLockers,
@@ -4218,7 +4267,7 @@ app.get('/api/pickup-points', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error in pickup points API:', error.message);
+        logger.error('Error in pickup points API:', error.message);
         res.status(500).json({ lockers: [], error: error.message });
     }
 });
@@ -4228,7 +4277,7 @@ app.post('/api/checkout/select-locker', async (req, res) => {
     try {
         const { shop, checkoutToken, lockerId, locationId, lockerName } = req.body;
 
-        console.log(`📦 Locker selected at checkout: shop=${shop}, locker=${lockerName} (${lockerId})`);
+        logger.info(`📦 Locker selected at checkout: shop=${shop}, locker=${lockerName} (${lockerId})`);
 
         // Store the selection temporarily (will be matched with order on webhook)
         // In production, you might want to use Redis or a checkout_selections table
@@ -4236,7 +4285,7 @@ app.post('/api/checkout/select-locker', async (req, res) => {
 
         res.json({ success: true, message: 'Locker selection saved' });
     } catch (error) {
-        console.error('Error saving locker selection:', error);
+        logger.error('Error saving locker selection:', error);
         res.status(500).json({ error: 'Failed to save locker selection' });
     }
 });
@@ -4251,7 +4300,7 @@ app.post('/api/manual-order/:shop', async (req, res) => {
         const requiredSizeId = parseInt(requiredLockerSize) || 2;
         const requiredSizeName = LOCKER_SIZES.find(s => s.id === requiredSizeId)?.name || 'Medium';
 
-        console.log(`📦 Creating manual order #${orderNumber} for ${shop}, required size: ${requiredSizeName} (${requiredSizeId})${preferredPickupDate ? `, pickup: ${preferredPickupDate}` : ''}`);
+        logger.info(`📦 Creating manual order #${orderNumber} for ${shop}, required size: ${requiredSizeName} (${requiredSizeId})${preferredPickupDate ? `, pickup: ${preferredPickupDate}` : ''}`);
 
         // Get Harbor token
         const tokenResponse = await axios.post(
@@ -4292,10 +4341,10 @@ app.post('/api/manual-order/:shop', async (req, res) => {
                 if (harborSizeId >= requiredSizeId && available > 0) {
                     availableLockerTypeId = type.lockerType?.id;
                     availableLockerTypeName = typeName;
-                    console.log(`✓ Found suitable locker type: ${availableLockerTypeName} (size ${harborSizeId}) >= required ${requiredSizeName} (${requiredSizeId}) - ${available} available`);
+                    logger.info(`✓ Found suitable locker type: ${availableLockerTypeName} (size ${harborSizeId}) >= required ${requiredSizeName} (${requiredSizeId}) - ${available} available`);
                     break;
                 } else if (available > 0) {
-                    console.log(`✗ Skipping ${typeName} (size ${harborSizeId}) - too small for ${requiredSizeName} (${requiredSizeId})`);
+                    logger.info(`✗ Skipping ${typeName} (size ${harborSizeId}) - too small for ${requiredSizeName} (${requiredSizeId})`);
                 }
             }
         }
@@ -4334,7 +4383,7 @@ app.post('/api/manual-order/:shop', async (req, res) => {
         );
 
         const dropoffData = dropoffResponse.data;
-        console.log(`📦 Manual order dropoff - Locker ID: ${dropoffData.lockerId}, Tower ID: ${dropoffData.towerId}`);
+        logger.info(`📦 Manual order dropoff - Locker ID: ${dropoffData.lockerId}, Tower ID: ${dropoffData.towerId}`);
 
         // Insert order into database with locker_id and tower_id for proper release on cancellation
         const insertResult = await db.query(
@@ -4344,7 +4393,7 @@ app.post('/api/manual-order/:shop', async (req, res) => {
             [shop, `MANUAL-${orderNumber}`, orderNumber, customerName, customerEmail, lockerId, lockerName, dropoffData.lockerId, dropoffData.towerId, dropoffData.id, 'pending_dropoff', dropoffData.linkToken, preferredPickupDate || null]
         );
 
-        console.log(`✅ Manual order #${orderNumber} created with dropoff link, locker_id: ${dropoffData.lockerId}, tower_id: ${dropoffData.towerId}`);
+        logger.info(`✅ Manual order #${orderNumber} created with dropoff link, locker_id: ${dropoffData.lockerId}, tower_id: ${dropoffData.towerId}`);
 
         res.json({
             success: true,
@@ -4356,7 +4405,7 @@ app.post('/api/manual-order/:shop', async (req, res) => {
             message: 'Manual order created. Drop off link is ready.'
         });
     } catch (error) {
-        console.error('Error creating manual order:', error.response?.data || error.message);
+        logger.error('Error creating manual order:', error.response?.data || error.message);
         let errorMsg = error.message;
         if (error.response?.data?.detail) {
             if (Array.isArray(error.response.data.detail)) {
@@ -4401,7 +4450,7 @@ app.post('/api/generate-dropoff-link/:shop', async (req, res) => {
         
         res.json(dropoffResponse.data);
     } catch (error) {
-        console.error('Error generating dropoff link:', error.response?.data || error.message);
+        logger.error('Error generating dropoff link:', error.response?.data || error.message);
         res.status(500).json({ error: 'Failed to generate dropoff link' });
     }
 });
@@ -4436,7 +4485,7 @@ app.post('/api/generate-pickup-link/:shop', async (req, res) => {
         
         res.json(pickupResponse.data);
     } catch (error) {
-        console.error('Error generating pickup link:', error.response?.data || error.message);
+        logger.error('Error generating pickup link:', error.response?.data || error.message);
         res.status(500).json({ error: 'Failed to generate pickup link' });
     }
 
@@ -4452,7 +4501,7 @@ app.post('/api/fix-order-locker/:shop', requireApiAuth, async (req, res) => {
         const { shop } = req.params;
         const { orderNumber } = req.body;
 
-        console.log(`🔧 Fixing locker info for order #${orderNumber} (${shop})`);
+        logger.info(`🔧 Fixing locker info for order #${orderNumber} (${shop})`);
 
         // Get order
         const orderResult = await db.query(
@@ -4499,7 +4548,7 @@ app.post('/api/fix-order-locker/:shop', requireApiAuth, async (req, res) => {
             [lockerId, towerId, order.id]
         );
 
-        console.log(`✅ Fixed order #${orderNumber}: locker_id=${lockerId}, tower_id=${towerId}`);
+        logger.info(`✅ Fixed order #${orderNumber}: locker_id=${lockerId}, tower_id=${towerId}`);
 
         res.json({
             success: true,
@@ -4510,7 +4559,7 @@ app.post('/api/fix-order-locker/:shop', requireApiAuth, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error fixing order:', error.response?.data || error.message);
+        logger.error('Error fixing order:', error.response?.data || error.message);
         res.status(500).json({ error: 'Failed to fix order', details: error.message });
     }
 });
@@ -4525,9 +4574,9 @@ app.post('/api/emergency-open/:shop', requireApiAuth, async (req, res) => {
         const { shop } = req.params;
         const { orderNumber, reason, openType = 'pickup' } = req.body;
 
-        console.log(`🚨 EMERGENCY OPEN requested for order #${orderNumber} (${shop})`);
-        console.log(`   Reason: ${reason}`);
-        console.log(`   Open type: ${openType}`);
+        logger.info(`🚨 EMERGENCY OPEN requested for order #${orderNumber} (${shop})`);
+        logger.info(`   Reason: ${reason}`);
+        logger.info(`   Open type: ${openType}`);
 
         // Validate required fields
         if (!orderNumber) {
@@ -4579,7 +4628,7 @@ app.post('/api/emergency-open/:shop', requireApiAuth, async (req, res) => {
 
         // Generate a new pickup link
         try {
-            console.log(`   🔗 Generating new pickup link for locker ${order.locker_id}...`);
+            logger.info(`   🔗 Generating new pickup link for locker ${order.locker_id}...`);
 
             const pickupResponse = await axios.post(
                 'https://api.sandbox.harborlockers.com/api/v1/locker-open-requests/pickup-locker-request',
@@ -4597,7 +4646,7 @@ app.post('/api/emergency-open/:shop', requireApiAuth, async (req, res) => {
             newPickupLink = pickupResponse.data.linkToken;
             openResult = pickupResponse.data;
 
-            console.log(`   ✅ New pickup link generated: ${newPickupLink}`);
+            logger.info(`   ✅ New pickup link generated: ${newPickupLink}`);
 
             // Update the pickup link in the database
             await db.query(
@@ -4606,7 +4655,7 @@ app.post('/api/emergency-open/:shop', requireApiAuth, async (req, res) => {
             );
 
         } catch (linkError) {
-            console.error(`   ❌ Failed to generate pickup link:`, linkError.response?.data || linkError.message);
+            logger.error(`   ❌ Failed to generate pickup link:`, linkError.response?.data || linkError.message);
 
             // Check for specific error types
             const errorDetail = linkError.response?.data?.detail || '';
@@ -4656,7 +4705,7 @@ app.post('/api/emergency-open/:shop', requireApiAuth, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('❌ Emergency open failed:', error.response?.data || error.message);
+        logger.error('❌ Emergency open failed:', error.response?.data || error.message);
 
         // Log the failed attempt
         await logDataAccess('admin', 'emergency_locker_open', {
@@ -4681,22 +4730,22 @@ app.post('/api/regenerate-links/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
 
-        console.log(`\n🔄 === REGENERATE LINKS DEBUG ===`);
-        console.log(`📍 Shop parameter: "${shop}"`);
+        logger.info(`\n🔄 === REGENERATE LINKS DEBUG ===`);
+        logger.info(`📍 Shop parameter: "${shop}"`);
 
         // First, let's see ALL orders for this shop to understand the data
         const allOrders = await db.query(
             'SELECT id, shop, shopify_order_id, order_number, location_id, dropoff_link, status FROM orders WHERE shop = $1',
             [shop]
         );
-        console.log(`📊 Total orders for shop "${shop}": ${allOrders.rows.length}`);
+        logger.info(`📊 Total orders for shop "${shop}": ${allOrders.rows.length}`);
         if (allOrders.rows.length > 0) {
-            console.log(`📋 Orders data:`, JSON.stringify(allOrders.rows, null, 2));
+            logger.info(`📋 Orders data:`, JSON.stringify(allOrders.rows, null, 2));
         }
 
         // Also check what shops exist in the database
         const allShops = await db.query('SELECT DISTINCT shop FROM orders');
-        console.log(`🏪 All shops in orders table:`, allShops.rows.map(r => r.shop));
+        logger.info(`🏪 All shops in orders table:`, allShops.rows.map(r => r.shop));
 
         // Get orders without dropoff links
         const orders = await db.query(
@@ -4704,9 +4753,9 @@ app.post('/api/regenerate-links/:shop', requireApiAuth, async (req, res) => {
             [shop]
         );
 
-        console.log(`🔍 Found ${orders.rows.length} orders needing dropoff links`);
+        logger.info(`🔍 Found ${orders.rows.length} orders needing dropoff links`);
         if (orders.rows.length > 0) {
-            console.log(`📝 Orders to regenerate:`, JSON.stringify(orders.rows, null, 2));
+            logger.info(`📝 Orders to regenerate:`, JSON.stringify(orders.rows, null, 2));
         }
         
         let regeneratedCount = 0;
@@ -4714,15 +4763,15 @@ app.post('/api/regenerate-links/:shop', requireApiAuth, async (req, res) => {
 
         for (const order of orders.rows) {
             try {
-                console.log(`\n🔧 Processing order #${order.order_number} (ID: ${order.id})`);
+                logger.info(`\n🔧 Processing order #${order.order_number} (ID: ${order.id})`);
 
                 if (!order.location_id) {
-                    console.log(`   ⚠️ Skipping order #${order.order_number} — no locker location assigned`);
+                    logger.info(`   ⚠️ Skipping order #${order.order_number} — no locker location assigned`);
                     errors.push({ order: order.order_number, error: 'No locker location assigned' });
                     continue;
                 }
                 const locationId = order.location_id;
-                console.log(`   📍 Using location ID: ${locationId}`);
+                logger.info(`   📍 Using location ID: ${locationId}`);
 
                 // Try to calculate locker size from product dimensions
                 let lockerTypeId = 2; // Default to Medium
@@ -4737,39 +4786,39 @@ app.post('/api/regenerate-links/:shop', requireApiAuth, async (req, res) => {
 
                 // Note: For regenerating links, we don't have the line_items readily available
                 // Would need to fetch from Shopify - using default Medium for regeneration
-                console.log(`   📦 Using default Medium locker for regeneration`);
+                logger.info(`   📦 Using default Medium locker for regeneration`);
 
                 // Generate dropoff link
-                console.log(`   🔗 Generating dropoff link via Harbor API...`);
+                logger.info(`   🔗 Generating dropoff link via Harbor API...`);
                 const dropoffLink = await generateDropoffLink(
                     locationId,
                     lockerTypeId,
                     order.shopify_order_id,
                     order.order_number
                 );
-                console.log(`   ✅ Got dropoff link:`, dropoffLink.linkToken);
-                console.log(`   📦 Locker ID:`, dropoffLink.lockerId);
-                console.log(`   🏢 Tower ID:`, dropoffLink.towerId);
+                logger.info(`   ✅ Got dropoff link:`, dropoffLink.linkToken);
+                logger.info(`   📦 Locker ID:`, dropoffLink.lockerId);
+                logger.info(`   🏢 Tower ID:`, dropoffLink.towerId);
 
                 // Update order with link, locker_id, and tower_id for proper release on cancellation
                 const updateResult = await db.query(
                     'UPDATE orders SET dropoff_link = $1, location_id = $2, locker_id = $3, dropoff_request_id = $4, tower_id = $5 WHERE id = $6 RETURNING id',
                     [dropoffLink.linkToken, locationId, dropoffLink.lockerId, dropoffLink.id, dropoffLink.towerId, order.id]
                 );
-                console.log(`   💾 Updated order in DB, rows affected: ${updateResult.rowCount}`);
+                logger.info(`   💾 Updated order in DB, rows affected: ${updateResult.rowCount}`);
 
                 regeneratedCount++;
             } catch (error) {
                 const errorMsg = error.response?.data?.detail || error.response?.data || error.message;
-                console.error(`❌ Error regenerating link for order ${order.order_number}:`, errorMsg);
+                logger.error(`❌ Error regenerating link for order ${order.order_number}:`, errorMsg);
                 errors.push({ order: order.order_number, error: errorMsg });
             }
         }
 
-        console.log(`\n🏁 === REGENERATION COMPLETE ===`);
-        console.log(`📊 Found: ${orders.rows.length} orders needing links`);
-        console.log(`✅ Successfully regenerated: ${regeneratedCount} links`);
-        console.log(`❌ Failed: ${errors.length} orders`);
+        logger.info(`\n🏁 === REGENERATION COMPLETE ===`);
+        logger.info(`📊 Found: ${orders.rows.length} orders needing links`);
+        logger.info(`✅ Successfully regenerated: ${regeneratedCount} links`);
+        logger.info(`❌ Failed: ${errors.length} orders`);
 
         res.json({
             success: true,
@@ -4779,7 +4828,7 @@ app.post('/api/regenerate-links/:shop', requireApiAuth, async (req, res) => {
             errors: errors.length > 0 ? errors : undefined
         });
     } catch (error) {
-        console.error('❌ Error in regenerate-links endpoint:', error);
+        logger.error('❌ Error in regenerate-links endpoint:', error);
         res.status(500).json({ error: 'Failed to regenerate links', details: error.message });
     }
 });
@@ -4789,8 +4838,8 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
     try {
         const { shop, orderNumber } = req.params;
 
-        console.log(`\n🔄 === REGENERATE SINGLE ORDER LINK ===`);
-        console.log(`📍 Shop: "${shop}", Order: "${orderNumber}"`);
+        logger.info(`\n🔄 === REGENERATE SINGLE ORDER LINK ===`);
+        logger.info(`📍 Shop: "${shop}", Order: "${orderNumber}"`);
 
         // Find the order
         const orderResult = await db.query(
@@ -4799,12 +4848,12 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
         );
 
         if (orderResult.rows.length === 0) {
-            console.log(`❌ Order ${orderNumber} not found for shop ${shop}`);
+            logger.info(`❌ Order ${orderNumber} not found for shop ${shop}`);
             return res.status(404).json({ error: 'Order not found' });
         }
 
         const order = orderResult.rows[0];
-        console.log(`📋 Found order:`, JSON.stringify(order, null, 2));
+        logger.info(`📋 Found order:`, JSON.stringify(order, null, 2));
 
         if (!order.location_id) {
             return res.status(400).json({ error: 'No locker location assigned to this order. Please assign a locker first.' });
@@ -4844,7 +4893,7 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
                     variant_id: e.node.variant?.legacyResourceId,
                     quantity: e.node.quantity
                 }));
-                console.log(`📦 Order has ${lineItems.length} line items`);
+                logger.info(`📦 Order has ${lineItems.length} line items`);
 
                 // Check product size requirements
                 for (const item of lineItems) {
@@ -4859,7 +4908,7 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
 
                         if (sizeResult.rows.length > 0 && sizeResult.rows[0].locker_size) {
                             const productSize = sizeResult.rows[0].locker_size.toLowerCase();
-                            console.log(`📦 Product ${productId} requires: ${productSize}`);
+                            logger.info(`📦 Product ${productId} requires: ${productSize}`);
 
                             // If product has specific size (not auto), update minimum
                             if (productSize !== 'auto') {
@@ -4874,10 +4923,10 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
                 }
             }
         } catch (e) {
-            console.log(`⚠️ Could not determine product size requirements: ${e.message}`);
+            logger.info(`⚠️ Could not determine product size requirements: ${e.message}`);
         }
 
-        console.log(`📦 Minimum required locker size: ${minRequiredSize}`);
+        logger.info(`📦 Minimum required locker size: ${minRequiredSize}`);
 
         // Build list of sizes to try based on minimum requirement
         // Order: start from minimum size, then try larger sizes
@@ -4901,7 +4950,7 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
             // Specific size: only try that size and larger
             const minIndex = sizeHierarchy.indexOf(minRequiredSize);
             lockerSizesToTry = allSizes.filter(s => sizeHierarchy.indexOf(s.name) >= minIndex);
-            console.log(`📦 Will only try sizes >= ${minRequiredSize}: ${lockerSizesToTry.map(s => s.name).join(', ')}`);
+            logger.info(`📦 Will only try sizes >= ${minRequiredSize}: ${lockerSizesToTry.map(s => s.name).join(', ')}`);
         }
 
         let dropoffLink = null;
@@ -4909,7 +4958,7 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
 
         for (const size of lockerSizesToTry) {
             try {
-                console.log(`🔗 Trying ${size.name} locker (type ${size.id})...`);
+                logger.info(`🔗 Trying ${size.name} locker (type ${size.id})...`);
                 dropoffLink = await generateDropoffLink(
                     locationId,
                     size.id,
@@ -4917,11 +4966,11 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
                     order.order_number
                 );
                 usedSize = size.name;
-                console.log(`✅ Success with ${size.name} locker!`);
+                logger.info(`✅ Success with ${size.name} locker!`);
                 break;
             } catch (sizeError) {
                 const errorDetail = sizeError.response?.data?.detail || sizeError.message;
-                console.log(`   ❌ ${size.name} failed: ${errorDetail}`);
+                logger.info(`   ❌ ${size.name} failed: ${errorDetail}`);
                 if (!errorDetail.includes('No locker available')) {
                     throw sizeError; // Re-throw if it's not an availability issue
                 }
@@ -4936,9 +4985,9 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
             });
         }
 
-        console.log(`✅ Got new dropoff link:`, dropoffLink.linkToken);
-        console.log(`📦 Locker ID:`, dropoffLink.lockerId, `(${usedSize})`);
-        console.log(`🏢 Tower ID:`, dropoffLink.towerId);
+        logger.info(`✅ Got new dropoff link:`, dropoffLink.linkToken);
+        logger.info(`📦 Locker ID:`, dropoffLink.lockerId, `(${usedSize})`);
+        logger.info(`🏢 Tower ID:`, dropoffLink.towerId);
 
         // Update order with new link and tower_id for proper release on cancellation
         await db.query(
@@ -4946,7 +4995,7 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
             [dropoffLink.linkToken, dropoffLink.lockerId, dropoffLink.id, dropoffLink.towerId, order.id]
         );
 
-        console.log(`💾 Updated order in database`);
+        logger.info(`💾 Updated order in database`);
 
         res.json({
             success: true,
@@ -4957,7 +5006,7 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
             minimumRequired: minRequiredSize
         });
     } catch (error) {
-        console.error('❌ Error regenerating order link:', error.response?.data || error.message);
+        logger.error('❌ Error regenerating order link:', error.response?.data || error.message);
         res.status(500).json({
             error: 'Failed to regenerate link',
             details: error.response?.data?.detail || error.message
@@ -4974,6 +5023,7 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
 async function registerWebhooks(shop, accessToken) {
     const webhooks = [
         { topic: 'ORDERS_CREATE', callbackUrl: 'https://app.lockerdrop.it/webhooks/orders/create' },
+        { topic: 'ORDERS_UPDATED', callbackUrl: 'https://app.lockerdrop.it/webhooks/orders/updated' },
         { topic: 'ORDERS_CANCELLED', callbackUrl: 'https://app.lockerdrop.it/webhooks/orders/cancelled' },
         { topic: 'APP_UNINSTALLED', callbackUrl: 'https://app.lockerdrop.it/webhooks/app/uninstalled' }
     ];
@@ -4998,15 +5048,15 @@ async function registerWebhooks(shop, accessToken) {
             const errors = result.webhookSubscriptionCreate?.userErrors;
             if (errors && errors.length > 0) {
                 if (errors[0].message?.includes('already been taken') || errors[0].message?.includes('already exists')) {
-                    console.log(`ℹ️ Webhook ${wh.topic} already registered`);
+                    logger.info(`ℹ️ Webhook ${wh.topic} already registered`);
                 } else {
-                    console.error(`❌ Error registering ${wh.topic}:`, errors);
+                    logger.error(`❌ Error registering ${wh.topic}:`, errors);
                 }
             } else {
-                console.log(`✅ Webhook registered: ${wh.topic}`);
+                logger.info(`✅ Webhook registered: ${wh.topic}`);
             }
         } catch (error) {
-            console.error(`❌ Error registering ${wh.topic}:`, error.message);
+            logger.error(`❌ Error registering ${wh.topic}:`, error.message);
         }
     }
 }
@@ -5022,7 +5072,7 @@ function extractLockerDropInfo(order) {
         );
         if (lockerAttr) {
             lockerInfo = lockerAttr.value;
-            console.log('📋 Found LockerDrop info in order attributes:', lockerInfo);
+            logger.info('📋 Found LockerDrop info in order attributes:', lockerInfo);
         }
     }
 
@@ -5031,7 +5081,7 @@ function extractLockerDropInfo(order) {
         const address2 = order.shipping_address.address2;
         if (address2.includes('LockerDrop:')) {
             lockerInfo = address2;
-            console.log('📋 Found LockerDrop info in address2 (legacy):', lockerInfo);
+            logger.info('📋 Found LockerDrop info in address2 (legacy):', lockerInfo);
         }
     }
 
@@ -5081,14 +5131,30 @@ app.post('/webhooks/orders/create', express.json(), async (req, res) => {
         const order = req.body;
         // Get shop domain from Shopify webhook header
         const shopDomain = req.headers['x-shopify-shop-domain'];
-        console.log('📦 New order received:', order.id, 'from shop:', shopDomain);
+        logger.info('📦 New order received:', order.id, 'from shop:', shopDomain);
 
         // Process the order with shop domain
         await processNewOrder(order, shopDomain);
 
         res.status(200).send('OK');
     } catch (error) {
-        console.error('Error processing order webhook:', error);
+        logger.error('Error processing order webhook:', error);
+        res.status(500).send('Error');
+    }
+});
+
+// Webhook receiver for order updates
+app.post('/webhooks/orders/updated', express.json(), async (req, res) => {
+    try {
+        const order = req.body;
+        const shopDomain = req.headers['x-shopify-shop-domain'];
+        logger.info({ orderId: order.id, shop: shopDomain }, 'Order updated webhook received');
+
+        await processOrderUpdate(order, shopDomain);
+
+        res.status(200).send('OK');
+    } catch (error) {
+        logger.error({ err: error }, 'Error processing order update webhook');
         res.status(500).send('Error');
     }
 });
@@ -5098,13 +5164,13 @@ app.post('/webhooks/orders/cancelled', express.json(), async (req, res) => {
     try {
         const order = req.body;
         const shopDomain = req.headers['x-shopify-shop-domain'];
-        console.log('🚫 Order cancelled:', order.id, 'from shop:', shopDomain);
+        logger.info('🚫 Order cancelled:', order.id, 'from shop:', shopDomain);
 
         await processOrderCancellation(order, shopDomain);
 
         res.status(200).send('OK');
     } catch (error) {
-        console.error('Error processing cancellation webhook:', error);
+        logger.error('Error processing cancellation webhook:', error);
         res.status(500).send('Error');
     }
 });
@@ -5113,25 +5179,25 @@ app.post('/webhooks/orders/cancelled', express.json(), async (req, res) => {
 app.post('/webhooks/app/uninstalled', express.json(), async (req, res) => {
     try {
         const shopDomain = req.headers['x-shopify-shop-domain'];
-        console.log('🗑️ App uninstalled for shop:', shopDomain);
+        logger.info('🗑️ App uninstalled for shop:', shopDomain);
 
         await processAppUninstall(shopDomain);
 
         res.status(200).send('OK');
     } catch (error) {
-        console.error('Error processing app/uninstalled webhook:', error);
+        logger.error('Error processing app/uninstalled webhook:', error);
         res.status(200).send('OK'); // Always respond 200 to Shopify
     }
 });
 
 async function processAppUninstall(shop) {
     if (!shop) {
-        console.log('❌ No shop domain in uninstall webhook');
+        logger.info('❌ No shop domain in uninstall webhook');
         return;
     }
 
     try {
-        console.log(`🗑️ Cleaning up data for ${shop}...`);
+        logger.info(`🗑️ Cleaning up data for ${shop}...`);
 
         // Release any active lockers in Harbor before deleting orders
         const activeOrders = await db.query(
@@ -5142,7 +5208,7 @@ async function processAppUninstall(shop) {
         );
 
         if (activeOrders.rows.length > 0) {
-            console.log(`   🔓 Releasing ${activeOrders.rows.length} active locker(s)...`);
+            logger.info(`   🔓 Releasing ${activeOrders.rows.length} active locker(s)...`);
             try {
                 const tokenResponse = await axios.post(
                     'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
@@ -5158,13 +5224,13 @@ async function processAppUninstall(shop) {
                             {},
                             { headers: { 'Authorization': `Bearer ${harborToken}` }}
                         );
-                        console.log(`   ✅ Released locker ${order.locker_id} (order ${order.id})`);
+                        logger.info(`   ✅ Released locker ${order.locker_id} (order ${order.id})`);
                     } catch (harborError) {
-                        console.log(`   ⚠️ Could not release locker ${order.locker_id}: ${harborError.response?.data?.detail || harborError.message}`);
+                        logger.info(`   ⚠️ Could not release locker ${order.locker_id}: ${harborError.response?.data?.detail || harborError.message}`);
                     }
                 }
             } catch (tokenError) {
-                console.log(`   ⚠️ Could not authenticate with Harbor to release lockers: ${tokenError.message}`);
+                logger.info(`   ⚠️ Could not authenticate with Harbor to release lockers: ${tokenError.message}`);
             }
         }
 
@@ -5183,7 +5249,7 @@ async function processAppUninstall(shop) {
                 const logoPath = path.join(__dirname, 'public', branding.rows[0].logo_url);
                 if (fs.existsSync(logoPath)) {
                     fs.unlinkSync(logoPath);
-                    console.log(`   🗑️ Deleted logo file: ${logoPath}`);
+                    logger.info(`   🗑️ Deleted logo file: ${logoPath}`);
                 }
             }
             await db.query('DELETE FROM branding_settings WHERE shop = $1', [shop]);
@@ -5204,9 +5270,9 @@ async function processAppUninstall(shop) {
         // Remove from in-memory token cache
         accessTokens.delete(shop);
 
-        console.log(`✅ All data cleaned up for ${shop}`);
+        logger.info(`✅ All data cleaned up for ${shop}`);
     } catch (error) {
-        console.error(`❌ Error cleaning up data for ${shop}:`, error);
+        logger.error(`❌ Error cleaning up data for ${shop}:`, error);
     }
 }
 
@@ -5215,7 +5281,7 @@ async function processOrderCancellation(order, shopDomain) {
         const shopifyOrderId = order.id?.toString();
         const orderNumber = order.order_number?.toString() || order.name?.replace('#', '');
 
-        console.log(`🚫 Processing cancellation for order #${orderNumber} (${shopifyOrderId})`);
+        logger.info(`🚫 Processing cancellation for order #${orderNumber} (${shopifyOrderId})`);
 
         // Find the order in our database
         const orderResult = await db.query(
@@ -5224,7 +5290,7 @@ async function processOrderCancellation(order, shopDomain) {
         );
 
         if (orderResult.rows.length === 0) {
-            console.log(`   Order not found in LockerDrop database, skipping`);
+            logger.info(`   Order not found in LockerDrop database, skipping`);
             return;
         }
 
@@ -5232,7 +5298,7 @@ async function processOrderCancellation(order, shopDomain) {
 
         // Don't cancel already completed orders
         if (lockerOrder.status === 'completed') {
-            console.log(`   Order already completed, skipping cancellation`);
+            logger.info(`   Order already completed, skipping cancellation`);
             return;
         }
 
@@ -5246,18 +5312,18 @@ async function processOrderCancellation(order, shopDomain) {
                 );
                 const accessToken = tokenResponse.data.access_token;
 
-                console.log(`   🔓 Releasing locker ${lockerOrder.locker_id} in tower ${lockerOrder.tower_id}...`);
+                logger.info(`   🔓 Releasing locker ${lockerOrder.locker_id} in tower ${lockerOrder.tower_id}...`);
                 await axios.post(
                     `https://api.sandbox.harborlockers.com/api/v1/towers/${lockerOrder.tower_id}/lockers/${lockerOrder.locker_id}/release-locker`,
                     {},
                     { headers: { 'Authorization': `Bearer ${accessToken}` }}
                 );
-                console.log(`   ✅ Locker released successfully`);
+                logger.info(`   ✅ Locker released successfully`);
             } catch (harborError) {
-                console.log(`   ⚠️ Could not release locker: ${harborError.response?.data?.detail || harborError.message}`);
+                logger.info(`   ⚠️ Could not release locker: ${harborError.response?.data?.detail || harborError.message}`);
             }
         } else {
-            console.log(`   ⚠️ Cannot release locker - missing tower_id or locker_id`);
+            logger.info(`   ⚠️ Cannot release locker - missing tower_id or locker_id`);
         }
 
         // Update our database - clear locker info and mark as cancelled
@@ -5273,16 +5339,87 @@ async function processOrderCancellation(order, shopDomain) {
             [lockerOrder.id]
         );
 
-        console.log(`✅ Order #${orderNumber} cancelled in LockerDrop`);
+        logger.info({ orderNumber }, 'Order cancelled in LockerDrop');
     } catch (error) {
-        console.error('Error processing order cancellation:', error);
+        logger.error({ err: error }, 'Error processing order cancellation');
+    }
+}
+
+// Process order updates from Shopify (sync customer info, shipping changes, etc.)
+async function processOrderUpdate(order, shopDomain) {
+    try {
+        const shopifyOrderId = order.id?.toString();
+        const orderNumber = order.order_number?.toString() || order.name?.replace('#', '');
+
+        // Find the order in our database
+        const orderResult = await db.query(
+            'SELECT id, status FROM orders WHERE shopify_order_id = $1 OR order_number = $2',
+            [shopifyOrderId, orderNumber]
+        );
+
+        if (orderResult.rows.length === 0) {
+            // Not a LockerDrop order, skip silently
+            return;
+        }
+
+        const lockerOrder = orderResult.rows[0];
+
+        // Don't update completed/cancelled/expired orders
+        if (['completed', 'cancelled', 'expired'].includes(lockerOrder.status)) {
+            return;
+        }
+
+        // Sync customer info and shipping details
+        const customerName = order.customer ?
+            `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() :
+            order.shipping_address ? `${order.shipping_address.first_name || ''} ${order.shipping_address.last_name || ''}`.trim() : null;
+
+        const customerEmail = order.email || order.customer?.email || null;
+        const customerPhone = order.phone || order.customer?.phone || order.shipping_address?.phone || null;
+
+        // Update customer info if changed
+        const updates = [];
+        const values = [];
+        let paramIndex = 1;
+
+        if (customerName) {
+            updates.push(`customer_name = $${paramIndex++}`);
+            values.push(customerName);
+        }
+        if (customerEmail) {
+            updates.push(`customer_email = $${paramIndex++}`);
+            values.push(customerEmail);
+        }
+        if (customerPhone) {
+            updates.push(`customer_phone = $${paramIndex++}`);
+            values.push(customerPhone);
+        }
+
+        // Check if Shopify order was fulfilled externally
+        if (order.fulfillment_status === 'fulfilled' && lockerOrder.status !== 'completed') {
+            updates.push(`status = $${paramIndex++}`);
+            values.push('completed');
+            logger.info({ orderNumber }, 'Order marked completed via Shopify fulfillment');
+        }
+
+        if (updates.length > 0) {
+            updates.push(`updated_at = NOW()`);
+            values.push(lockerOrder.id);
+            await db.query(
+                `UPDATE orders SET ${updates.join(', ')} WHERE id = $${paramIndex}`,
+                values
+            );
+            logger.info({ orderNumber, updatedFields: updates.length - 1 }, 'Order synced from Shopify update');
+        }
+    } catch (error) {
+        logger.error({ err: error }, 'Error processing order update');
     }
 }
 
 async function processNewOrder(order, shopDomain) {
     try {
-        console.log('📦 Processing order:', order.id);
-        console.log('🏪 Order data:', JSON.stringify(order, null, 2).substring(0, 500)); // First 500 chars
+        logger.info('📦 Processing order:', order.id);
+        logger.info('🏪 Order data:', JSON.stringify(order, null, 2).substring(0, 500)); // First 500 chars
 
         // Check if this order uses LockerDrop shipping
         const hasLockerDropShipping = order.shipping_lines.some(line =>
@@ -5290,19 +5427,19 @@ async function processNewOrder(order, shopDomain) {
         );
 
         if (!hasLockerDropShipping) {
-            console.log('⏭️ Order does not use LockerDrop shipping, skipping');
+            logger.info('⏭️ Order does not use LockerDrop shipping, skipping');
             return;
         }
 
-        console.log('✅ Order uses LockerDrop! Processing...');
+        logger.info('✅ Order uses LockerDrop! Processing...');
 
         // Get shop from webhook header, fallback to order URL parsing
         const shop = shopDomain || order.order_status_url?.match(/https:\/\/([^\/]+)/)?.[1];
         if (!shop) {
-            console.log('❌ Could not determine shop domain');
+            logger.info('❌ Could not determine shop domain');
             return;
         }
-        console.log('🏪 Using shop:', shop);
+        logger.info('🏪 Using shop:', shop);
 
         // Check for existing reservation from checkout
         // LockerDrop info can be in note_attributes (new) or address2 (legacy)
@@ -5311,11 +5448,11 @@ async function processNewOrder(order, shopDomain) {
         const preferredPickupDate = lockerDropInfo?.pickupDate || null;
 
         if (preferredPickupDate) {
-            console.log(`📅 Customer selected pickup date: ${preferredPickupDate}`);
+            logger.info(`📅 Customer selected pickup date: ${preferredPickupDate}`);
         }
 
         if (reservationRef) {
-            console.log(`🔒 Found reservation reference: ${reservationRef}`);
+            logger.info(`🔒 Found reservation reference: ${reservationRef}`);
 
             // Look up the reservation
             const reservationResult = await db.query(
@@ -5326,7 +5463,7 @@ async function processNewOrder(order, shopDomain) {
 
             if (reservationResult.rows.length > 0) {
                 const reservation = reservationResult.rows[0];
-                console.log(`✅ Using pre-reserved locker: ${reservation.locker_id} (${reservation.locker_size})`);
+                logger.info(`✅ Using pre-reserved locker: ${reservation.locker_id} (${reservation.locker_size})`);
 
                 // Mark reservation as used
                 await db.query(
@@ -5374,26 +5511,26 @@ async function processNewOrder(order, shopDomain) {
                     await incrementOrderCount(shop);
                 }
 
-                console.log(`✅ Order saved with pre-reserved locker! Link: ${reservation.dropoff_link}`);
+                logger.info(`✅ Order saved with pre-reserved locker! Link: ${reservation.dropoff_link}`);
                 return; // Done - no need to allocate a new locker
             } else {
-                console.log(`⚠️ Reservation ${reservationRef} not found or expired, falling back to new allocation`);
+                logger.info(`⚠️ Reservation ${reservationRef} not found or expired, falling back to new allocation`);
             }
         }
 
         // No reservation found - proceed with normal allocation
-        console.log('📦 No reservation found, attempting new locker allocation...');
+        logger.info('📦 No reservation found, attempting new locker allocation...');
 
         // Check subscription status before processing
         const canProcess = await canProcessOrder(shop);
         if (!canProcess.allowed) {
-            console.log(`⚠️ Order rejected - subscription issue: ${canProcess.reason}`);
+            logger.info(`⚠️ Order rejected - subscription issue: ${canProcess.reason}`);
             if (canProcess.reason === 'trial_expired') {
-                console.log('   Trial has expired - shop needs to subscribe');
+                logger.info('   Trial has expired - shop needs to subscribe');
             } else if (canProcess.reason === 'limit_reached') {
-                console.log(`   Monthly limit reached (${canProcess.subscription.orders_this_month}/${canProcess.subscription.monthly_order_limit})`);
+                logger.info(`   Monthly limit reached (${canProcess.subscription.orders_this_month}/${canProcess.subscription.monthly_order_limit})`);
             } else {
-                console.log('   Subscription is inactive');
+                logger.info('   Subscription is inactive');
             }
             // Still save the order but mark it as subscription_blocked
             // For now we'll let it through but log the warning
@@ -5401,7 +5538,7 @@ async function processNewOrder(order, shopDomain) {
         } else {
             // Increment order count for billing
             await incrementOrderCount(shop);
-            console.log(`📊 Order counted for billing (${canProcess.subscription.orders_this_month + 1} this month)`);
+            logger.info(`📊 Order counted for billing (${canProcess.subscription.orders_this_month + 1} this month)`);
         }
 
         // Get access token for fetching product details
@@ -5417,12 +5554,12 @@ async function processNewOrder(order, shopDomain) {
         // Calculate required locker size from product dimensions
         let minLockerTypeId = 2; // Default to Medium
         if (accessToken && order.line_items?.length > 0) {
-            console.log('📦 Fetching product dimensions for locker size calculation...');
+            logger.info('📦 Fetching product dimensions for locker size calculation...');
             const productDimensions = await getProductDimensionsFromOrder(shop, accessToken, order.line_items);
             minLockerTypeId = calculateRequiredLockerSize(productDimensions);
-            console.log(`📦 Selected minimum locker type: ${minLockerTypeId} (${LOCKER_SIZES.find(s => s.id === minLockerTypeId)?.name || 'Unknown'})`);
+            logger.info(`📦 Selected minimum locker type: ${minLockerTypeId} (${LOCKER_SIZES.find(s => s.id === minLockerTypeId)?.name || 'Unknown'})`);
         } else {
-            console.log('📦 No access token or line items, using default Medium locker');
+            logger.info('📦 No access token or line items, using default Medium locker');
         }
 
         // First, try to extract location ID from shipping_lines service_code (e.g., "lockerdrop_329")
@@ -5435,14 +5572,14 @@ async function processNewOrder(order, shopDomain) {
             const codeMatch = lockerDropShippingLine.code.match(/lockerdrop_(\d+)/i);
             if (codeMatch) {
                 locationId = parseInt(codeMatch[1], 10);
-                console.log(`📍 Extracted location ID ${locationId} from shipping line code: ${lockerDropShippingLine.code}`);
+                logger.info(`📍 Extracted location ID ${locationId} from shipping line code: ${lockerDropShippingLine.code}`);
             }
         }
 
         // Also try to extract from note_attributes or address2 if checkout extension set it
         if (!locationId && lockerDropInfo?.locationId) {
             locationId = lockerDropInfo.locationId;
-            console.log(`📍 Extracted location ID ${locationId} from order attributes/address2`);
+            logger.info(`📍 Extracted location ID ${locationId} from order attributes/address2`);
         }
 
         // Fall back to seller's preferred lockers if no location found
@@ -5453,11 +5590,11 @@ async function processNewOrder(order, shopDomain) {
             );
 
             if (preferences.rows.length === 0) {
-                console.log('❌ No locker preferences set for this shop and no location in shipping lines');
+                logger.info('❌ No locker preferences set for this shop and no location in shipping lines');
                 return;
             }
             locationId = preferences.rows[0].location_id;
-            console.log(`📍 Using seller preferred location: ${locationId}`);
+            logger.info(`📍 Using seller preferred location: ${locationId}`);
         }
 
         const preferredLocation = { location_id: locationId };
@@ -5477,7 +5614,7 @@ async function processNewOrder(order, shopDomain) {
             { id: 4, name: 'x-large' }
         ];
         const lockerSizesToTry = allSizes.filter(s => s.id >= minLockerTypeId);
-        console.log(`📦 Will try locker sizes: ${lockerSizesToTry.map(s => s.name).join(', ')}`);
+        logger.info(`📦 Will try locker sizes: ${lockerSizesToTry.map(s => s.name).join(', ')}`);
 
         // Try each locker size starting from minimum required
         let dropoffLink = null;
@@ -5485,7 +5622,7 @@ async function processNewOrder(order, shopDomain) {
 
         for (const size of lockerSizesToTry) {
             try {
-                console.log(`🔗 Trying ${size.name} locker (type ${size.id})...`);
+                logger.info(`🔗 Trying ${size.name} locker (type ${size.id})...`);
                 dropoffLink = await generateDropoffLink(
                     preferredLocation.location_id,
                     size.id,
@@ -5493,11 +5630,11 @@ async function processNewOrder(order, shopDomain) {
                     order.order_number
                 );
                 usedSize = size.name;
-                console.log(`✅ Success with ${size.name} locker!`);
+                logger.info(`✅ Success with ${size.name} locker!`);
                 break;
             } catch (sizeError) {
                 const errorDetail = sizeError.response?.data?.detail || sizeError.message;
-                console.log(`   ❌ ${size.name} failed: ${errorDetail}`);
+                logger.info(`   ❌ ${size.name} failed: ${errorDetail}`);
                 if (!errorDetail.includes('No locker available')) {
                     throw sizeError; // Re-throw if it's not an availability issue
                 }
@@ -5529,11 +5666,11 @@ async function processNewOrder(order, shopDomain) {
                     preferredPickupDate
                 ]
             );
-            console.log(`✅ Order saved! Dropoff link: ${dropoffLink.linkToken} (${usedSize} locker)`);
+            logger.info(`✅ Order saved! Dropoff link: ${dropoffLink.linkToken} (${usedSize} locker)`);
         } else {
             // No locker available - save order with pending_allocation status
             const triedSizes = lockerSizesToTry.map(s => s.name).join(', ');
-            console.log(`⚠️ No lockers available at location ${preferredLocation.location_id}. Tried: ${triedSizes}`);
+            logger.info(`⚠️ No lockers available at location ${preferredLocation.location_id}. Tried: ${triedSizes}`);
 
             await db.query(
                 `INSERT INTO orders (
@@ -5553,7 +5690,7 @@ async function processNewOrder(order, shopDomain) {
                     preferredPickupDate
                 ]
             );
-            console.log(`✅ Order saved with pending_allocation status - needs manual locker assignment`);
+            logger.info(`✅ Order saved with pending_allocation status - needs manual locker assignment`);
         }
 
         // Send email to seller with dropoff link
@@ -5565,12 +5702,12 @@ async function processNewOrder(order, shopDomain) {
             if (dropoffLink) {
                 // For now, we'll log the notification. In production, you'd get the seller's email from the store settings
                 const dropoffUrl = dropoffLink.linkToken;
-                console.log(`📧 Seller notification: New LockerDrop order #${order.order_number} from ${customerName}`);
-                console.log(`   Dropoff link: ${dropoffUrl}`);
+                logger.info(`📧 Seller notification: New LockerDrop order #${order.order_number} from ${customerName}`);
+                logger.info(`   Dropoff link: ${dropoffUrl}`);
             } else {
                 // No locker available - notify seller to manually assign
-                console.log(`📧 Seller notification: New LockerDrop order #${order.order_number} from ${customerName}`);
-                console.log(`   ⚠️ NO LOCKER AVAILABLE - please assign a locker manually from the admin dashboard`);
+                logger.info(`📧 Seller notification: New LockerDrop order #${order.order_number} from ${customerName}`);
+                logger.info(`   ⚠️ NO LOCKER AVAILABLE - please assign a locker manually from the admin dashboard`);
             }
 
             // If you have the seller's email stored, you could send:
@@ -5582,12 +5719,12 @@ async function processNewOrder(order, shopDomain) {
         }
 
     } catch (error) {
-        console.error('Error processing order:', error);
+        logger.error('Error processing order:', error);
     }
 }
 
 async function generateDropoffLink(locationId, lockerTypeId, orderId, orderNumber) {
-    console.log(`🔗 generateDropoffLink called with: locationId=${locationId}, lockerTypeId=${lockerTypeId}, orderId=${orderId}, orderNumber=${orderNumber}`);
+    logger.info(`🔗 generateDropoffLink called with: locationId=${locationId}, lockerTypeId=${lockerTypeId}, orderId=${orderId}, orderNumber=${orderNumber}`);
 
     // Get Harbor token
     const tokenResponse = await axios.post(
@@ -5597,7 +5734,7 @@ async function generateDropoffLink(locationId, lockerTypeId, orderId, orderNumbe
     );
 
     const accessToken = tokenResponse.data.access_token;
-    console.log(`   ✅ Got Harbor access token`);
+    logger.info(`   ✅ Got Harbor access token`);
 
     // Create dropoff request
     // Note: requireLowLocker removed to allow all available lockers
@@ -5615,7 +5752,7 @@ async function generateDropoffLink(locationId, lockerTypeId, orderId, orderNumbe
         { headers: { 'Authorization': `Bearer ${accessToken}` }}
     );
 
-    console.log(`   ✅ Harbor API response:`, JSON.stringify(dropoffResponse.data, null, 2));
+    logger.info(`   ✅ Harbor API response:`, JSON.stringify(dropoffResponse.data, null, 2));
 
     return dropoffResponse.data;
 }
@@ -5642,7 +5779,7 @@ async function cleanupOldCustomerData() {
         `);
 
         if (result.rows.length > 0) {
-            console.log(`🗑️ Data retention: Cleaned up customer data from ${result.rows.length} old orders`);
+            logger.info(`🗑️ Data retention: Cleaned up customer data from ${result.rows.length} old orders`);
 
             // Log this cleanup action
             await logDataAccess('system', 'data_retention_cleanup', {
@@ -5652,7 +5789,7 @@ async function cleanupOldCustomerData() {
             });
         }
     } catch (error) {
-        console.error('Error in data retention cleanup:', error);
+        logger.error('Error in data retention cleanup:', error);
     }
 }
 
@@ -5663,7 +5800,151 @@ function scheduleDataRetention() {
 
     // Then run every 24 hours
     setInterval(cleanupOldCustomerData, 24 * 60 * 60 * 1000);
-    console.log('📅 Data retention cleanup scheduled (daily)');
+    logger.info('Data retention cleanup scheduled (daily)');
+}
+
+// ============================================
+// LOCKER EXPIRY - Auto-release expired orders
+// ============================================
+
+// Check for orders past their hold_time_days and send warnings / auto-release
+async function checkLockerExpiry() {
+    try {
+        // Get all shops with their hold_time_days setting
+        const shops = await db.query(`
+            SELECT s.shop, COALESCE(ss.hold_time_days, 5) as hold_time_days
+            FROM stores s
+            LEFT JOIN shop_settings ss ON ss.shop = s.shop
+        `);
+
+        for (const shopRow of shops.rows) {
+            const { shop, hold_time_days } = shopRow;
+
+            // Find orders that are past their hold time (pending_dropoff or ready_for_pickup)
+            const expiredOrders = await db.query(`
+                SELECT o.id, o.order_number, o.customer_email, o.customer_name,
+                       o.locker_id, o.tower_id, o.status, o.created_at,
+                       EXTRACT(DAY FROM NOW() - o.created_at) as days_since_created
+                FROM orders o
+                WHERE o.shop = $1
+                  AND o.status IN ('pending_dropoff', 'ready_for_pickup')
+                  AND o.created_at < NOW() - INTERVAL '1 day' * $2
+                  AND o.locker_id IS NOT NULL
+                  AND o.tower_id IS NOT NULL
+            `, [shop, hold_time_days]);
+
+            if (expiredOrders.rows.length === 0) continue;
+
+            logger.info({ shop, count: expiredOrders.rows.length, hold_time_days }, 'Found expired locker orders');
+
+            // Get Harbor token for releasing lockers
+            let harborToken = null;
+            try {
+                const tokenResponse = await axios.post(
+                    'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                    `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
+                    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
+                );
+                harborToken = tokenResponse.data.access_token;
+            } catch (tokenError) {
+                logger.error({ err: tokenError, shop }, 'Could not authenticate with Harbor for expiry check');
+                continue;
+            }
+
+            for (const order of expiredOrders.rows) {
+                try {
+                    // Release the locker in Harbor
+                    await axios.post(
+                        `https://api.sandbox.harborlockers.com/api/v1/towers/${order.tower_id}/lockers/${order.locker_id}/release-locker`,
+                        {},
+                        { headers: { 'Authorization': `Bearer ${harborToken}` }}
+                    );
+
+                    // Update order status to expired
+                    await db.query(
+                        `UPDATE orders SET status = 'expired', locker_id = NULL, tower_id = NULL, updated_at = NOW() WHERE id = $1`,
+                        [order.id]
+                    );
+
+                    logger.info({ orderId: order.id, orderNumber: order.order_number, daysSinceCreated: order.days_since_created }, 'Locker released due to expiry');
+
+                    // Notify customer if we have their email
+                    if (order.customer_email) {
+                        await sendEmail(
+                            order.customer_email,
+                            `Your LockerDrop pickup for order #${order.order_number} has expired`,
+                            `<p>Hi ${order.customer_name || 'there'},</p>
+                            <p>Your locker pickup for order <strong>#${order.order_number}</strong> has expired after ${hold_time_days} days.</p>
+                            <p>Please contact the store to arrange a new pickup or alternative delivery.</p>
+                            <p>— LockerDrop</p>`
+                        );
+                    }
+
+                    // Notify seller via email
+                    const storeResult = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop]);
+                    if (storeResult.rows.length > 0) {
+                        try {
+                            const shopData = await shopifyGraphQL(shop, storeResult.rows[0].access_token, '{ shop { email } }');
+                            if (shopData.shop?.email) {
+                                await sendEmail(
+                                    shopData.shop.email,
+                                    `LockerDrop: Order #${order.order_number} locker expired`,
+                                    `<p>Order <strong>#${order.order_number}</strong> has expired after ${hold_time_days} days in the locker.</p>
+                                    <p>The locker has been released. Please arrange alternative fulfillment for this order.</p>
+                                    <p>Customer: ${order.customer_name || 'N/A'} (${order.customer_email || 'no email'})</p>`
+                                );
+                            }
+                        } catch (e) {
+                            // Non-critical: seller notification failed
+                        }
+                    }
+                } catch (releaseError) {
+                    logger.error({ err: releaseError, orderId: order.id }, 'Failed to release expired locker');
+                }
+            }
+        }
+
+        // Also warn about orders approaching expiry (1 day before)
+        const warningOrders = await db.query(`
+            SELECT o.id, o.order_number, o.customer_email, o.customer_name, o.shop,
+                   COALESCE(ss.hold_time_days, 5) as hold_time_days
+            FROM orders o
+            JOIN stores s ON s.shop = o.shop
+            LEFT JOIN shop_settings ss ON ss.shop = o.shop
+            WHERE o.status IN ('pending_dropoff', 'ready_for_pickup')
+              AND o.locker_id IS NOT NULL
+              AND o.created_at >= NOW() - INTERVAL '1 day' * COALESCE(ss.hold_time_days, 5)
+              AND o.created_at < NOW() - INTERVAL '1 day' * (COALESCE(ss.hold_time_days, 5) - 1)
+        `);
+
+        for (const order of warningOrders.rows) {
+            if (order.customer_email) {
+                await sendEmail(
+                    order.customer_email,
+                    `Reminder: Pick up order #${order.order_number} from your locker tomorrow`,
+                    `<p>Hi ${order.customer_name || 'there'},</p>
+                    <p>This is a friendly reminder that your locker pickup for order <strong>#${order.order_number}</strong> expires tomorrow.</p>
+                    <p>Please pick up your package as soon as possible to avoid having to arrange a new delivery.</p>
+                    <p>— LockerDrop</p>`
+                );
+                logger.info({ orderNumber: order.order_number }, 'Sent expiry warning email');
+            }
+        }
+    } catch (error) {
+        logger.error({ err: error }, 'Error in locker expiry check');
+    }
+}
+
+// Schedule locker expiry check - runs every 6 hours
+function scheduleLockerExpiryCheck() {
+    // Run at 6 AM, 12 PM, 6 PM, midnight
+    cron.schedule('0 0,6,12,18 * * *', () => {
+        logger.info('Running scheduled locker expiry check');
+        checkLockerExpiry();
+    });
+    // Also run once on startup after a short delay
+    setTimeout(checkLockerExpiry, 30000);
+    logger.info('Locker expiry check scheduled (every 6 hours)');
 }
 
 // ============================================
@@ -5693,9 +5974,9 @@ async function initBrandingSettings() {
             );
             CREATE INDEX IF NOT EXISTS idx_branding_shop ON branding_settings(shop);
         `);
-        console.log('🎨 Branding settings table ready');
+        logger.info('🎨 Branding settings table ready');
     } catch (error) {
-        console.error('Error creating branding settings table:', error);
+        logger.error('Error creating branding settings table:', error);
     }
 }
 
@@ -5735,7 +6016,7 @@ app.get('/api/branding/:shop', async (req, res) => {
             customCss: settings.custom_css
         });
     } catch (error) {
-        console.error('Error getting branding settings:', error);
+        logger.error('Error getting branding settings:', error);
         res.status(500).json({ error: 'Failed to get branding settings' });
     }
 });
@@ -5789,10 +6070,10 @@ app.post('/api/branding/:shop', requireApiAuth, async (req, res) => {
             rebuyEnabled, rebuyApiKey, rebuyWidgetId, customCss
         ]);
 
-        console.log(`🎨 Branding settings updated for ${shop}`);
+        logger.info(`🎨 Branding settings updated for ${shop}`);
         res.json({ success: true, settings: result.rows[0] });
     } catch (error) {
-        console.error('Error updating branding settings:', error);
+        logger.error('Error updating branding settings:', error);
         res.status(500).json({ error: 'Failed to update branding settings' });
     }
 });
@@ -5841,13 +6122,13 @@ app.get('/api/upsell-products/:shop', async (req, res) => {
                     });
                 }
             } catch (e) {
-                console.log(`Could not fetch product ${productId}:`, e.message);
+                logger.info(`Could not fetch product ${productId}:`, e.message);
             }
         }
 
         res.json({ products });
     } catch (error) {
-        console.error('Error fetching upsell products:', error);
+        logger.error('Error fetching upsell products:', error);
         res.json({ products: [] });
     }
 });
@@ -5873,8 +6154,8 @@ app.post('/api/branding/:shop/logo', requireApiAuth, uploadLogo.single('logo'), 
                 const oldPath = path.join(__dirname, 'public/uploads/logos', oldFilename);
                 const fs = require('fs');
                 fs.unlink(oldPath, (err) => {
-                    if (err) console.log('Could not delete old logo:', err.message);
-                    else console.log('Deleted old logo:', oldFilename);
+                    if (err) logger.info('Could not delete old logo:', err.message);
+                    else logger.info('Deleted old logo:', oldFilename);
                 });
             }
         }
@@ -5886,10 +6167,10 @@ app.post('/api/branding/:shop/logo', requireApiAuth, uploadLogo.single('logo'), 
             WHERE shop = $1
         `, [shop, logoUrl]);
 
-        console.log(`✅ Logo uploaded for ${shop}: ${logoUrl}`);
+        logger.info(`✅ Logo uploaded for ${shop}: ${logoUrl}`);
         res.json({ success: true, logoUrl });
     } catch (error) {
-        console.error('Error uploading logo:', error);
+        logger.error('Error uploading logo:', error);
         res.status(500).json({ error: 'Failed to upload logo' });
     }
 });
@@ -5908,7 +6189,7 @@ app.delete('/api/branding/:shop/logo', async (req, res) => {
                 const filePath = path.join(__dirname, 'public/uploads/logos', filename);
                 const fs = require('fs');
                 fs.unlink(filePath, (err) => {
-                    if (err) console.log('Could not delete logo file:', err.message);
+                    if (err) logger.info('Could not delete logo file:', err.message);
                 });
             }
         }
@@ -5922,7 +6203,7 @@ app.delete('/api/branding/:shop/logo', async (req, res) => {
 
         res.json({ success: true });
     } catch (error) {
-        console.error('Error deleting logo:', error);
+        logger.error('Error deleting logo:', error);
         res.status(500).json({ error: 'Failed to delete logo' });
     }
 });
@@ -5952,9 +6233,9 @@ async function initAuditLog() {
             CREATE INDEX IF NOT EXISTS idx_audit_log_shop ON audit_log(shop);
             CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
         `);
-        console.log('📋 Audit log table ready');
+        logger.info('📋 Audit log table ready');
     } catch (error) {
-        console.error('Error creating audit log table:', error);
+        logger.error('Error creating audit log table:', error);
     }
 }
 
@@ -5991,9 +6272,9 @@ async function initLockerReservations() {
         await db.query(`ALTER TABLE locker_reservations ALTER COLUMN locker_id TYPE VARCHAR(50)`).catch(() => {});
         await db.query(`ALTER TABLE locker_reservations ALTER COLUMN location_id TYPE VARCHAR(50)`).catch(() => {});
         await db.query(`ALTER TABLE locker_reservations ALTER COLUMN dropoff_request_id TYPE VARCHAR(50)`).catch(() => {});
-        console.log('🔒 Locker reservations table ready');
+        logger.info('🔒 Locker reservations table ready');
     } catch (error) {
-        console.error('Error creating locker reservations table:', error);
+        logger.error('Error creating locker reservations table:', error);
     }
 }
 
@@ -6003,9 +6284,9 @@ async function ensureOrdersNotesColumn() {
         await db.query(`
             ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes TEXT;
         `);
-        console.log('📝 Orders notes column ready');
+        logger.info('📝 Orders notes column ready');
     } catch (error) {
-        console.error('Error adding notes column:', error);
+        logger.error('Error adding notes column:', error);
     }
 }
 
@@ -6020,9 +6301,9 @@ async function ensureWaitlistTable() {
                 updated_at TIMESTAMP
             );
         `);
-        console.log('📧 Waitlist table ready');
+        logger.info('📧 Waitlist table ready');
     } catch (error) {
-        console.error('Error creating waitlist table:', error);
+        logger.error('Error creating waitlist table:', error);
     }
 }
 
@@ -6032,9 +6313,9 @@ async function ensurePickupDateColumn() {
         await db.query(`
             ALTER TABLE orders ADD COLUMN IF NOT EXISTS preferred_pickup_date DATE;
         `);
-        console.log('📅 Orders preferred_pickup_date column ready');
+        logger.info('📅 Orders preferred_pickup_date column ready');
     } catch (error) {
-        console.error('Error adding preferred_pickup_date column:', error);
+        logger.error('Error adding preferred_pickup_date column:', error);
     }
 }
 
@@ -6044,9 +6325,9 @@ async function ensureProductExcludedColumn() {
         await db.query(`
             ALTER TABLE product_locker_sizes ADD COLUMN IF NOT EXISTS excluded BOOLEAN DEFAULT FALSE;
         `);
-        console.log('🚫 Product excluded column ready');
+        logger.info('🚫 Product excluded column ready');
     } catch (error) {
-        console.error('Error adding excluded column:', error);
+        logger.error('Error adding excluded column:', error);
     }
 }
 
@@ -6067,7 +6348,7 @@ async function logDataAccess(userId, action, details = {}, req = null) {
             JSON.stringify(details)
         ]);
     } catch (error) {
-        console.error('Error logging data access:', error);
+        logger.error('Error logging data access:', error);
     }
 }
 
@@ -6181,16 +6462,16 @@ async function geocodeZipCode(postalCode, country = 'US') {
 
         if (response.data && response.data.length > 0) {
             const result = response.data[0];
-            console.log(`📍 Geocoded zip ${postalCode} to: ${result.lat}, ${result.lon}`);
+            logger.info(`📍 Geocoded zip ${postalCode} to: ${result.lat}, ${result.lon}`);
             return {
                 latitude: parseFloat(result.lat),
                 longitude: parseFloat(result.lon)
             };
         }
-        console.log(`⚠️ No geocode result for zip: ${postalCode}`);
+        logger.info(`⚠️ No geocode result for zip: ${postalCode}`);
         return null;
     } catch (error) {
-        console.log(`⚠️ Geocoding error for ${postalCode}: ${error.message}`);
+        logger.info(`⚠️ Geocoding error for ${postalCode}: ${error.message}`);
         return null;
     }
 }
@@ -6204,7 +6485,7 @@ function getLockerSizeIdFromName(typeName) {
     if (name.includes('large') && !name.includes('x-large') && !name.includes('extra')) return 3;
     if (name.includes('x-large') || name.includes('xlarge') || name.includes('extra-large') || name.includes('extra large')) return 4;
     // Default to medium if unknown
-    console.log(`⚠️ Unknown locker type name: "${typeName}", defaulting to medium`);
+    logger.info(`⚠️ Unknown locker type name: "${typeName}", defaulting to medium`);
     return 2;
 }
 
@@ -6223,7 +6504,7 @@ const LOCKER_SIZES = [
 // Returns null if ANY product lacks size configuration (product is not eligible for LockerDrop)
 function calculateRequiredLockerSize(products) {
     if (!products || products.length === 0) {
-        console.log('📦 No product dimensions available - products not configured for LockerDrop');
+        logger.info('📦 No product dimensions available - products not configured for LockerDrop');
         return null; // No dimensions = not eligible for LockerDrop
     }
 
@@ -6256,11 +6537,11 @@ function calculateRequiredLockerSize(products) {
     }
 
     if (!allProductsConfigured) {
-        console.log(`📦 Products not configured for LockerDrop: ${unconfiguredProducts.join(', ')}`);
+        logger.info(`📦 Products not configured for LockerDrop: ${unconfiguredProducts.join(', ')}`);
         return null; // Not all products have sizes = not eligible for LockerDrop
     }
 
-    console.log(`📦 Package dimensions: ${maxLength}" x ${maxWidth}" x ${totalHeight}" (${products.length} item types, volume: ${totalVolume.toFixed(1)} cu in)`);
+    logger.info(`📦 Package dimensions: ${maxLength}" x ${maxWidth}" x ${totalHeight}" (${products.length} item types, volume: ${totalVolume.toFixed(1)} cu in)`);
 
     // Sort the two horizontal dimensions (can rotate package), keep height as-is
     const baseDims = [maxLength, maxWidth].sort((a, b) => b - a);
@@ -6270,13 +6551,13 @@ function calculateRequiredLockerSize(products) {
     for (const locker of LOCKER_SIZES) {
         const lockerDims = [locker.maxLength, locker.maxWidth, locker.maxHeight].sort((a, b) => b - a);
         if (packageDims[0] <= lockerDims[0] && packageDims[1] <= lockerDims[1] && packageDims[2] <= lockerDims[2]) {
-            console.log(`📦 Package fits in ${locker.name} locker (type ${locker.id})`);
+            logger.info(`📦 Package fits in ${locker.name} locker (type ${locker.id})`);
             return locker.id;
         }
     }
 
     // If nothing fits, return largest
-    console.log('📦 Package exceeds all locker sizes, using X-Large');
+    logger.info('📦 Package exceeds all locker sizes, using X-Large');
     return 4;
 }
 
@@ -6296,9 +6577,9 @@ async function getProductDimensionsFromOrder(shop, accessToken, lineItems) {
             const key = row.variant_id ? `${row.product_id}-${row.variant_id}` : row.product_id;
             savedSizes[key] = row;
         }
-        console.log(`📦 Loaded ${sizesResult.rows.length} saved product size settings`);
+        logger.info(`📦 Loaded ${sizesResult.rows.length} saved product size settings`);
     } catch (e) {
-        console.log('⚠️ Could not load saved product sizes:', e.message);
+        logger.info('⚠️ Could not load saved product sizes:', e.message);
     }
 
     for (const item of lineItems) {
@@ -6314,7 +6595,7 @@ async function getProductDimensionsFromOrder(shop, accessToken, lineItems) {
 
             // Check if product is explicitly excluded from LockerDrop
             if (saved && saved.excluded) {
-                console.log(`🚫 Product ${productId} is excluded from LockerDrop`);
+                logger.info(`🚫 Product ${productId} is excluded from LockerDrop`);
                 productDimensions.push({
                     length: 0,
                     width: 0,
@@ -6338,7 +6619,7 @@ async function getProductDimensionsFromOrder(shop, accessToken, lineItems) {
                     source: 'saved'
                 };
                 productDimensions.push(dimensions);
-                console.log(`📦 Product ${productId} (saved): ${dimensions.length}" x ${dimensions.width}" x ${dimensions.height}" (qty: ${item.quantity})`);
+                logger.info(`📦 Product ${productId} (saved): ${dimensions.length}" x ${dimensions.width}" x ${dimensions.height}" (qty: ${item.quantity})`);
                 continue;
             }
 
@@ -6360,7 +6641,7 @@ async function getProductDimensionsFromOrder(shop, accessToken, lineItems) {
                     isConfigured: true
                 };
                 productDimensions.push(dimensions);
-                console.log(`📦 Product ${productId} (size override: ${saved.locker_size}): ${dimensions.length}" x ${dimensions.width}" x ${dimensions.height}" (qty: ${item.quantity})`);
+                logger.info(`📦 Product ${productId} (size override: ${saved.locker_size}): ${dimensions.length}" x ${dimensions.width}" x ${dimensions.height}" (qty: ${item.quantity})`);
                 continue;
             }
 
@@ -6368,7 +6649,7 @@ async function getProductDimensionsFromOrder(shop, accessToken, lineItems) {
             // Fetch product title for logging
             const product = await fetchProductByIdGraphQL(shop, accessToken, productId);
             const productTitle = product?.title || `Product ${productId}`;
-            console.log(`⚠️ Product "${productTitle}" (${productId}) has no size configured - not eligible for LockerDrop`);
+            logger.info(`⚠️ Product "${productTitle}" (${productId}) has no size configured - not eligible for LockerDrop`);
             productDimensions.push({
                 length: 0,
                 width: 0,
@@ -6382,7 +6663,7 @@ async function getProductDimensionsFromOrder(shop, accessToken, lineItems) {
             continue;
 
         } catch (error) {
-            console.log(`⚠️ Could not process product ${item.product_id}:`, error.message);
+            logger.info(`⚠️ Could not process product ${item.product_id}:`, error.message);
             // Mark product as unconfigured on error
             productDimensions.push({
                 length: 0,
@@ -6415,9 +6696,9 @@ async function getProductDimensionsFromCheckout(shop, accessToken, cartProducts)
             const key = row.variant_id ? `${row.product_id}-${row.variant_id}` : row.product_id;
             savedSizes[key] = row;
         }
-        console.log(`📦 Checkout: Loaded ${sizesResult.rows.length} saved product size settings`);
+        logger.info(`📦 Checkout: Loaded ${sizesResult.rows.length} saved product size settings`);
     } catch (e) {
-        console.log('⚠️ Could not load saved product sizes:', e.message);
+        logger.info('⚠️ Could not load saved product sizes:', e.message);
     }
 
     for (const item of cartProducts) {
@@ -6426,21 +6707,21 @@ async function getProductDimensionsFromCheckout(shop, accessToken, cartProducts)
             let variantId = item.variantId?.replace('gid://shopify/ProductVariant/', '') || null;
             let productId = item.productId?.replace('gid://shopify/Product/', '') || null;
 
-            console.log(`📦 DEBUG: Cart item raw: variantId=${item.variantId}, productId=${item.productId}`);
-            console.log(`📦 DEBUG: Cart item parsed: variantId=${variantId}, productId=${productId}`);
-            console.log(`📦 DEBUG: Available keys in savedSizes: ${Object.keys(savedSizes).join(', ')}`);
+            logger.info(`📦 DEBUG: Cart item raw: variantId=${item.variantId}, productId=${item.productId}`);
+            logger.info(`📦 DEBUG: Cart item parsed: variantId=${variantId}, productId=${productId}`);
+            logger.info(`📦 DEBUG: Available keys in savedSizes: ${Object.keys(savedSizes).join(', ')}`);
 
             if (!variantId && !productId) continue;
 
             // Check for saved dimensions in our database first
             const savedKey = variantId && productId ? `${productId}-${variantId}` : productId;
-            console.log(`📦 DEBUG: Looking for key="${savedKey}" or fallback="${productId}"`);
+            logger.info(`📦 DEBUG: Looking for key="${savedKey}" or fallback="${productId}"`);
             const saved = savedSizes[savedKey] || savedSizes[productId];
-            console.log(`📦 DEBUG: Found saved=${saved ? 'YES' : 'NO'} (size: ${saved?.locker_size || 'none'})`);
+            logger.info(`📦 DEBUG: Found saved=${saved ? 'YES' : 'NO'} (size: ${saved?.locker_size || 'none'})`);
 
             // Check if product is explicitly excluded from LockerDrop
             if (saved && saved.excluded) {
-                console.log(`🚫 Checkout: Product ${productId} is excluded from LockerDrop`);
+                logger.info(`🚫 Checkout: Product ${productId} is excluded from LockerDrop`);
                 productDimensions.push({
                     length: 0,
                     width: 0,
@@ -6464,7 +6745,7 @@ async function getProductDimensionsFromCheckout(shop, accessToken, cartProducts)
                     source: 'saved'
                 };
                 productDimensions.push(dimensions);
-                console.log(`📦 Checkout product ${productId} (saved): ${dimensions.length}" x ${dimensions.width}" x ${dimensions.height}" (qty: ${dimensions.quantity})`);
+                logger.info(`📦 Checkout product ${productId} (saved): ${dimensions.length}" x ${dimensions.width}" x ${dimensions.height}" (qty: ${dimensions.quantity})`);
                 continue;
             }
 
@@ -6485,7 +6766,7 @@ async function getProductDimensionsFromCheckout(shop, accessToken, cartProducts)
                     source: 'size_override'
                 };
                 productDimensions.push(dimensions);
-                console.log(`📦 Checkout product ${productId} (size override: ${saved.locker_size}): ${dimensions.length}" x ${dimensions.width}" x ${dimensions.height}" (qty: ${dimensions.quantity})`);
+                logger.info(`📦 Checkout product ${productId} (size override: ${saved.locker_size}): ${dimensions.length}" x ${dimensions.width}" x ${dimensions.height}" (qty: ${dimensions.quantity})`);
                 continue;
             }
 
@@ -6522,12 +6803,12 @@ async function getProductDimensionsFromCheckout(shop, accessToken, cartProducts)
                         }
                     }
                 } catch (variantError) {
-                    console.log(`⚠️ Could not fetch variant ${variantId}:`, variantError.message);
+                    logger.info(`⚠️ Could not fetch variant ${variantId}:`, variantError.message);
                 }
             }
 
             // Product is not configured for LockerDrop
-            console.log(`⚠️ Product "${productTitle}" has no size configured - not eligible for LockerDrop`);
+            logger.info(`⚠️ Product "${productTitle}" has no size configured - not eligible for LockerDrop`);
             productDimensions.push({
                 length: 0,
                 width: 0,
@@ -6539,7 +6820,7 @@ async function getProductDimensionsFromCheckout(shop, accessToken, cartProducts)
                 source: 'unconfigured'
             });
         } catch (error) {
-            console.log(`⚠️ Could not process cart item:`, error.message);
+            logger.info(`⚠️ Could not process cart item:`, error.message);
             productDimensions.push({
                 length: 0,
                 width: 0,
@@ -6566,7 +6847,7 @@ async function getAccessToken(shop, code) {
 
 async function registerCarrierService(shop, accessToken) {
     try {
-        console.log('🚚 Registering carrier service...');
+        logger.info('🚚 Registering carrier service...');
         const result = await shopifyGraphQL(shop, accessToken, `
             mutation carrierServiceCreate($input: DeliveryCarrierServiceCreateInput!) {
                 carrierServiceCreate(input: $input) {
@@ -6591,14 +6872,14 @@ async function registerCarrierService(shop, accessToken) {
 
         const errors = result.carrierServiceCreate?.userErrors;
         if (errors && errors.length > 0) {
-            console.log('⚠️ Carrier service registration:', errors[0].message);
+            logger.info('⚠️ Carrier service registration:', errors[0].message);
             return null;
         }
 
-        console.log('✅ Carrier service registered:', result.carrierServiceCreate.carrierService);
+        logger.info('✅ Carrier service registered:', result.carrierServiceCreate.carrierService);
         return result.carrierServiceCreate.carrierService;
     } catch (error) {
-        console.error('❌ Carrier service error:', error.message);
+        logger.error('❌ Carrier service error:', error.message);
         throw error;
     }
 }
@@ -6635,7 +6916,7 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
         const fulfillmentOrders = orderData.order?.fulfillmentOrders?.edges?.map(e => e.node) || [];
 
         if (fulfillmentOrders.length === 0) {
-            console.log(`⚠️ No fulfillment orders found for order ${shopifyOrderId}`);
+            logger.info(`⚠️ No fulfillment orders found for order ${shopifyOrderId}`);
             return { success: false, message: 'No fulfillment orders found' };
         }
 
@@ -6645,7 +6926,7 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
         );
 
         if (openFulfillmentOrders.length === 0) {
-            console.log(`ℹ️ Order ${shopifyOrderId} already fulfilled or no open fulfillment orders`);
+            logger.info(`ℹ️ Order ${shopifyOrderId} already fulfilled or no open fulfillment orders`);
             return { success: true, message: 'Order already fulfilled' };
         }
 
@@ -6680,16 +6961,16 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
 
             const errors = fulfillResult.fulfillmentCreateV2?.userErrors;
             if (errors && errors.length > 0) {
-                console.error(`❌ Fulfillment error for order ${shopifyOrderId}:`, errors);
+                logger.error(`❌ Fulfillment error for order ${shopifyOrderId}:`, errors);
             } else {
-                console.log(`✅ Fulfillment created for order ${shopifyOrderId}:`, fulfillResult.fulfillmentCreateV2?.fulfillment?.id);
+                logger.info(`✅ Fulfillment created for order ${shopifyOrderId}:`, fulfillResult.fulfillmentCreateV2?.fulfillment?.id);
             }
         }
 
         return { success: true, message: 'Order fulfilled in Shopify' };
     } catch (error) {
         const errorMessage = error.response?.data?.errors?.[0]?.message || error.message;
-        console.error(`❌ Error fulfilling order ${shopifyOrderId} in Shopify:`, errorMessage);
+        logger.error(`❌ Error fulfilling order ${shopifyOrderId} in Shopify:`, errorMessage);
 
         // Check for permission/scope error
         if (errorMessage && (
@@ -6698,7 +6979,7 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
             errorMessage.includes('Access denied') ||
             error.response?.status === 403
         )) {
-            console.error(`🔐 Permission error detected - shop "${shop}" needs to re-authorize with write_fulfillments scope`);
+            logger.error(`🔐 Permission error detected - shop "${shop}" needs to re-authorize with write_fulfillments scope`);
             return {
                 success: false,
                 message: errorMessage,
@@ -6721,11 +7002,11 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
 app.post('/carrier-service/rates', async (req, res) => {
     try {
         const rateRequest = req.body;
-        console.log('📍 Shipping rate request received');
+        logger.info('📍 Shipping rate request received');
 
         // Get shop domain from Shopify header
         const shopDomain = req.headers['x-shopify-shop-domain'];
-        console.log(`🏪 Shop: ${shopDomain || 'unknown'}`);
+        logger.info(`🏪 Shop: ${shopDomain || 'unknown'}`);
 
         // Get shop settings (including fulfillment settings for pickup date calculation)
         let freePickup = false;
@@ -6746,7 +7027,7 @@ app.post('/carrier-service/rates', async (req, res) => {
                     useNativePickup = settings.use_checkout_extension || false;
                 }
             } catch (e) {
-                console.log('Could not check shop settings:', e.message);
+                logger.info('Could not check shop settings:', e.message);
             }
         }
 
@@ -6754,12 +7035,12 @@ app.post('/carrier-service/rates', async (req, res) => {
         const { pickupDate } = calculatePickupDate(processingDays, fulfillmentDays, vacationDays);
         const pickupDateFormatted = formatPickupDate(pickupDate);
         const pickupDateISO = pickupDate.toISOString().split('T')[0];
-        console.log(`📅 Expected pickup: ${pickupDateFormatted} (${pickupDateISO})`);
+        logger.info(`📅 Expected pickup: ${pickupDateFormatted} (${pickupDateISO})`);
 
         // If checkout extension is enabled, return a single generic LockerDrop rate
         // The checkout extension UI handles the specific locker selection
         if (useNativePickup) {
-            console.log('🔀 Checkout extension enabled - returning single LockerDrop rate');
+            logger.info('🔀 Checkout extension enabled - returning single LockerDrop rate');
             const price = freePickup ? '0' : '100';
             return res.json({
                 rates: [{
@@ -6778,12 +7059,12 @@ app.post('/carrier-service/rates', async (req, res) => {
 
         // If no coordinates provided, try to geocode from zip code
         if (!lat || !lon) {
-            console.log(`📍 No coordinates provided, attempting zip code geocode for: ${destination.postal_code}`);
+            logger.info(`📍 No coordinates provided, attempting zip code geocode for: ${destination.postal_code}`);
             const geocoded = await geocodeZipCode(destination.postal_code, destination.country || 'US');
             if (geocoded) {
                 lat = geocoded.latitude;
                 lon = geocoded.longitude;
-                console.log(`📍 Using geocoded coordinates from zip: ${lat}, ${lon}`);
+                logger.info(`📍 Using geocoded coordinates from zip: ${lat}, ${lon}`);
             }
         }
 
@@ -6792,7 +7073,7 @@ app.post('/carrier-service/rates', async (req, res) => {
         let requiredSizeName = 'medium';
         const rateItems = rateRequest.rate?.items || [];
 
-        console.log(`📦 Cart has ${rateItems.length} items`);
+        logger.info(`📦 Cart has ${rateItems.length} items`);
 
         if (shopDomain && rateItems.length > 0) {
             try {
@@ -6821,17 +7102,17 @@ app.post('/carrier-service/rates', async (req, res) => {
                     requiredLockerTypeId = calculateRequiredLockerSize(productDimensions);
                     requiredSizeName = LOCKER_SIZES.find(s => s.id === requiredLockerTypeId)?.name?.toLowerCase() || 'medium';
 
-                    console.log(`📦 Required locker size for cart: ${requiredSizeName} (type ${requiredLockerTypeId})`);
+                    logger.info(`📦 Required locker size for cart: ${requiredSizeName} (type ${requiredLockerTypeId})`);
                 } else {
-                    console.log(`⚠️ No access token for ${shopDomain}, defaulting to medium`);
+                    logger.info(`⚠️ No access token for ${shopDomain}, defaulting to medium`);
                 }
             } catch (sizeError) {
-                console.log(`⚠️ Could not calculate locker size: ${sizeError.message}, defaulting to medium`);
+                logger.info(`⚠️ Could not calculate locker size: ${sizeError.message}, defaulting to medium`);
             }
         }
 
         if (!lat || !lon) {
-            console.log('❌ No coordinates available (even after geocode attempt)');
+            logger.info('❌ No coordinates available (even after geocode attempt)');
             return res.json({ rates: [] });
         }
 
@@ -6846,16 +7127,16 @@ app.post('/carrier-service/rates', async (req, res) => {
                 enabledLocationIds = prefsResult.rows.map(r => r.location_id);
 
                 if (enabledLocationIds.length === 0) {
-                    console.log('❌ No locker locations enabled for this shop - hiding LockerDrop at checkout');
+                    logger.info('❌ No locker locations enabled for this shop - hiding LockerDrop at checkout');
                     return res.json({ rates: [] });
                 }
-                console.log(`🔧 Shop has ${enabledLocationIds.length} enabled locations: ${enabledLocationIds.join(', ')}`);
+                logger.info(`🔧 Shop has ${enabledLocationIds.length} enabled locations: ${enabledLocationIds.join(', ')}`);
             } catch (e) {
-                console.log('⚠️ Could not check locker preferences:', e.message);
+                logger.info('⚠️ Could not check locker preferences:', e.message);
             }
         }
 
-        console.log(`📍 Customer location: ${lat}, ${lon}`);
+        logger.info(`📍 Customer location: ${lat}, ${lon}`);
 
         // Get Harbor token
         const tokenResponse = await axios.post(
@@ -6883,7 +7164,7 @@ app.post('/carrier-service/rates', async (req, res) => {
             : allLocations;
 
         if (enabledLocations.length === 0) {
-            console.log('❌ None of the enabled locations match Harbor locations');
+            logger.info('❌ None of the enabled locations match Harbor locations');
             return res.json({ rates: [] });
         }
 
@@ -6940,18 +7221,18 @@ app.post('/carrier-service/rates', async (req, res) => {
 
                 // Only show locations with enough buffer to prevent race conditions
                 if (hasRequiredSizeAvailable && availableForRequiredSize >= MIN_AVAILABLE_BUFFER) {
-                    console.log(`✅ Location ${location.name}: ${availableForRequiredSize} lockers available (${requiredSizeName}+, min ${MIN_AVAILABLE_BUFFER})`);
+                    logger.info(`✅ Location ${location.name}: ${availableForRequiredSize} lockers available (${requiredSizeName}+, min ${MIN_AVAILABLE_BUFFER})`);
                     availableLocations.push({
                         ...location,
                         availableCount: availableForRequiredSize,
                         availability: availability
                     });
                 } else {
-                    console.log(`❌ Location ${location.name}: Only ${availableForRequiredSize} ${requiredSizeName}+ lockers (need ${MIN_AVAILABLE_BUFFER}+)`);
+                    logger.info(`❌ Location ${location.name}: Only ${availableForRequiredSize} ${requiredSizeName}+ lockers (need ${MIN_AVAILABLE_BUFFER}+)`);
                 }
             } catch (availError) {
                 // If availability check fails, skip this location
-                console.log(`⚠️ Could not check availability for ${location.name}:`, availError.response?.data?.detail || availError.message);
+                logger.info(`⚠️ Could not check availability for ${location.name}:`, availError.response?.data?.detail || availError.message);
             }
 
             // Stop after finding 3 available locations
@@ -6959,13 +7240,13 @@ app.post('/carrier-service/rates', async (req, res) => {
         }
 
         if (availableLocations.length === 0) {
-            console.log('❌ No lockers available at any nearby location');
+            logger.info('❌ No lockers available at any nearby location');
             return res.json({ rates: [] });
         }
 
         // Set price based on free pickup setting
         const price = freePickup ? '0' : '100'; // $0 if free, $1.00 otherwise
-        console.log(`💰 Price: ${freePickup ? 'FREE (seller absorbs fee)' : '$1.00'}`);
+        logger.info(`💰 Price: ${freePickup ? 'FREE (seller absorbs fee)' : '$1.00'}`);
 
         // Create shipping rates only for locations with available lockers
         const rates = availableLocations.map(location => {
@@ -6987,12 +7268,12 @@ app.post('/carrier-service/rates', async (req, res) => {
             };
         });
 
-        console.log(`✅ Returning ${rates.length} available locker options (pickup: ${pickupDateFormatted})`);
+        logger.info(`✅ Returning ${rates.length} available locker options (pickup: ${pickupDateFormatted})`);
 
         res.json({ rates });
 
     } catch (error) {
-        console.error('❌ Error in carrier service:', error.message);
+        logger.error('❌ Error in carrier service:', error.message);
         res.json({ rates: [] });
     }
 });
@@ -7013,6 +7294,32 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 function toRad(degrees) {
     return degrees * (Math.PI / 180);
 }
+
+// ============================================
+// FRONTEND ERROR TRACKING
+// ============================================
+
+// Endpoint for frontend clients to report errors
+app.post('/api/errors', express.json(), (req, res) => {
+    const { message, stack, source, context, url, userAgent } = req.body;
+
+    if (!message) {
+        return res.status(400).json({ error: 'message is required' });
+    }
+
+    logger.error({
+        type: 'frontend_error',
+        errorMessage: message,
+        stack: stack || null,
+        source: source || 'unknown',
+        context: context || {},
+        url: url || null,
+        userAgent: userAgent || req.headers['user-agent'],
+        ip: req.ip
+    }, `Frontend error: ${message}`);
+
+    res.status(200).json({ received: true });
+});
 
 // ============================================
 // START SERVER
@@ -7043,17 +7350,13 @@ app.listen(PORT, async () => {
     // Schedule data retention cleanup
     scheduleDataRetention();
 
-    console.log(`
-    ╔═══════════════════════════════════════╗
-    ║   🔐 LockerDrop Server Running       ║
-    ╠═══════════════════════════════════════╣
-    ║   Port: ${PORT}
-    ║   Host: ${process.env.SHOPIFY_HOST}
-    ║   Harbor API: Connected               ║
-    ║   Admin Dashboard: /admin/dashboard   ║
-    ║   Audit Logging: Enabled              ║
-    ║   Data Retention: 90 days             ║
-    ╚═══════════════════════════════════════╝
-    `);
+    // Schedule locker expiry checks
+    scheduleLockerExpiryCheck();
+
+    logger.info({
+        port: PORT,
+        host: process.env.SHOPIFY_HOST,
+        nodeEnv: process.env.NODE_ENV
+    }, `LockerDrop server running on port ${PORT}`);
 });
 
