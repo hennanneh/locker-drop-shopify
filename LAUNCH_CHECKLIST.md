@@ -10,9 +10,9 @@
 
 | Priority | Count | Done | Description |
 |----------|-------|------|-------------|
-| 🔴 CRITICAL | 9 | 8 ✅ | Must fix before any real merchant or app store submission |
-| 🟡 HIGH | 12 | 5 ✅ | Should fix before launch |
-| 🟢 MEDIUM | 11 | 0 | Needed for app store review or best practices |
+| 🔴 CRITICAL | 10 | 8 ✅ | Must fix before any real merchant or app store submission |
+| 🟡 HIGH | 13 | 5 ✅ | Should fix before launch |
+| 🟢 MEDIUM | 12 | 1 ✅ | Needed for app store review or best practices |
 | 🔵 LOW | 5 | 0 | Post-launch improvements |
 
 ---
@@ -68,10 +68,13 @@
 | 22 | Create App Store listing content | Shopify 4.4 | 🟡 HIGH | ⬜ Not Started | 3-4 hrs | Name, subtitle, description, screenshots. No pricing in images, no stats/claims. |
 | 23 | Add geographic requirement to listing | Shopify 4.3.8 | 🟢 MEDIUM | ⬜ Not Started | 30 min | Harbor Lockers are US-only. Indicate in listing. |
 | 24 | Upload app icon to Dev Dashboard | Shopify 4.1.2 | 🟢 MEDIUM | ⬜ Not Started | 30 min | Must match between Dev Dashboard and App Store listing. |
-| 25 | Add emergency developer contact | Shopify 4.5.6 | 🟢 MEDIUM | ⬜ Not Started | 15 min | Add to Partner Dashboard settings. |
+| 25 | Add emergency developer contact | Shopify 4.5.6 | 🟢 MEDIUM | ✅ Done | 15 min | Added to Partner Dashboard settings. |
 | 26 | Add theme extension setup deep links + instructions | Shopify 5.1.3 | 🟢 MEDIUM | 🔧 Needs Work | 2-3 hrs | Detailed instructions + deep links for installing theme blocks. |
 | 27 | Verify checkout extension displays properly | Shopify 5.6.1 | 🟢 MEDIUM | 🔧 Needs Work | 2-3 hrs | Test locker selection in checkout on desktop and mobile. |
 | 28 | Review scopes — remove any unnecessary ones | Shopify 3.2 | 🟢 MEDIUM | 🔧 Needs Work | 1-2 hrs | Must justify all requested scopes. Consider optional scopes. |
+| 38 | Add GDPR compliance webhooks | Shopify | 🔴 CRITICAL | ⬜ Not Started | 2-3 hrs | Required to pass Shopify automated checks. Implement `customers/data_request`, `customers/redact`, and `shop/redact` webhook handlers. |
+| 39 | Complete protected customer data access request | Shopify | 🟡 HIGH | ⬜ Not Started | 1 hr | In Partner Dashboard, explain why we access customer email, name, phone, and address (needed for pickup notifications, locker assignment, and order fulfillment). |
+| 40 | Select app capabilities in Partner Dashboard | Shopify | 🟢 MEDIUM | ⬜ Not Started | 15 min | Select shipping/fulfillment category in Partner Dashboard. |
 
 ---
 
