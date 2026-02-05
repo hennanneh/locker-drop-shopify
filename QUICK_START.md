@@ -45,7 +45,13 @@ HARBOR_CLIENT_ID=lockerdrop
 HARBOR_CLIENT_SECRET=UHAmeQiazptDLws87frl0TR7ddO3vhHh
 HARBOR_API_URL=https://api.sandbox.harborlockers.com
 
+DATABASE_URL=postgresql://...
+DB_CA_CERT=./ca-certificate.crt
+
+SESSION_SECRET=your_random_secret
 PORT=3000
+NODE_ENV=production
+LOG_LEVEL=info
 ```
 
 ### Step 4: Restart Your Server

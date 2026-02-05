@@ -303,18 +303,29 @@ All blocks include:
 ✅ Shopify theme extension blocks
 ✅ Interactive maps with Leaflet.js
 
-### Phase 2 (Current)
+### Phase 2 (Complete)
 ✅ Customer pickup magic links
 ✅ Seller dropoff magic links
 ✅ Order cancellation with locker release
 ✅ Polaris admin dashboard redesign
-⏭ Production Harbor API integration
+✅ GraphQL migration (all REST Admin API calls)
+✅ App Bridge + embedded app experience
+✅ App uninstall cleanup with locker release
+✅ PostgreSQL session store (connect-pg-simple)
+✅ SSL certificate validation (DB CA cert)
+✅ Rate limiting (public 30/min, checkout 60/min, webhook 120/min)
+✅ Locker expiry automation (cron every 6 hours)
+✅ ORDERS_UPDATED webhook sync
+✅ Structured logging (pino)
+✅ Frontend error tracking
+✅ Custom order confirmation email template
+⏭ Production Harbor API integration (blocked, awaiting credentials)
 
 ### Phase 3 (Future)
+⏭ Tiered subscription pricing
 ⏭ Analytics and reporting
-⏭ Multi-location support for sellers
-⏭ Automated locker selection based on customer proximity
-⏭ Integration with Shopify fulfillment API
+⏭ Returns via locker
+⏭ Multi-package order support
 ⏭ Mobile app for sellers
 
 ### Phase 4 (Advanced)

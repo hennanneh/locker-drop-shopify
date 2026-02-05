@@ -1,7 +1,7 @@
 # PROJECT_STATUS.md — LockerDrop Shopify App
 
-> Generated: 2026-02-05
-> Branch: `main` (commit `4aa4a04`)
+> Last Updated: 2026-02-05
+> Branch: `main`
 
 ---
 
@@ -11,6 +11,8 @@ LockerDrop is a Shopify app that enables merchants to offer smart locker pickup 
 
 **Live URL:** https://app.lockerdrop.it
 **Stack:** Node.js / Express / PostgreSQL / Shopify Extensions (React + Liquid)
+**Logging:** pino (structured JSON in production, pretty-printed in dev)
+**Revenue Model:** Per-order fee ($1-$2 per locker transaction via Shopify usage-based billing)
 
 ---
 
@@ -18,7 +20,7 @@ LockerDrop is a Shopify app that enables merchants to offer smart locker pickup 
 
 ```
 locker-drop-shopify/
-├── server.js                          # Main Express server (~3500 lines, all routes)
+├── server.js                          # Main Express server (~7500 lines, all routes)
 ├── db.js                              # PostgreSQL connection pool config
 ├── setup-database.js                  # Database schema creation script
 ├── package.json                       # Dependencies and scripts
@@ -29,9 +31,11 @@ locker-drop-shopify/
 │   ├── auth.js                        # OAuth install/callback, webhook registration
 │   └── carrier.js                     # Carrier service rates endpoint (v2)
 │
+├── ca-certificate.crt                 # DigitalOcean managed DB CA certificate
+│
 ├── services/
 │   ├── harbor.services.js             # Harbor Lockers API client (OAuth2, locker ops)
-│   └── shopify.service.js             # Shopify Admin API client (REST + GraphQL)
+│   └── shopify.service.js             # Shopify Admin API client (GraphQL)
 │
 ├── extensions/
 │   ├── lockerdrop-checkout/           # Checkout UI extension — locker selection
@@ -82,6 +86,8 @@ locker-drop-shopify/
 │   ├── SELLER_TRAINING_GUIDE.md
 │   ├── CUSTOMER_FAQ.md
 │   ├── FAQ.md
+│   ├── EMAIL_SETUP_GUIDE.md               # How merchants install the email template
+│   ├── email-template-order-confirmation.liquid  # Custom order confirmation email
 │   └── INCIDENT_RESPONSE_POLICY.md
 │
 ├── ARCHITECTURE.md
@@ -129,7 +135,7 @@ locker-drop-shopify/
 | created_at | TIMESTAMP | |
 | updated_at | TIMESTAMP | |
 
-**Status flow:** `pending` → `pending_dropoff` → `dropped_off` → `ready_for_pickup` → `completed` (or `cancelled`)
+**Status flow:** `pending` → `pending_dropoff` → `dropped_off` → `ready_for_pickup` → `completed` (or `cancelled` at any point, or `expired` after hold_time_days)
 
 ### `locker_preferences`
 | Column | Type | Notes |
@@ -216,7 +222,9 @@ locker-drop-shopify/
 | Method | Path | Purpose |
 |--------|------|---------|
 | POST | `/webhooks/orders/create` | Shopify webhook — sync new orders |
+| POST | `/webhooks/orders/updated` | Shopify webhook — sync customer info, detect external fulfillment |
 | POST | `/webhooks/orders/cancelled` | Shopify webhook — handle cancellations |
+| POST | `/webhooks/app/uninstalled` | Shopify webhook — clean up shop data, release lockers |
 | GET | `/api/orders/:shop` | List all orders for a shop |
 | GET | `/api/sync-orders/:shop` | Manually sync past orders from Shopify |
 | GET | `/api/order-locker-data/:shopifyOrderId` | Get locker data for admin order block |
@@ -291,6 +299,11 @@ locker-drop-shopify/
 | DELETE | `/api/branding/:shop/logo` | Remove custom logo |
 | GET | `/api/upsell-products/:shop` | Get upsell products for success page |
 
+### Error Tracking
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/errors` | Frontend error reports from dashboard and extensions |
+
 ### Dashboard & Static Pages
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -317,10 +330,11 @@ locker-drop-shopify/
 - **Locker sizes:** small (1), medium (2), large (3), xlarge (4)
 
 ### Shopify Admin API
-- **Version:** 2024-10 (some endpoints use 2025-10)
+- **Version:** 2025-10 (GraphQL Admin API)
 - **Auth:** Access token from OAuth flow
-- **Scopes:** `write_shipping, read_orders, write_orders, read_products, write_products, read_shipping, read_checkouts, write_checkouts, read_fulfillments, write_fulfillments`
-- **Webhooks registered:** `orders/create`, `orders/cancelled`
+- **Scopes:** `write_shipping, read_orders, write_orders, read_products, write_products, read_shipping, read_fulfillments, write_fulfillments`
+- **Webhooks registered:** `orders/create`, `orders/updated`, `orders/cancelled`, `app/uninstalled`
+- **All admin calls use GraphQL** (OAuth endpoints remain REST as required by Shopify)
 - **Carrier service:** Registered at install to provide locker shipping rates
 - **App proxy:** `/apps/lockerdrop` → routes through Shopify to app server
 
@@ -387,46 +401,49 @@ locker-drop-shopify/
 12. **Product size configuration** — dimensions or dropdown, product exclusions, CSV import/export
 13. **Shop settings** — free pickup toggle, processing days, fulfillment day schedule, vacation days
 14. **Branding customization** — logo upload, primary color, success message, upsell products
-15. **Subscription/billing** — trial, 3 paid plans, Shopify billing integration (currently bypassed — revenue via $1 shipping fee)
+15. **Subscription/billing** — per-order fee ($1-$2) via Shopify usage-based billing (subscription tiers built but bypassed for launch)
 16. **Thank you page** — confirmation with pickup instructions and retry logic
 17. **Order status page** — live progress tracking in customer account
 18. **Admin order block** — locker info visible in Shopify Admin order details
 19. **Theme blocks** — 6 customizable Liquid blocks for storefront
 20. **Landing page** — marketing page with locker finder and waitlist signup
 21. **Privacy policy, FAQs, training docs** — full documentation suite
+22. **Rate limiting** — 3 tiers: public API (30/min), checkout (60/min), webhooks (120/min)
+23. **Locker expiry automation** — cron job every 6 hours: warns customers 1 day before expiry, auto-releases expired lockers, emails customer + seller
+24. **Order update sync** — `orders/updated` webhook syncs customer info changes and detects external fulfillment
+25. **Structured logging** — pino logger (JSON in production, pretty in dev), configurable via `LOG_LEVEL` env var
+26. **Frontend error tracking** — `POST /api/errors` endpoint + `window.onerror` in dashboard + `reportError()` in checkout and order block extensions
+27. **App uninstall cleanup** — releases active lockers via Harbor, deletes all shop data (orders, preferences, settings, branding, sessions)
+28. **PostgreSQL session store** — `connect-pg-simple` sessions survive server restarts
+29. **SSL certificate validation** — CA cert loaded from `DB_CA_CERT` file path or `DB_CA_CERT_BASE64` env var
+30. **Embedded app experience** — dashboard redirects to Shopify Admin when accessed directly, App Bridge loaded from CDN
+31. **Custom email template** — order confirmation reads from `note_attributes`, with shipping line fallback; `docs/email-template-order-confirmation.liquid`
 
 ---
 
 ## Known Issues & TODOs
 
 ### Architecture / Technical Debt
-- **Monolithic server.js (~3500 lines)** — all routes, middleware, and business logic in one file; needs refactoring into modular route files
-- **In-memory session storage** — not safe for multi-instance/cluster deployments; should use database or Redis
-- **Sandbox Harbor API hardcoded** — `api.sandbox.harborlockers.com` is hardcoded; no production Harbor endpoint configured
-- **Hardcoded locker ID 329** — used as default for synced orders missing locker data (server.js line ~1312)
-- **Mixed API versions** — some Shopify calls use 2024-10, others use 2025-10
+- **Monolithic server.js (~7500 lines)** — all routes, middleware, and business logic in one file; needs refactoring into modular route files
+- **Sandbox Harbor API hardcoded** — `api.sandbox.harborlockers.com` is hardcoded; blocked pending production credentials from Harbor
 
 ### Billing / Revenue
-- **Subscription system bypassed** — subscription checks are commented out (server.js ~line 2269); revenue is collected via $1 per-order shipping fee instead of monthly plans
-- **Plan enforcement disabled** — order limits and plan gates are not enforced
+- **Subscription system built but bypassed** — per-order fee ($1-$2) is the launch model; subscription tiers exist in code but are not enforced
+- **Need to implement Shopify `usageRecordCreate`** — to properly charge per-order via Shopify Billing API
 
 ### Missing Functionality
 - **No returns support** — customer FAQ states returns are "not available yet"
-- **Limited webhook coverage** — only `orders/create` and `orders/cancelled`; no `orders/updated`, `app/uninstalled`, etc.
-- **No automated locker expiry** — no background job to handle orders past hold_time_days
+- **No multi-package orders** — cannot split an order across multiple lockers
 - **No volume-based size calculation** — only uses basic weight/dimensions, not cubic volume
 
 ### Operational
 - **Geocoding dependency** — relies on external OpenStreetMap Nominatim API (rate-limited, no API key)
 - **No automated tests** — no test files or test framework configured
-- **No CI/CD pipeline** — no GitHub Actions or deployment automation visible
-- **Logs directory exists but untracked** — `logs/` is in `.gitignore`
+- **No CI/CD pipeline** — no GitHub Actions or deployment automation
 
 ### Security Considerations
 - **Access token stored in plaintext** — Shopify tokens stored as plain TEXT in database
-- **SSL `rejectUnauthorized: false`** — database connection disables certificate validation
 - **No CSRF protection** — POST endpoints rely on session + HMAC but no CSRF tokens
-- **No rate limiting** — public API endpoints have no rate limiting
 
 ---
 
@@ -458,24 +475,29 @@ TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_PHONE_NUMBER=
 
+# Database SSL
+DB_CA_CERT=./ca-certificate.crt    # Path to DigitalOcean CA cert file
+# DB_CA_CERT_BASE64=               # Alternative: base64-encoded cert
+
 # App
 SESSION_SECRET=
 NODE_ENV=production
 PORT=3000
+LOG_LEVEL=info                     # pino log level (trace/debug/info/warn/error/fatal)
 ```
 
 ---
 
-## Subscription Plans (defined but currently bypassed)
+## Revenue Model
 
-| Plan | Price | Monthly Orders | Features |
-|------|-------|---------------|----------|
-| Trial | Free (3 days) | 25 | Basic features |
-| Basic | $9/mo | 25 | Core locker fulfillment |
-| Pro | $29/mo | 100 | Priority support |
-| Enterprise | $99/mo | Unlimited | Custom branding, upsells, CSS injection |
+**Launch model:** Per-order fee ($1-$2 per locker transaction) via Shopify usage-based billing (`appSubscriptionCreate` with usage line item + `usageRecordCreate` after each order). Zero cost to install — merchants only pay when customers use locker pickup.
 
-**Current revenue model:** $1 per order added as shipping fee (subscription enforcement commented out).
+**Future options** (see `lockerdrop-pricing-strategies.jsx`):
+1. Pure per-order fee (current)
+2. Tiered subscription (Free / $19 / $49)
+3. Subscription + usage hybrid ($9/mo + $0.75/order)
+4. Commission on shipping fee
+5. Marketplace revenue share
 
 ---
 
@@ -493,6 +515,7 @@ PORT=3000
 ```
 pending → pending_dropoff → dropped_off → ready_for_pickup → completed
                                                             → cancelled (at any point)
+                                                            → expired (auto, after hold_time_days)
 ```
 
 ### Fulfillment Flow
@@ -570,12 +593,23 @@ pending → pending_dropoff → dropped_off → ready_for_pickup → completed
 | Feature | Status | Notes |
 |---------|--------|-------|
 | **Returns via locker** | Not started | Customer FAQ says "not available yet" |
-| **Automated locker expiry** | Not started | No background job to handle expired hold times; orders can sit indefinitely |
-| **App uninstall cleanup** | Not started | No `app/uninstalled` webhook handler |
-| **Order update sync** | Not started | No `orders/updated` webhook; changes in Shopify after creation aren't synced |
 | **Multi-package orders** | Not started | No support for splitting an order across multiple lockers |
 | **Automated tests** | Not started | No test framework or test files |
 | **CI/CD pipeline** | Not started | No deployment automation |
-| **Production Harbor API** | Not started | Still using sandbox endpoints |
-| **Rate limiting** | Not started | Public endpoints have no rate limiting |
-| **Database session store** | Not started | Sessions are in-memory only |
+| **Production Harbor API** | Blocked | Awaiting production credentials from Harbor (email sent 2026-02-05) |
+
+### Recently Completed (February 2026)
+
+| Feature | Item | Notes |
+|---------|------|-------|
+| **App uninstall cleanup** | #1 | Releases lockers, deletes all shop data |
+| **Hardcoded locker ID removed** | #3 | All 4 instances of ID 329 removed |
+| **PostgreSQL session store** | #4 | `connect-pg-simple` sessions |
+| **GraphQL migration** | #5 | All REST Admin API calls → GraphQL |
+| **App Bridge + embedded** | #6-7 | CDN script, embedded=true, redirects |
+| **SSL certificate validation** | #8 | CA cert loaded from env var |
+| **Rate limiting** | #13 | 3 tiers via `express-rate-limit` |
+| **Locker expiry automation** | #14 | `node-cron` every 6 hours |
+| **Order update sync** | #15 | `ORDERS_UPDATED` webhook |
+| **Structured logging** | #16 | pino replaces all console.log/error |
+| **Frontend error tracking** | #17 | Backend endpoint + client handlers |

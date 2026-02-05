@@ -7,22 +7,30 @@ LockerDrop is a Shopify app that enables smart locker pickup as a shipping optio
 
 ---
 
-## Current Status (January 2026)
+## Current Status (February 2026)
 
 ### Working Features
-- Shopify OAuth & app installation
+- Shopify OAuth & app installation (embedded experience with App Bridge)
 - Carrier service integration (shows at checkout)
 - Harbor Locker API integration (sandbox)
 - Locker availability checking by size
 - Multi-item order dimension stacking
 - Automatic locker reservation on order creation
 - Drop-off and pickup link generation
-- Email notifications (via Resend)
+- Email notifications (via Resend) + custom order confirmation template
 - SMS notifications (via Twilio)
 - Admin dashboard with full order management
-- Product size configuration
+- Product size configuration with exclusions
 - Order cancellation (manual + Shopify webhook)
-- Zip code geocoding fallback for unverified addresses
+- App uninstall cleanup (releases lockers, deletes all shop data)
+- Order update sync (ORDERS_UPDATED webhook)
+- Automated locker expiry (cron job every 6 hours, warning emails + auto-release)
+- Rate limiting (3 tiers: public 30/min, checkout 60/min, webhook 120/min)
+- Structured logging with pino (JSON in production)
+- Frontend error tracking (dashboard + extensions → POST /api/errors)
+- PostgreSQL session store (survives restarts)
+- SSL certificate validation for database connection
+- All Shopify Admin API calls use GraphQL
 - **Theme App Extension** with promotional blocks for non-Plus stores
 
 ### Infrastructure
@@ -54,7 +62,7 @@ pm2 delete lockerdrop && pm2 start server.js --name lockerdrop
 ### Key Files
 | File | Purpose |
 |------|---------|
-| `server.js` | Main application (~4500 lines) |
+| `server.js` | Main application (~7500 lines) |
 | `public/admin-dashboard.html` | Seller admin UI |
 | `db.js` | PostgreSQL connection pool |
 | `.env` | Environment variables |
@@ -162,7 +170,9 @@ shopify app deploy --force
 - `POST /carrier/rates` - Legacy carrier service
 - `POST /carrier-service/rates` - Active carrier service
 - `POST /webhooks/orders/create` - Order creation webhook
+- `POST /webhooks/orders/updated` - Order update sync webhook
 - `POST /webhooks/orders/cancelled` - Order cancellation webhook
+- `POST /webhooks/app/uninstalled` - App uninstall cleanup webhook
 
 ### Admin API
 - `GET /api/orders/:shop` - List orders
@@ -180,6 +190,9 @@ shopify app deploy --force
 
 ### Public API (for Theme Extension)
 - `GET /api/public/lockers` - Find nearby lockers (CORS enabled)
+
+### Error Tracking
+- `POST /api/errors` - Frontend error reports from dashboard/extensions
 
 ---
 
@@ -207,10 +220,14 @@ TWILIO_ACCOUNT_SID=xxx
 TWILIO_AUTH_TOKEN=xxx
 TWILIO_PHONE_NUMBER=+16824297313
 
+# Database SSL
+DB_CA_CERT=./ca-certificate.crt
+
 # App
 HOST=https://lockerdrop.it
 SESSION_SECRET=xxx
 NODE_ENV=production
+LOG_LEVEL=info
 ```
 
 ---
@@ -228,25 +245,31 @@ NODE_ENV=production
 
 ## Known Issues / TODO
 
-### Completed
-- [x] Shopify GraphQL migration (completed January 2026)
-- [x] Theme App Extension for non-Plus stores
-- [x] Checkout UI Extension for Plus stores
-- [x] Auto-release lockers on order cancellation
-- [x] Admin dashboard Polaris redesign with actionable stat cards
+### Completed (Feb 2026)
+- [x] Shopify GraphQL migration — all REST Admin calls moved to GraphQL
+- [x] App Bridge + embedded app experience
+- [x] App uninstall cleanup with locker release
+- [x] PostgreSQL session store (connect-pg-simple)
+- [x] SSL certificate validation for DB connection
+- [x] Rate limiting on all public endpoints
+- [x] Automated locker expiry (cron every 6 hours)
+- [x] ORDERS_UPDATED webhook handler
+- [x] Structured logging with pino
+- [x] Frontend error tracking
+- [x] Custom order confirmation email template
 
 ### Pending
-- [x] `write_fulfillments` scope - Now included in OAuth flow; existing stores need to re-authorize via `/auth/reconnect`
-
-### Harbor API Limitations
-- Locker release requires `tower_id` and `locker_id` (now captured on dropoff request creation)
-- Order cancellation automatically releases lockers via Harbor `/release-locker` endpoint
+- [ ] Harbor production credentials (blocked, email sent 2026-02-05)
+- [ ] Implement Shopify `usageRecordCreate` for per-order billing
+- [ ] Clean up bypassed subscription code
+- [ ] Automated tests
+- [ ] CI/CD pipeline
 
 ### Future Enhancements
-- Customer tracking portal
+- Tiered subscription pricing (post product-market fit)
+- Returns via locker
+- Multi-package order support
 - Analytics dashboard
-- Multi-location support per order
-- Locker capacity forecasting
 
 ---
 
@@ -289,4 +312,4 @@ pm2 restart lockerdrop
 
 ---
 
-Last updated: January 9, 2026
+Last updated: February 5, 2026

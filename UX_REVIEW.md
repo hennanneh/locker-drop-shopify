@@ -319,26 +319,35 @@ When seller clicks "View" on an order in the Orders tab:
 ### What's Working
 
 #### Core Functionality
-- Shopify OAuth installation flow
-- Webhook processing for new orders
+- Shopify OAuth installation flow (embedded app with App Bridge)
+- Webhook processing for new orders, updates, cancellations, and uninstalls
 - Harbor API integration for locker reservations
 - Drop-off link generation and locker opening
 - Pickup link generation and customer notification
-- Status tracking through full lifecycle
-- Email notifications with customizable templates
+- Status tracking through full lifecycle (including `expired` status)
+- Email + SMS notifications with customizable templates
+- Custom order confirmation email (reads from note_attributes)
+- Automated locker expiry (cron every 6 hours, warning emails + auto-release)
 
 #### Dashboard Features
 - Real-time stats display
 - Order filtering and search
 - Locker selection with pagination and search
-- Product size configuration
+- Product size configuration with exclusions
 - Settings auto-save
 - Mobile-responsive design (cards on mobile)
 - Polaris-inspired UI design
+- Frontend error tracking (window.onerror + unhandledrejection → POST /api/errors)
+
+#### Infrastructure
+- Rate limiting (public 30/min, checkout 60/min, webhook 120/min)
+- Structured logging with pino (JSON in production)
+- PostgreSQL session store (survives restarts)
+- SSL certificate validation for database
 
 #### Checkout
 - Carrier service for shipping rates
-- Shopify Plus checkout extension (in development)
+- Shopify Plus checkout extension with error tracking
 - Thank you page extension
 
 ### What's Incomplete
@@ -350,11 +359,10 @@ When seller clicks "View" on an order in the Orders tab:
 - Needs end-to-end testing with real Plus store
 
 #### Features Not Yet Implemented
-- Billing/subscription management (tab hidden)
-- Multi-location seller support
-- Bulk order operations
+- Per-order billing via Shopify `usageRecordCreate` (decision made, needs implementation)
+- Multi-package order support
 - Analytics/reporting dashboard
-- Customer self-service portal
+- Returns via locker
 - Shopify Flow integration
 
 ### What Needs Improvement

@@ -82,10 +82,7 @@ Products that may NOT work:
 
 ### How much does LockerDrop cost me?
 
-Contact us for current pricing. Typically includes:
-- Monthly subscription fee
-- Per-order transaction fee
-- No setup fees
+LockerDrop is free to install. You only pay a small per-order fee ($1-$2) each time a customer uses locker pickup at checkout. No monthly subscription, no setup fees. You only pay when you're making sales.
 
 ### Can I use multiple locker locations?
 
@@ -241,14 +238,14 @@ Yes, as long as they have the pickup code. The locker doesn't verify identity - 
 
 ### How do I update my payment method?
 
-Go to Settings > Billing in your dashboard to update payment information.
+Billing is handled through Shopify's built-in billing system. You can view your usage in the Billing tab of the LockerDrop dashboard.
 
 ### Can I pause my LockerDrop service?
 
-Yes, contact support to temporarily pause your account. Note that:
+Since LockerDrop uses per-order pricing, there are no monthly fees to pause. Simply stop offering locker pickup and you won't incur any charges. If you need to temporarily disable the service:
+- Remove LockerDrop as a shipping option in your settings
 - Existing orders must still be fulfilled
-- Monthly fees may still apply during pause
-- Reactivation is quick and easy
+- Re-enabling is instant
 
 ### How do I cancel LockerDrop?
 
