@@ -15,6 +15,11 @@ redirect_urls = ["https://app.lockerdrop.it/auth/callback"]
 [webhooks]
 api_version = "2025-10"
 
+  [webhooks.privacy_compliance]
+  customer_deletion_url = "https://app.lockerdrop.it/webhooks/customers/redact"
+  customer_data_request_url = "https://app.lockerdrop.it/webhooks/customers/data_request"
+  shop_deletion_url = "https://app.lockerdrop.it/webhooks/shop/redact"
+
 [pos]
 embedded = false
 

@@ -10,7 +10,7 @@
 
 | Priority | Count | Done | Description |
 |----------|-------|------|-------------|
-| 🔴 CRITICAL | 10 | 8 ✅ | Must fix before any real merchant or app store submission |
+| 🔴 CRITICAL | 10 | 9 ✅ | Must fix before any real merchant or app store submission |
 | 🟡 HIGH | 13 | 5 ✅ | Should fix before launch |
 | 🟢 MEDIUM | 12 | 1 ✅ | Needed for app store review or best practices |
 | 🔵 LOW | 5 | 0 | Post-launch improvements |
@@ -72,7 +72,7 @@
 | 26 | Add theme extension setup deep links + instructions | Shopify 5.1.3 | 🟢 MEDIUM | 🔧 Needs Work | 2-3 hrs | Detailed instructions + deep links for installing theme blocks. |
 | 27 | Verify checkout extension displays properly | Shopify 5.6.1 | 🟢 MEDIUM | 🔧 Needs Work | 2-3 hrs | Test locker selection in checkout on desktop and mobile. |
 | 28 | Review scopes — remove any unnecessary ones | Shopify 3.2 | 🟢 MEDIUM | 🔧 Needs Work | 1-2 hrs | Must justify all requested scopes. Consider optional scopes. |
-| 38 | Add GDPR compliance webhooks | Shopify | 🔴 CRITICAL | ⬜ Not Started | 2-3 hrs | Required to pass Shopify automated checks. Implement `customers/data_request`, `customers/redact`, and `shop/redact` webhook handlers. |
+| 38 | Add GDPR compliance webhooks | Shopify | 🔴 CRITICAL | ✅ Done | 2-3 hrs | Implemented `customers/data_request` (logs + queries customer data for export), `customers/redact` (anonymizes PII in orders table), `shop/redact` (reuses `processAppUninstall` cleanup). URLs declared in `shopify.app.toml` under `[webhooks.privacy_compliance]`. All handlers return 200 to Shopify. |
 | 39 | Complete protected customer data access request | Shopify | 🟡 HIGH | ⬜ Not Started | 1 hr | In Partner Dashboard, explain why we access customer email, name, phone, and address (needed for pickup notifications, locker assignment, and order fulfillment). |
 | 40 | Select app capabilities in Partner Dashboard | Shopify | 🟢 MEDIUM | ⬜ Not Started | 15 min | Select shipping/fulfillment category in Partner Dashboard. |
 

@@ -5190,6 +5190,111 @@ app.post('/webhooks/app/uninstalled', express.json(), async (req, res) => {
     }
 });
 
+// ==================== GDPR Mandatory Webhooks ====================
+
+// customers/data_request — Customer requests a copy of their data
+app.post('/webhooks/customers/data_request', express.json(), async (req, res) => {
+    try {
+        const shopDomain = req.headers['x-shopify-shop-domain'];
+        const { shop_domain, customer, orders_requested } = req.body;
+        const shop = shopDomain || shop_domain;
+        const customerId = customer?.id;
+        const customerEmail = customer?.email;
+
+        logger.info({ shop, customerId, customerEmail, ordersRequested: orders_requested },
+            'GDPR: Customer data request received');
+
+        // Query all order data we hold for this customer
+        const customerOrders = await db.query(
+            `SELECT order_number, customer_name, customer_email, customer_phone,
+                    locker_name, status, preferred_pickup_date, created_at, updated_at
+             FROM orders WHERE shop = $1 AND (customer_email = $2 OR customer_name = $3)`,
+            [shop, customerEmail, customer?.first_name ? `${customer.first_name} ${customer.last_name}` : '']
+        );
+
+        logger.info({ shop, customerId, orderCount: customerOrders.rows.length },
+            'GDPR: Customer data request processed — data available for manual export if needed');
+
+        // Shopify expects a 200 response. The actual data export is handled
+        // offline per GDPR requirements (respond to customer within 30 days).
+        res.status(200).send('OK');
+    } catch (error) {
+        logger.error({ err: error }, 'Error processing customers/data_request webhook');
+        res.status(200).send('OK');
+    }
+});
+
+// customers/redact — Customer requests deletion of their personal data
+app.post('/webhooks/customers/redact', express.json(), async (req, res) => {
+    try {
+        const shopDomain = req.headers['x-shopify-shop-domain'];
+        const { shop_domain, customer, orders_to_redact } = req.body;
+        const shop = shopDomain || shop_domain;
+        const customerId = customer?.id;
+        const customerEmail = customer?.email;
+
+        logger.info({ shop, customerId, customerEmail, ordersToRedact: orders_to_redact },
+            'GDPR: Customer redact request received');
+
+        // Redact customer PII from orders — replace with anonymized placeholders
+        const result = await db.query(
+            `UPDATE orders
+             SET customer_email = 'redacted@redacted.com',
+                 customer_name = 'Redacted Customer',
+                 customer_phone = NULL,
+                 updated_at = NOW()
+             WHERE shop = $1 AND customer_email = $2`,
+            [shop, customerEmail]
+        );
+
+        // Also redact by order IDs if Shopify provided them
+        if (orders_to_redact && orders_to_redact.length > 0) {
+            const orderIds = orders_to_redact.map(String);
+            await db.query(
+                `UPDATE orders
+                 SET customer_email = 'redacted@redacted.com',
+                     customer_name = 'Redacted Customer',
+                     customer_phone = NULL,
+                     updated_at = NOW()
+                 WHERE shop = $1 AND shopify_order_id = ANY($2)`,
+                [shop, orderIds]
+            );
+        }
+
+        logger.info({ shop, customerId, rowsUpdated: result.rowCount },
+            'GDPR: Customer data redacted from orders');
+
+        res.status(200).send('OK');
+    } catch (error) {
+        logger.error({ err: error }, 'Error processing customers/redact webhook');
+        res.status(200).send('OK');
+    }
+});
+
+// shop/redact — Shop data deletion request (48 hours after app uninstall)
+app.post('/webhooks/shop/redact', express.json(), async (req, res) => {
+    try {
+        const shopDomain = req.headers['x-shopify-shop-domain'];
+        const { shop_domain } = req.body;
+        const shop = shopDomain || shop_domain;
+
+        logger.info({ shop }, 'GDPR: Shop redact request received');
+
+        // Reuse the same cleanup logic as app/uninstalled
+        // This is a safety net — data should already be deleted by processAppUninstall
+        await processAppUninstall(shop);
+
+        logger.info({ shop }, 'GDPR: Shop data redacted');
+
+        res.status(200).send('OK');
+    } catch (error) {
+        logger.error({ err: error }, 'Error processing shop/redact webhook');
+        res.status(200).send('OK');
+    }
+});
+
+// ==================== End GDPR Webhooks ====================
+
 async function processAppUninstall(shop) {
     if (!shop) {
         logger.info('❌ No shop domain in uninstall webhook');
