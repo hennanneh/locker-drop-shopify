@@ -1,5 +1,20 @@
 const { Pool } = require('pg');
+const fs = require('fs');
 require('dotenv').config();
+
+// SSL config: use CA cert if available, otherwise fall back
+function getSSLConfig() {
+  const caCertPath = process.env.DB_CA_CERT;
+  if (caCertPath && fs.existsSync(caCertPath)) {
+    return { ca: fs.readFileSync(caCertPath, 'utf8'), rejectUnauthorized: true };
+  }
+  const caCertBase64 = process.env.DB_CA_CERT_BASE64;
+  if (caCertBase64) {
+    return { ca: Buffer.from(caCertBase64, 'base64').toString('utf8'), rejectUnauthorized: true };
+  }
+  console.warn('⚠️ No CA certificate configured — using rejectUnauthorized: false');
+  return { rejectUnauthorized: false };
+}
 
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -7,9 +22,7 @@ const pool = new Pool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || 'defaultdb',
-  ssl: {
-    rejectUnauthorized: false
-  }
+  ssl: getSSLConfig()
 });
 
 async function setupDatabase() {

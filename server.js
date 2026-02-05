@@ -2,6 +2,7 @@
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 const axios = require('axios');
 const crypto = require('crypto');
 const path = require('path');
@@ -327,8 +328,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// Session middleware for admin dashboard authentication
+// Session middleware for admin dashboard authentication (PostgreSQL-backed)
 app.use(session({
+    store: new pgSession({
+        pool: db.pool,
+        tableName: 'user_sessions',
+        createTableIfMissing: true
+    }),
     secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
     resave: false,
     saveUninitialized: false,
@@ -1296,11 +1302,30 @@ app.get('/api/sync-orders/:shop', async (req, res) => {
             
             if (existing.rows.length > 0) continue; // Skip if already exists
             
-            // Add to database
+            // Try to extract location ID from shipping lines
+            let syncLocationId = null;
+            const syncLockerLine = order.shipping_lines?.find(line =>
+                line.title?.toLowerCase().includes('lockerdrop')
+            );
+            if (syncLockerLine?.code) {
+                const codeMatch = syncLockerLine.code.match(/lockerdrop_(\d+)/i);
+                if (codeMatch) {
+                    syncLocationId = parseInt(codeMatch[1], 10);
+                }
+            }
+            // Also try extracting from order attributes/address2
+            if (!syncLocationId) {
+                const syncLockerInfo = extractLockerDropInfo(order);
+                if (syncLockerInfo?.locationId) {
+                    syncLocationId = syncLockerInfo.locationId;
+                }
+            }
+
+            // Add to database (location may be null — seller assigns manually from dashboard)
             await db.query(
                 `INSERT INTO orders (
-                    shop, shopify_order_id, order_number, 
-                    customer_email, customer_name, 
+                    shop, shopify_order_id, order_number,
+                    customer_email, customer_name,
                     location_id, status, created_at
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
                 [
@@ -1309,8 +1334,8 @@ app.get('/api/sync-orders/:shop', async (req, res) => {
                     order.order_number?.toString() || order.name,
                     order.email || order.customer?.email,
                     order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : 'Guest',
-                    329, // Default to your test locker
-                    'pending_dropoff',
+                    syncLocationId,
+                    syncLocationId ? 'pending_dropoff' : 'pending',
                     order.created_at
                 ]
             );
@@ -4617,8 +4642,12 @@ app.post('/api/regenerate-links/:shop', requireApiAuth, async (req, res) => {
             try {
                 console.log(`\n🔧 Processing order #${order.order_number} (ID: ${order.id})`);
 
-                // Use location 329 (your test locker) if no location assigned
-                const locationId = order.location_id || 329;
+                if (!order.location_id) {
+                    console.log(`   ⚠️ Skipping order #${order.order_number} — no locker location assigned`);
+                    errors.push({ order: order.order_number, error: 'No locker location assigned' });
+                    continue;
+                }
+                const locationId = order.location_id;
                 console.log(`   📍 Using location ID: ${locationId}`);
 
                 // Try to calculate locker size from product dimensions
@@ -4703,8 +4732,10 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
         const order = orderResult.rows[0];
         console.log(`📋 Found order:`, JSON.stringify(order, null, 2));
 
-        // Use existing location or default to 329
-        const locationId = order.location_id || 329;
+        if (!order.location_id) {
+            return res.status(400).json({ error: 'No locker location assigned to this order. Please assign a locker first.' });
+        }
+        const locationId = order.location_id;
 
         // Determine minimum required locker size from product settings
         let minRequiredSize = 'auto';
@@ -4852,7 +4883,8 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
 async function registerWebhooks(shop, accessToken) {
     const webhooks = [
         { topic: 'orders/create', address: 'https://app.lockerdrop.it/webhooks/orders/create' },
-        { topic: 'orders/cancelled', address: 'https://app.lockerdrop.it/webhooks/orders/cancelled' }
+        { topic: 'orders/cancelled', address: 'https://app.lockerdrop.it/webhooks/orders/cancelled' },
+        { topic: 'app/uninstalled', address: 'https://app.lockerdrop.it/webhooks/app/uninstalled' }
     ];
 
     for (const wh of webhooks) {
@@ -4982,6 +5014,107 @@ app.post('/webhooks/orders/cancelled', express.json(), async (req, res) => {
         res.status(500).send('Error');
     }
 });
+
+// Webhook receiver for app uninstall
+app.post('/webhooks/app/uninstalled', express.json(), async (req, res) => {
+    try {
+        const shopDomain = req.headers['x-shopify-shop-domain'];
+        console.log('🗑️ App uninstalled for shop:', shopDomain);
+
+        await processAppUninstall(shopDomain);
+
+        res.status(200).send('OK');
+    } catch (error) {
+        console.error('Error processing app/uninstalled webhook:', error);
+        res.status(200).send('OK'); // Always respond 200 to Shopify
+    }
+});
+
+async function processAppUninstall(shop) {
+    if (!shop) {
+        console.log('❌ No shop domain in uninstall webhook');
+        return;
+    }
+
+    try {
+        console.log(`🗑️ Cleaning up data for ${shop}...`);
+
+        // Release any active lockers in Harbor before deleting orders
+        const activeOrders = await db.query(
+            `SELECT id, locker_id, tower_id, status FROM orders
+             WHERE shop = $1 AND status NOT IN ('completed', 'cancelled')
+             AND locker_id IS NOT NULL AND tower_id IS NOT NULL`,
+            [shop]
+        );
+
+        if (activeOrders.rows.length > 0) {
+            console.log(`   🔓 Releasing ${activeOrders.rows.length} active locker(s)...`);
+            try {
+                const tokenResponse = await axios.post(
+                    'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                    `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
+                    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
+                );
+                const harborToken = tokenResponse.data.access_token;
+
+                for (const order of activeOrders.rows) {
+                    try {
+                        await axios.post(
+                            `https://api.sandbox.harborlockers.com/api/v1/towers/${order.tower_id}/lockers/${order.locker_id}/release-locker`,
+                            {},
+                            { headers: { 'Authorization': `Bearer ${harborToken}` }}
+                        );
+                        console.log(`   ✅ Released locker ${order.locker_id} (order ${order.id})`);
+                    } catch (harborError) {
+                        console.log(`   ⚠️ Could not release locker ${order.locker_id}: ${harborError.response?.data?.detail || harborError.message}`);
+                    }
+                }
+            } catch (tokenError) {
+                console.log(`   ⚠️ Could not authenticate with Harbor to release lockers: ${tokenError.message}`);
+            }
+        }
+
+        // Delete shop data in order (respecting foreign keys)
+        await db.query('DELETE FROM locker_events WHERE order_id IN (SELECT id FROM orders WHERE shop = $1)', [shop]);
+        await db.query('DELETE FROM orders WHERE shop = $1', [shop]);
+        await db.query('DELETE FROM locker_preferences WHERE shop = $1', [shop]);
+        await db.query('DELETE FROM product_locker_sizes WHERE shop = $1', [shop]);
+        await db.query('DELETE FROM shop_settings WHERE shop = $1', [shop]);
+        await db.query('DELETE FROM subscriptions WHERE shop = $1', [shop]);
+
+        // Delete branding settings and uploaded logo
+        try {
+            const branding = await db.query('SELECT logo_url FROM branding_settings WHERE shop = $1', [shop]);
+            if (branding.rows.length > 0 && branding.rows[0].logo_url) {
+                const logoPath = path.join(__dirname, 'public', branding.rows[0].logo_url);
+                if (fs.existsSync(logoPath)) {
+                    fs.unlinkSync(logoPath);
+                    console.log(`   🗑️ Deleted logo file: ${logoPath}`);
+                }
+            }
+            await db.query('DELETE FROM branding_settings WHERE shop = $1', [shop]);
+        } catch (e) {
+            // branding_settings table may not exist yet
+        }
+
+        // Delete sessions for this shop
+        try {
+            await db.query(`DELETE FROM user_sessions WHERE sess::text LIKE $1`, [`%${shop}%`]);
+        } catch (e) {
+            // user_sessions table may not exist yet
+        }
+
+        // Delete store record and access token last
+        await db.query('DELETE FROM stores WHERE shop = $1', [shop]);
+
+        // Remove from in-memory token cache
+        accessTokens.delete(shop);
+
+        console.log(`✅ All data cleaned up for ${shop}`);
+    } catch (error) {
+        console.error(`❌ Error cleaning up data for ${shop}:`, error);
+    }
+}
 
 async function processOrderCancellation(order, shopDomain) {
     try {
@@ -5221,7 +5354,7 @@ async function processNewOrder(order, shopDomain) {
         // Fall back to seller's preferred lockers if no location found
         if (!locationId) {
             const preferences = await db.query(
-                'SELECT * FROM locker_preferences WHERE shop = $1 ORDER BY location_id = 329 DESC LIMIT 1',
+                'SELECT * FROM locker_preferences WHERE shop = $1 AND is_enabled = true ORDER BY created_at ASC LIMIT 1',
                 [shop]
             );
 
