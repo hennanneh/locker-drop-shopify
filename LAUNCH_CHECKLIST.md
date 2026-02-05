@@ -11,7 +11,7 @@
 | Priority | Count | Done | Description |
 |----------|-------|------|-------------|
 | 🔴 CRITICAL | 10 | 9 ✅ | Must fix before any real merchant or app store submission |
-| 🟡 HIGH | 13 | 5 ✅ | Should fix before launch |
+| 🟡 HIGH | 13 | 6 ✅ | Should fix before launch |
 | 🟢 MEDIUM | 12 | 1 ✅ | Needed for app store review or best practices |
 | 🔵 LOW | 5 | 0 | Post-launch improvements |
 
@@ -43,7 +43,7 @@
 
 | # | Task | Source | Priority | Status | Time Est. | Notes |
 |---|------|--------|----------|--------|-----------|-------|
-| 10 | Build stuck order detection for failed Harbor callbacks | Harbor | 🟡 HIGH | ⬜ Not Started | 3-4 hrs | If dropoff/pickup callback never fires, orders get stuck. Harbor's 5-min reservation timeout means unclaimed dropoffs auto-release. Need: (a) cron to detect orders stuck in `pending_dropoff` past X hours with no callback, (b) alert seller, (c) option to regenerate dropoff link. |
+| 10 | Build stuck order detection for failed Harbor callbacks | Harbor | 🟡 HIGH | ✅ Done | 3-4 hrs | Cron runs 3x daily (2 AM, 10 AM, 6 PM). Detects: (a) `pending_dropoff` orders >24 hours old — seller forgot or callback failed, (b) `dropped_off` orders >1 hour old — pickup link generation failed. Emails seller with order table and dashboard link. |
 | 11 | Add locker size change flow for sellers | Harbor | 🟡 HIGH | ⬜ Not Started | 2-3 hrs | **Simpler than expected.** Harbor has built-in "doesn't fit" flow for dropoff — user selects "Doesn't fit", locker reopens, reservation cancelled. We just need to: (a) handle the cancellation callback, (b) let seller generate a new dropoff link for a different size, (c) update the order record. |
 | 12 | Add retry/troubleshooting on success pages | Harbor | 🟡 HIGH | ⬜ Not Started | 1-2 hrs | **Simpler than expected.** Harbor says retry same link works (usually 2nd try succeeds). Connection failures are 99% device issues, not trackable. Just need: (a) "Try again" button that re-opens same link, (b) brief troubleshooting tips (move closer, check Bluetooth), (c) support contact link. |
 | 13 | Add `express-rate-limit` to public API endpoints | Review | 🟡 HIGH | ✅ Done | 1-2 hrs | Three rate limiters: `publicApiLimiter` (30/min), `checkoutLimiter` (60/min), `webhookLimiter` (120/min). Applied to all public, checkout, and webhook routes. |

@@ -6053,6 +6053,117 @@ function scheduleLockerExpiryCheck() {
 }
 
 // ============================================
+// STUCK ORDER DETECTION
+// ============================================
+
+async function checkStuckOrders() {
+    try {
+        const shops = await db.query(`
+            SELECT s.shop, s.access_token FROM stores s
+        `);
+
+        for (const shopRow of shops.rows) {
+            const { shop, access_token } = shopRow;
+
+            // 1. Orders stuck in pending_dropoff for 24+ hours
+            //    Seller either forgot or dropped off but callback never fired
+            const stuckPendingDropoff = await db.query(`
+                SELECT id, order_number, customer_name, customer_email, locker_name,
+                       dropoff_link, created_at,
+                       EXTRACT(HOURS FROM NOW() - created_at) as hours_stuck
+                FROM orders
+                WHERE shop = $1
+                  AND status = 'pending_dropoff'
+                  AND created_at < NOW() - INTERVAL '24 hours'
+            `, [shop]);
+
+            // 2. Orders stuck in dropped_off for 1+ hour
+            //    Dropoff detected but pickup link generation may have failed
+            const stuckDroppedOff = await db.query(`
+                SELECT id, order_number, customer_name, customer_email, locker_name,
+                       updated_at,
+                       EXTRACT(HOURS FROM NOW() - updated_at) as hours_stuck
+                FROM orders
+                WHERE shop = $1
+                  AND status = 'dropped_off'
+                  AND updated_at < NOW() - INTERVAL '1 hour'
+            `, [shop]);
+
+            const totalStuck = stuckPendingDropoff.rows.length + stuckDroppedOff.rows.length;
+            if (totalStuck === 0) continue;
+
+            logger.warn({
+                shop,
+                stuckPendingDropoff: stuckPendingDropoff.rows.length,
+                stuckDroppedOff: stuckDroppedOff.rows.length
+            }, `Found ${totalStuck} stuck order(s)`);
+
+            // Build alert email for the seller
+            let emailHtml = `<p>The following LockerDrop orders may need your attention:</p>`;
+
+            if (stuckPendingDropoff.rows.length > 0) {
+                emailHtml += `<h3>Awaiting Drop-off (24+ hours)</h3>
+                    <p>These orders have been waiting for drop-off for over 24 hours. If you already dropped off the package, the confirmation may not have been recorded — try opening the order in your dashboard and clicking "Mark as Dropped Off".</p>
+                    <table style="border-collapse:collapse;width:100%">
+                    <tr style="background:#f4f4f4"><th style="padding:8px;text-align:left;border:1px solid #ddd">Order</th><th style="padding:8px;text-align:left;border:1px solid #ddd">Customer</th><th style="padding:8px;text-align:left;border:1px solid #ddd">Locker</th><th style="padding:8px;text-align:left;border:1px solid #ddd">Hours Waiting</th></tr>`;
+                for (const order of stuckPendingDropoff.rows) {
+                    emailHtml += `<tr>
+                        <td style="padding:8px;border:1px solid #ddd">#${order.order_number}</td>
+                        <td style="padding:8px;border:1px solid #ddd">${order.customer_name || 'N/A'}</td>
+                        <td style="padding:8px;border:1px solid #ddd">${order.locker_name || 'N/A'}</td>
+                        <td style="padding:8px;border:1px solid #ddd">${Math.round(order.hours_stuck)}h</td>
+                    </tr>`;
+                }
+                emailHtml += `</table>`;
+            }
+
+            if (stuckDroppedOff.rows.length > 0) {
+                emailHtml += `<h3>Dropped Off But Not Ready for Pickup</h3>
+                    <p>These orders show as dropped off but the customer pickup link was not generated. Please open the order in your dashboard and click "Generate Pickup Link".</p>
+                    <table style="border-collapse:collapse;width:100%">
+                    <tr style="background:#f4f4f4"><th style="padding:8px;text-align:left;border:1px solid #ddd">Order</th><th style="padding:8px;text-align:left;border:1px solid #ddd">Customer</th><th style="padding:8px;text-align:left;border:1px solid #ddd">Hours Stuck</th></tr>`;
+                for (const order of stuckDroppedOff.rows) {
+                    emailHtml += `<tr>
+                        <td style="padding:8px;border:1px solid #ddd">#${order.order_number}</td>
+                        <td style="padding:8px;border:1px solid #ddd">${order.customer_name || 'N/A'}</td>
+                        <td style="padding:8px;border:1px solid #ddd">${Math.round(order.hours_stuck)}h</td>
+                    </tr>`;
+                }
+                emailHtml += `</table>`;
+            }
+
+            emailHtml += `<p style="margin-top:16px"><a href="https://app.lockerdrop.it/admin/dashboard?shop=${shop}" style="background:#5c6ac4;color:white;padding:10px 20px;border-radius:4px;text-decoration:none">Open Dashboard</a></p>`;
+
+            // Send alert to shop owner
+            try {
+                const shopData = await shopifyGraphQL(shop, access_token, '{ shop { email } }');
+                if (shopData.shop?.email) {
+                    await sendEmail(
+                        shopData.shop.email,
+                        `LockerDrop: ${totalStuck} order(s) need attention`,
+                        emailHtml
+                    );
+                    logger.info({ shop, totalStuck, recipient: shopData.shop.email }, 'Sent stuck order alert to seller');
+                }
+            } catch (emailError) {
+                logger.error({ err: emailError, shop }, 'Failed to send stuck order alert email');
+            }
+        }
+    } catch (error) {
+        logger.error({ err: error }, 'Error in stuck order detection');
+    }
+}
+
+function scheduleStuckOrderCheck() {
+    // Run at 2 AM, 10 AM, 6 PM (offset from expiry cron which runs at 0,6,12,18)
+    cron.schedule('0 2,10,18 * * *', () => {
+        logger.info('Running scheduled stuck order check');
+        checkStuckOrders();
+    });
+    logger.info('Stuck order check scheduled (3x daily at 2 AM, 10 AM, 6 PM)');
+}
+
+// ============================================
 // BRANDING SETTINGS (Enterprise Feature)
 // ============================================
 
@@ -7457,6 +7568,9 @@ app.listen(PORT, async () => {
 
     // Schedule locker expiry checks
     scheduleLockerExpiryCheck();
+
+    // Schedule stuck order detection
+    scheduleStuckOrderCheck();
 
     logger.info({
         port: PORT,
