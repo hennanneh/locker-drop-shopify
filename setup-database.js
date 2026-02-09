@@ -84,17 +84,38 @@ async function setupDatabase() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       
+      -- Subscriptions table (usage-based billing)
+      CREATE TABLE IF NOT EXISTS subscriptions (
+        id SERIAL PRIMARY KEY,
+        shop VARCHAR(255) UNIQUE NOT NULL,
+        plan_name VARCHAR(50) DEFAULT 'usage',
+        status VARCHAR(50) DEFAULT 'pending',
+        shopify_subscription_id VARCHAR(255),
+        shopify_line_item_id VARCHAR(255),
+        capped_amount DECIMAL(10,2) DEFAULT 200.00,
+        per_order_fee DECIMAL(10,2) DEFAULT 1.50,
+        orders_this_month INTEGER DEFAULT 0,
+        total_charged_this_month DECIMAL(10,2) DEFAULT 0.00,
+        billing_cycle_start TIMESTAMP DEFAULT NOW(),
+        trial_ends_at TIMESTAMP,
+        monthly_order_limit INTEGER DEFAULT -1,
+        shopify_charge_id VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE INDEX IF NOT EXISTS idx_orders_shop ON orders(shop);
       CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
       CREATE INDEX IF NOT EXISTS idx_locker_prefs_shop ON locker_preferences(shop);
     `);
-    
+
     console.log('✅ Database setup complete!');
     console.log('📊 Tables created:');
     console.log('   - stores');
     console.log('   - locker_preferences');
     console.log('   - orders');
     console.log('   - locker_events');
+    console.log('   - subscriptions');
     
   } catch (error) {
     console.error('❌ Error setting up database:', error);

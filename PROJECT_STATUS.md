@@ -1,6 +1,6 @@
 # LockerDrop — Project Reference
 
-> Last Updated: 2026-02-05
+> Last Updated: 2026-02-09
 > Branch: `main`
 > See also: [UX_REVIEW.md](UX_REVIEW.md) | [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md)
 
@@ -297,6 +297,7 @@ locker-drop-shopify/
 | POST | `/webhooks/orders/updated` | Shopify webhook — sync customer info, detect external fulfillment |
 | POST | `/webhooks/orders/cancelled` | Shopify webhook — handle cancellations |
 | POST | `/webhooks/app/uninstalled` | Shopify webhook — clean up shop data, release lockers |
+| POST | `/webhooks/app/subscriptions-update` | Shopify webhook — sync billing subscription status changes |
 | POST | `/webhooks/customers/data_request` | GDPR — customer requests data export |
 | POST | `/webhooks/customers/redact` | GDPR — anonymize customer PII in orders |
 | POST | `/webhooks/shop/redact` | GDPR — delete all shop data (48hrs post-uninstall) |
@@ -314,6 +315,7 @@ locker-drop-shopify/
 | POST | `/api/generate-dropoff-link/:shop` | Create Harbor dropoff request |
 | POST | `/api/generate-pickup-link/:shop` | Create Harbor pickup request |
 | POST | `/api/dropoff-complete` | Callback — seller dropped off, marks ready_for_pickup |
+| POST | `/api/dropoff-doesnt-fit` | Callback — item didn't fit, clears locker, optionally assigns new size |
 | POST | `/api/pickup-complete` | Callback — customer picked up, marks completed, releases locker |
 | POST | `/api/fix-order-locker/:shop` | Admin tool — fix stuck locker_id |
 | POST | `/api/emergency-open/:shop` | Admin — emergency locker access |
@@ -355,15 +357,17 @@ locker-drop-shopify/
 | GET | `/api/product-sizes/:shop` | Get saved product size mappings |
 | POST | `/api/product-sizes/:shop` | Save product dimensions / locker size |
 
-### Subscription & Billing
+### Subscription & Billing (Usage-Based)
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/api/subscription/:shop` | Get current plan and usage |
-| POST | `/api/subscribe/:shop` | Create Shopify billing charge |
-| GET | `/api/subscription/confirm` | Callback after merchant approves billing |
-| POST | `/api/subscription/cancel/:shop` | Cancel recurring charge |
-| POST | `/api/subscription/dev-switch/:shop` | Dev mode — switch plans without billing |
-| GET | `/api/plans` | List available billing plans |
+| GET | `/api/subscription/:shop` | Get current usage billing status and charges |
+| POST | `/api/subscribe/:shop` | Create usage-based billing subscription via Shopify |
+| GET | `/api/billing/confirm` | Callback after merchant approves/declines billing |
+| GET | `/api/subscription/confirm` | Legacy redirect → `/api/billing/confirm` |
+| POST | `/api/billing/retry/:shop` | Re-create billing for merchants who declined |
+| POST | `/api/subscription/cancel/:shop` | Cancel usage billing subscription |
+| POST | `/api/subscription/dev-switch/:shop` | Dev mode — activate/deactivate/reset billing |
+| GET | `/api/plans` | Get usage billing plan info |
 
 ### Branding & Customization
 | Method | Path | Purpose |
@@ -409,7 +413,7 @@ locker-drop-shopify/
 - **Version:** 2025-10 (GraphQL Admin API)
 - **Auth:** Access token from OAuth flow
 - **Scopes:** `write_shipping, read_orders, write_orders, read_products, write_products, read_shipping, read_fulfillments, write_fulfillments`
-- **Webhooks registered:** `orders/create`, `orders/updated`, `orders/cancelled`, `app/uninstalled`
+- **Webhooks registered:** `orders/create`, `orders/updated`, `orders/cancelled`, `app/uninstalled`, `app_subscriptions/update`
 - **All admin calls use GraphQL** (OAuth endpoints remain REST as required by Shopify)
 - **Carrier service:** Registered at install to provide locker shipping rates
 - **App proxy:** `/apps/lockerdrop` → routes through Shopify to app server
@@ -502,7 +506,7 @@ locker-drop-shopify/
 12. **Product size configuration** — dimensions or dropdown, product exclusions, CSV import/export
 13. **Shop settings** — free pickup toggle, processing days, fulfillment day schedule, vacation days
 14. **Branding customization** — logo upload, primary color, success message, upsell products
-15. **Subscription/billing** — per-order fee ($1-$2) via Shopify usage-based billing (subscription tiers built but bypassed for launch)
+15. **Usage-based billing** — $1.50/order via Shopify `appUsageRecordCreate`, $200/month cap, 7-day trial. Auto-creates on install, charges per order webhook, dashboard billing tab with usage tracking
 16. **Thank you page** — confirmation with pickup instructions and retry logic
 17. **Order status page** — live progress tracking in customer account
 18. **Admin order block** — locker info visible in Shopify Admin order details
@@ -709,10 +713,10 @@ Add `?shop=enna-test.myshopify.com` to the URL
 
 ## Revenue Model
 
-**Launch model:** Per-order fee ($1-$2 per locker transaction) via Shopify usage-based billing (`appSubscriptionCreate` with usage line item + `usageRecordCreate` after each order). Zero cost to install — merchants only pay when customers use locker pickup.
+**Launch model (implemented):** Per-order fee ($1.50 per locker transaction, $200/month cap, 7-day free trial) via Shopify usage-based billing. Uses `appSubscriptionCreate` with `appUsagePricingDetails` on install, then `appUsageRecordCreate` after each order webhook. Zero cost to install — merchants only pay when customers use locker pickup. Billed monthly on the merchant's Shopify invoice.
 
 **Future options** (see `lockerdrop-pricing-strategies.jsx`):
-1. Pure per-order fee (current)
+1. Pure per-order fee (current - implemented)
 2. Tiered subscription (Free / $19 / $49)
 3. Subscription + usage hybrid ($9/mo + $0.75/order)
 4. Commission on shipping fee
@@ -727,8 +731,7 @@ Add `?shop=enna-test.myshopify.com` to the URL
 - **Sandbox Harbor API hardcoded** — ~50 `api.sandbox.harborlockers.com` + ~22 `accounts.sandbox.harborlockers.com` URLs hardcoded in server.js; need to use env vars before production switch
 
 ### Billing / Revenue
-- **Subscription system built but bypassed** — per-order fee ($1-$2) is the launch model; subscription tiers exist in code but are not enforced
-- **Need to implement Shopify `usageRecordCreate`** — to properly charge per-order via Shopify Billing API
+- **Usage-based billing implemented** — $1.50/order via `appUsageRecordCreate`, $200/month cap, 7-day trial. Old tier-based subscription system (trial/basic/pro/enterprise) has been replaced.
 
 ### Missing Functionality
 - **No returns support** — customer FAQ states returns are "not available yet"
@@ -764,6 +767,8 @@ Add `?shop=enna-test.myshopify.com` to the URL
 | Frontend error tracking | #17 | Backend endpoint + client handlers |
 | Custom email template | — | `docs/email-template-order-confirmation.liquid` |
 | GDPR compliance webhooks | #38 | `customers/data_request`, `customers/redact`, `shop/redact` |
+| Usage-based billing | #18-19 | $1.50/order via `appUsageRecordCreate`, $200/month cap, 7-day trial. Replaces old tier subscriptions. Dashboard billing tab, auto-create on install, `APP_SUBSCRIPTIONS_UPDATE` webhook. |
+| Locker size change flow | #11 | "Doesn't fit" detection on dropoff-success page, size picker UI, `POST /api/dropoff-doesnt-fit` endpoint, dashboard size picker in order modal, explicit size param on regenerate endpoint. |
 
 ---
 

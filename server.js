@@ -492,7 +492,26 @@ app.get('/auth/callback', async (req, res) => {
         req.session.authenticatedAt = Date.now();
         logger.info(`🔐 Session created for ${shop}`);
 
-        // Redirect to embedded app in Shopify Admin
+        // Create usage-based billing subscription
+        try {
+            const billingResult = await createUsageSubscription(shop, accessToken);
+
+            if (billingResult.alreadyActive) {
+                // Already has subscription, go to dashboard
+                const shopHost = Buffer.from(`${shop}/admin`).toString('base64').replace(/=+$/, '');
+                return res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}`);
+            }
+
+            if (billingResult.confirmationUrl) {
+                // Redirect to Shopify payment confirmation page
+                return res.redirect(billingResult.confirmationUrl);
+            }
+        } catch (billingError) {
+            logger.error({ shop, err: billingError.message }, 'Failed to create billing subscription on install');
+            // Don't block install -- let them in, they'll see billing prompt in dashboard
+        }
+
+        // Fallback: redirect to embedded app
         const shopHost = Buffer.from(`${shop}/admin`).toString('base64').replace(/=+$/, '');
         res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}`);
     } catch (error) {
@@ -2251,6 +2270,119 @@ app.post('/api/dropoff-complete', async (req, res) => {
     }
 });
 
+// Dropoff "doesn't fit" handler - called from success page when Harbor returns non-success status
+// Public endpoint (no auth) - same pattern as /api/dropoff-complete
+app.post('/api/dropoff-doesnt-fit', async (req, res) => {
+    try {
+        const { orderNumber, newSize } = req.body;
+
+        logger.info(`📦 Dropoff doesn't fit: order=${orderNumber}, newSize=${newSize || 'none'}`);
+
+        if (!orderNumber) {
+            return res.status(400).json({ error: 'Order number required' });
+        }
+
+        // Find the order
+        const orderResult = await db.query(
+            "SELECT id, shop, shopify_order_id, order_number, location_id, locker_id, tower_id, status FROM orders WHERE order_number = $1",
+            [orderNumber]
+        );
+
+        if (orderResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+
+        const order = orderResult.rows[0];
+
+        // Reject if order is in a terminal state
+        if (['completed', 'cancelled', 'ready_for_pickup'].includes(order.status)) {
+            return res.status(400).json({ success: false, error: `Cannot update order in ${order.status} status` });
+        }
+
+        // Clear stale locker fields - Harbor already released the locker on their side
+        await db.query(
+            `UPDATE orders SET
+                locker_id = NULL, dropoff_link = NULL, dropoff_request_id = NULL,
+                tower_id = NULL, status = 'pending_dropoff', updated_at = NOW()
+            WHERE id = $1`,
+            [order.id]
+        );
+        logger.info(`🧹 Cleared stale locker data for order #${orderNumber}`);
+
+        // If newSize requested, generate a new dropoff link
+        if (newSize) {
+            const sizeMap = { 'small': 1, 'medium': 2, 'large': 3, 'x-large': 4 };
+            const sizeNames = ['small', 'medium', 'large', 'x-large'];
+
+            if (!sizeMap[newSize]) {
+                return res.status(400).json({ success: false, error: `Invalid size: ${newSize}. Use: small, medium, large, x-large` });
+            }
+
+            if (!order.location_id) {
+                return res.json({ success: true, cleared: true, error: 'No locker location assigned. Please assign a location from the dashboard.' });
+            }
+
+            // Try requested size and cascade up to larger sizes
+            const startIndex = sizeNames.indexOf(newSize);
+            const sizesToTry = sizeNames.slice(startIndex).map(name => ({ id: sizeMap[name], name }));
+
+            let dropoffLink = null;
+            let usedSize = null;
+
+            for (const size of sizesToTry) {
+                try {
+                    logger.info(`🔗 Trying ${size.name} locker (type ${size.id}) for order #${orderNumber}...`);
+                    dropoffLink = await generateDropoffLink(
+                        order.location_id,
+                        size.id,
+                        order.shopify_order_id,
+                        order.order_number
+                    );
+                    usedSize = size.name;
+                    logger.info(`✅ Success with ${size.name} locker!`);
+                    break;
+                } catch (sizeError) {
+                    const errorDetail = sizeError.response?.data?.detail || sizeError.message;
+                    logger.info(`   ❌ ${size.name} failed: ${errorDetail}`);
+                    if (!errorDetail.includes('No locker available')) {
+                        throw sizeError;
+                    }
+                }
+            }
+
+            if (!dropoffLink) {
+                const triedSizes = sizesToTry.map(s => s.name).join(', ');
+                return res.json({
+                    success: false,
+                    cleared: true,
+                    error: `No lockers available. Tried: ${triedSizes}. Please try again later.`
+                });
+            }
+
+            // Save new link to order
+            await db.query(
+                'UPDATE orders SET dropoff_link = $1, locker_id = $2, dropoff_request_id = $3, tower_id = $4, updated_at = NOW() WHERE id = $5',
+                [dropoffLink.linkToken, dropoffLink.lockerId, dropoffLink.id, dropoffLink.towerId, order.id]
+            );
+
+            logger.info(`✅ New ${usedSize} locker assigned for order #${orderNumber}`);
+
+            return res.json({
+                success: true,
+                orderNumber: order.order_number,
+                newDropoffLink: dropoffLink.linkToken,
+                lockerSize: usedSize
+            });
+        }
+
+        // No newSize - just cleared the stale data
+        res.json({ success: true, cleared: true });
+    } catch (error) {
+        logger.error('Error processing dropoff doesnt-fit:', error);
+        res.status(500).json({ error: 'Failed to process request' });
+    }
+});
+
 // Resend pickup notification to customer (SMS and/or Email)
 app.post('/api/resend-notification/:orderNumber', (req, res, next) => {
     // Verify session is authenticated
@@ -2365,36 +2497,20 @@ app.get('/dropoff-success', (req, res) => {
 });
 
 // ============================================
-// SUBSCRIPTION PLANS & BILLING
+// USAGE-BASED BILLING
 // ============================================
 
-// Plan definitions with feature flags
-const PLANS = {
-    trial: {
-        name: 'Trial',
-        price: 0,
-        orderLimit: 25,
-        trialDays: 3,
-        features: { checkoutBlock: false, orderStatusBlock: false, customBranding: false, rebuyIntegration: false }
-    },
-    basic: {
-        name: 'Basic',
-        price: 9.00,
-        orderLimit: 25,
-        features: { checkoutBlock: false, orderStatusBlock: false, customBranding: false, rebuyIntegration: false }
-    },
-    pro: {
-        name: 'Pro',
-        price: 29.00,
-        orderLimit: 100,
-        features: { checkoutBlock: false, orderStatusBlock: false, customBranding: false, rebuyIntegration: false }
-    },
-    enterprise: {
-        name: 'Enterprise',
-        price: 99.00,
-        orderLimit: -1, // -1 = unlimited
-        features: { checkoutBlock: true, orderStatusBlock: true, customBranding: true, rebuyIntegration: true }
-    }
+// Test stores that bypass real Shopify billing
+const DEV_STORES = ['enna-test.myshopify.com'];
+
+// Usage-based billing configuration ($1.50 per locker order, $200/month cap)
+const USAGE_BILLING = {
+    name: 'LockerDrop Pay Per Order',
+    perOrderFee: 1.50,
+    cappedAmount: 200.00,
+    terms: '$1.50 per locker pickup order. Maximum $200.00 per 30-day billing cycle.',
+    trialDays: 7,
+    currencyCode: 'USD'
 };
 
 // Get or create subscription for a shop
@@ -2402,50 +2518,257 @@ async function getOrCreateSubscription(shop) {
     let result = await db.query('SELECT * FROM subscriptions WHERE shop = $1', [shop]);
 
     if (result.rows.length === 0) {
-        // Create new trial subscription
-        const trialEnds = new Date();
-        trialEnds.setDate(trialEnds.getDate() + PLANS.trial.trialDays);
-
         result = await db.query(`
-            INSERT INTO subscriptions (shop, plan_name, status, monthly_order_limit, trial_ends_at, billing_cycle_start)
-            VALUES ($1, 'trial', 'trial', $2, $3, NOW())
+            INSERT INTO subscriptions (shop, plan_name, status, per_order_fee, capped_amount, billing_cycle_start)
+            VALUES ($1, 'usage', 'pending', $2, $3, NOW())
             RETURNING *
-        `, [shop, PLANS.trial.orderLimit, trialEnds]);
+        `, [shop, USAGE_BILLING.perOrderFee, USAGE_BILLING.cappedAmount]);
     }
 
     return result.rows[0];
 }
 
-// Check if shop can process more orders
-// NOTE: Subscription plans disabled - charging $1 per order via shipping rate instead
+// Check if shop can process orders (grace period: allow even if billing not yet approved)
 async function canProcessOrder(shop) {
     const sub = await getOrCreateSubscription(shop);
 
-    // DISABLED: All subscription checks bypassed - revenue collected via $1 shipping fee
-    // To re-enable subscription plans, uncomment the checks below:
-
-    /*
-    // Check trial expiry
-    if (sub.status === 'trial' && new Date(sub.trial_ends_at) < new Date()) {
-        return { allowed: false, reason: 'trial_expired', subscription: sub };
+    if (sub.status === 'active') {
+        return { allowed: true, subscription: sub };
     }
 
-    // Check order limit (-1 = unlimited)
-    if (sub.monthly_order_limit !== -1 && sub.orders_this_month >= sub.monthly_order_limit) {
-        return { allowed: false, reason: 'limit_reached', subscription: sub };
+    // Grace period: allow orders for pending/declined billing so merchants don't lose sales
+    if (sub.status === 'pending' || sub.status === 'declined') {
+        logger.warn({ shop, status: sub.status }, 'Processing order with unapproved billing');
+        return { allowed: true, subscription: sub };
     }
 
-    // Check if subscription is active
-    if (sub.status !== 'trial' && sub.status !== 'active') {
-        return { allowed: false, reason: 'inactive', subscription: sub };
+    if (sub.status === 'cancelled' || sub.status === 'frozen' || sub.status === 'expired') {
+        logger.warn({ shop, status: sub.status }, 'Processing order with inactive billing');
+        return { allowed: true, subscription: sub };
     }
-    */
 
-    // Always allow - $1 fee collected at checkout
     return { allowed: true, subscription: sub };
 }
 
-// Increment order count
+// Create usage-based Shopify subscription for a shop
+async function createUsageSubscription(shop, accessToken) {
+    // Check if shop already has an active usage subscription
+    const existing = await db.query('SELECT * FROM subscriptions WHERE shop = $1', [shop]);
+    if (existing.rows.length > 0 && existing.rows[0].status === 'active'
+        && existing.rows[0].shopify_subscription_id) {
+        logger.info({ shop }, 'Shop already has active usage subscription');
+        return { alreadyActive: true };
+    }
+
+    const mutation = `
+        mutation AppSubscriptionCreate(
+            $name: String!,
+            $returnUrl: URL!,
+            $trialDays: Int,
+            $test: Boolean,
+            $lineItems: [AppSubscriptionLineItemInput!]!
+        ) {
+            appSubscriptionCreate(
+                name: $name,
+                returnUrl: $returnUrl,
+                trialDays: $trialDays,
+                test: $test,
+                lineItems: $lineItems
+            ) {
+                appSubscription {
+                    id
+                    status
+                    lineItems {
+                        id
+                    }
+                }
+                confirmationUrl
+                userErrors {
+                    field
+                    message
+                }
+            }
+        }
+    `;
+
+    const isTestStore = DEV_STORES.includes(shop);
+
+    const variables = {
+        name: USAGE_BILLING.name,
+        returnUrl: `https://app.lockerdrop.it/api/billing/confirm?shop=${shop}`,
+        trialDays: USAGE_BILLING.trialDays,
+        test: isTestStore,
+        lineItems: [{
+            plan: {
+                appUsagePricingDetails: {
+                    cappedAmount: {
+                        amount: USAGE_BILLING.cappedAmount,
+                        currencyCode: USAGE_BILLING.currencyCode
+                    },
+                    terms: USAGE_BILLING.terms
+                }
+            }
+        }]
+    };
+
+    const data = await shopifyGraphQL(shop, accessToken, mutation, variables);
+    const result = data.appSubscriptionCreate;
+
+    if (result.userErrors && result.userErrors.length > 0) {
+        logger.error({ shop, errors: result.userErrors }, 'Failed to create usage subscription');
+        throw new Error(result.userErrors[0].message);
+    }
+
+    // Save subscription to DB (pending until merchant confirms)
+    await db.query(`
+        INSERT INTO subscriptions (shop, plan_name, status, shopify_subscription_id,
+            shopify_line_item_id, capped_amount, per_order_fee)
+        VALUES ($1, 'usage', 'pending', $2, $3, $4, $5)
+        ON CONFLICT (shop) DO UPDATE SET
+            plan_name = 'usage',
+            status = 'pending',
+            shopify_subscription_id = $2,
+            shopify_line_item_id = $3,
+            capped_amount = $4,
+            per_order_fee = $5,
+            updated_at = NOW()
+    `, [
+        shop,
+        result.appSubscription.id,
+        result.appSubscription.lineItems[0]?.id,
+        USAGE_BILLING.cappedAmount,
+        USAGE_BILLING.perOrderFee
+    ]);
+
+    logger.info({ shop, subscriptionId: result.appSubscription.id }, 'Usage subscription created (pending approval)');
+
+    return {
+        confirmationUrl: result.confirmationUrl,
+        subscriptionId: result.appSubscription.id
+    };
+}
+
+// Charge a per-order usage fee via Shopify Billing API
+async function chargeUsageFee(shop, shopifyOrderId, orderNumber) {
+    try {
+        // Check if already charged (idempotency)
+        const orderCheck = await db.query(
+            'SELECT billing_charged FROM orders WHERE shopify_order_id = $1',
+            [shopifyOrderId]
+        );
+        if (orderCheck.rows.length > 0 && orderCheck.rows[0].billing_charged) {
+            logger.info({ shop, shopifyOrderId }, 'Usage fee already charged for this order');
+            return { charged: false, reason: 'already_charged' };
+        }
+
+        // Get subscription details
+        const subResult = await db.query(
+            'SELECT * FROM subscriptions WHERE shop = $1 AND status = $2',
+            [shop, 'active']
+        );
+
+        if (subResult.rows.length === 0) {
+            logger.warn({ shop, shopifyOrderId }, 'No active subscription, cannot charge usage fee');
+            return { charged: false, reason: 'no_active_subscription' };
+        }
+
+        const sub = subResult.rows[0];
+
+        if (!sub.shopify_subscription_id || !sub.shopify_line_item_id) {
+            logger.warn({ shop, shopifyOrderId }, 'Missing Shopify subscription/line item IDs');
+            return { charged: false, reason: 'missing_billing_ids' };
+        }
+
+        // Pre-check against capped amount
+        const newTotal = parseFloat(sub.total_charged_this_month || 0) + parseFloat(sub.per_order_fee);
+        if (newTotal > parseFloat(sub.capped_amount)) {
+            logger.warn({ shop, shopifyOrderId, currentTotal: sub.total_charged_this_month, cap: sub.capped_amount },
+                'Would exceed capped amount, skipping charge');
+            return { charged: false, reason: 'cap_reached' };
+        }
+
+        // Get access token
+        let accessToken = accessTokens.get(shop);
+        if (!accessToken) {
+            const storeResult = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop]);
+            if (storeResult.rows.length > 0) {
+                accessToken = storeResult.rows[0].access_token;
+                accessTokens.set(shop, accessToken);
+            }
+        }
+
+        if (!accessToken) {
+            logger.error({ shop }, 'No access token available for usage charge');
+            return { charged: false, reason: 'no_access_token' };
+        }
+
+        const mutation = `
+            mutation appUsageRecordCreate(
+                $subscriptionLineItemId: ID!,
+                $price: MoneyInput!,
+                $description: String!
+            ) {
+                appUsageRecordCreate(
+                    subscriptionLineItemId: $subscriptionLineItemId,
+                    price: $price,
+                    description: $description
+                ) {
+                    appUsageRecord {
+                        id
+                    }
+                    userErrors {
+                        field
+                        message
+                    }
+                }
+            }
+        `;
+
+        const variables = {
+            subscriptionLineItemId: sub.shopify_line_item_id,
+            price: {
+                amount: parseFloat(sub.per_order_fee),
+                currencyCode: 'USD'
+            },
+            description: `LockerDrop locker pickup - Order #${orderNumber}`
+        };
+
+        const data = await shopifyGraphQL(shop, accessToken, mutation, variables);
+        const result = data.appUsageRecordCreate;
+
+        if (result.userErrors && result.userErrors.length > 0) {
+            logger.error({ shop, shopifyOrderId, errors: result.userErrors }, 'Usage record creation failed');
+            return { charged: false, reason: 'shopify_error', errors: result.userErrors };
+        }
+
+        // Update local tracking
+        await db.query(`
+            UPDATE subscriptions
+            SET orders_this_month = orders_this_month + 1,
+                total_charged_this_month = total_charged_this_month + $1,
+                updated_at = NOW()
+            WHERE shop = $2
+        `, [sub.per_order_fee, shop]);
+
+        // Mark order as charged
+        await db.query(
+            'UPDATE orders SET billing_charged = true WHERE shopify_order_id = $1',
+            [shopifyOrderId]
+        );
+
+        logger.info({ shop, shopifyOrderId, orderNumber, fee: sub.per_order_fee,
+            usageRecordId: result.appUsageRecord?.id },
+            'Usage fee charged successfully');
+
+        return { charged: true, usageRecordId: result.appUsageRecord?.id };
+
+    } catch (error) {
+        logger.error({ shop, shopifyOrderId, err: error.message }, 'Error charging usage fee');
+        return { charged: false, reason: 'exception', error: error.message };
+    }
+}
+
+// Increment order count (kept for backward compat / manual tracking)
 async function incrementOrderCount(shop) {
     await db.query(`
         UPDATE subscriptions
@@ -2454,13 +2777,14 @@ async function incrementOrderCount(shop) {
     `, [shop]);
 }
 
-// Reset monthly order counts (run on 1st of month)
+// Reset monthly billing counters
 async function resetMonthlyOrderCounts() {
     await db.query(`
         UPDATE subscriptions
-        SET orders_this_month = 0, billing_cycle_start = NOW(), updated_at = NOW()
+        SET orders_this_month = 0, total_charged_this_month = 0,
+            billing_cycle_start = NOW(), updated_at = NOW()
     `);
-    logger.info('📅 Monthly order counts reset');
+    logger.info('Monthly billing counters reset');
 }
 
 // Get subscription status
@@ -2469,25 +2793,16 @@ app.get('/api/subscription/:shop', async (req, res) => {
         const { shop } = req.params;
         const subscription = await getOrCreateSubscription(shop);
 
-        const plan = PLANS[subscription.plan_name] || PLANS.trial;
-        const daysLeft = subscription.status === 'trial'
-            ? Math.max(0, Math.ceil((new Date(subscription.trial_ends_at) - new Date()) / (1000 * 60 * 60 * 24)))
-            : null;
-
         res.json({
             plan: subscription.plan_name,
-            planName: plan.name,
+            planName: 'Pay Per Order',
             status: subscription.status,
-            price: plan.price,
-            orderLimit: subscription.monthly_order_limit,
-            ordersUsed: subscription.orders_this_month,
-            ordersRemaining: subscription.monthly_order_limit === -1
-                ? 'unlimited'
-                : Math.max(0, subscription.monthly_order_limit - subscription.orders_this_month),
-            trialDaysLeft: daysLeft,
-            trialEndsAt: subscription.trial_ends_at,
-            billingCycleStart: subscription.billing_cycle_start,
-            features: plan.features || {}
+            billingModel: 'usage',
+            perOrderFee: parseFloat(subscription.per_order_fee || USAGE_BILLING.perOrderFee),
+            cappedAmount: parseFloat(subscription.capped_amount || USAGE_BILLING.cappedAmount),
+            ordersThisMonth: subscription.orders_this_month || 0,
+            totalChargedThisMonth: parseFloat(subscription.total_charged_this_month || 0),
+            billingCycleStart: subscription.billing_cycle_start
         });
     } catch (error) {
         logger.error('Error getting subscription:', error);
@@ -2792,62 +3107,24 @@ app.get('/change-pickup/:orderNumber', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'change-pickup-date.html'));
 });
 
-// Get available plans
+// Get billing plan info
 app.get('/api/plans', (req, res) => {
-    const plans = Object.entries(PLANS)
-        .filter(([key]) => key !== 'trial')
-        .map(([key, plan]) => ({
-            id: key,
-            name: plan.name,
-            price: plan.price,
-            orderLimit: plan.orderLimit === -1 ? 'Unlimited' : plan.orderLimit,
-            features: getPlanFeatures(key)
-        }));
-
-    res.json({ plans });
+    res.json({
+        billingModel: 'usage',
+        plan: {
+            name: USAGE_BILLING.name,
+            perOrderFee: USAGE_BILLING.perOrderFee,
+            cappedAmount: USAGE_BILLING.cappedAmount,
+            terms: USAGE_BILLING.terms,
+            trialDays: USAGE_BILLING.trialDays
+        }
+    });
 });
 
-function getPlanFeatures(planId) {
-    const features = {
-        basic: [
-            '25 LockerDrop orders/month',
-            'Email notifications',
-            'Basic support',
-            'Dashboard access'
-        ],
-        pro: [
-            '100 LockerDrop orders/month',
-            'Email & SMS notifications',
-            'Priority support',
-            'Dashboard access',
-            'Analytics'
-        ],
-        enterprise: [
-            'Unlimited orders',
-            'Email & SMS notifications',
-            'Dedicated support',
-            'Dashboard access',
-            'Advanced analytics',
-            'Checkout UI block',
-            'Order status page block',
-            'Custom branded pickup page',
-            'Upsell widgets on success page',
-            'Rebuy integration'
-        ]
-    };
-    return features[planId] || [];
-}
-
-// Create subscription charge via Shopify Billing API
+// Create or retry usage-based billing subscription
 app.post('/api/subscribe/:shop', async (req, res) => {
     try {
         const { shop } = req.params;
-        const { planId } = req.body;
-
-        const plan = PLANS[planId];
-        if (!plan || planId === 'trial') {
-            return res.status(400).json({ error: 'Invalid plan' });
-        }
 
         // Get access token
         let accessToken = accessTokens.get(shop);
@@ -2863,100 +3140,64 @@ app.post('/api/subscribe/:shop', async (req, res) => {
             return res.status(401).json({ error: 'Not authenticated' });
         }
 
-        // Create recurring application charge via Shopify GraphQL API
-        const mutation = `
-            mutation AppSubscriptionCreate($name: String!, $returnUrl: URL!, $trialDays: Int, $lineItems: [AppSubscriptionLineItemInput!]!) {
-                appSubscriptionCreate(
-                    name: $name,
-                    returnUrl: $returnUrl,
-                    trialDays: $trialDays,
-                    lineItems: $lineItems
-                ) {
-                    appSubscription {
-                        id
-                        status
-                    }
-                    confirmationUrl
-                    userErrors {
-                        field
-                        message
-                    }
-                }
-            }
-        `;
+        const billingResult = await createUsageSubscription(shop, accessToken);
 
-        const variables = {
-            name: `LockerDrop ${plan.name} Plan`,
-            returnUrl: `https://${process.env.SHOPIFY_HOST}/api/subscription/confirm?shop=${shop}&plan=${planId}`,
-            trialDays: 3,
-            lineItems: [{
-                plan: {
-                    appRecurringPricingDetails: {
-                        price: { amount: plan.price, currencyCode: "USD" },
-                        interval: "EVERY_30_DAYS"
-                    }
-                }
-            }]
-        };
-
-        const response = await axios.post(
-            `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
-            { query: mutation, variables },
-            { headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' } }
-        );
-
-        const result = response.data.data.appSubscriptionCreate;
-
-        if (result.userErrors && result.userErrors.length > 0) {
-            logger.error('Shopify billing error:', result.userErrors);
-            return res.status(400).json({ error: result.userErrors[0].message });
+        if (billingResult.alreadyActive) {
+            return res.json({ alreadyActive: true, message: 'Billing is already active' });
         }
 
-        // Return confirmation URL for merchant to approve
         res.json({
-            confirmationUrl: result.confirmationUrl,
-            subscriptionId: result.appSubscription?.id
+            confirmationUrl: billingResult.confirmationUrl,
+            subscriptionId: billingResult.subscriptionId
         });
 
     } catch (error) {
-        logger.error('Error creating subscription:', error.response?.data || error.message);
+        logger.error({ err: error.message }, 'Error creating subscription');
         res.status(500).json({ error: 'Failed to create subscription' });
     }
 });
 
-// Subscription confirmation callback
-app.get('/api/subscription/confirm', async (req, res) => {
+// Billing confirmation callback (Shopify redirects here after merchant approves/declines)
+app.get('/api/billing/confirm', async (req, res) => {
     try {
-        const { shop, plan, charge_id } = req.query;
+        const { shop, charge_id } = req.query;
+        const shopHost = Buffer.from(`${shop}/admin`).toString('base64').replace(/=+$/, '');
 
         if (!charge_id) {
-            // User declined
-            return res.redirect(`/admin/dashboard?shop=${shop}&billing=cancelled`);
+            // Merchant declined billing
+            logger.info({ shop }, 'Merchant declined usage billing');
+            await db.query(
+                `UPDATE subscriptions SET status = 'declined', updated_at = NOW() WHERE shop = $1`,
+                [shop]
+            );
+            return res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}&billing=declined`);
         }
 
-        const planConfig = PLANS[plan];
-        if (!planConfig) {
-            return res.redirect(`/admin/dashboard?shop=${shop}&billing=error`);
-        }
-
-        // Update subscription in database
+        // Merchant approved — activate subscription
         await db.query(`
             UPDATE subscriptions
-            SET plan_name = $1, status = 'active', shopify_charge_id = $2,
-                monthly_order_limit = $3, orders_this_month = 0,
-                billing_cycle_start = NOW(), updated_at = NOW()
-            WHERE shop = $4
-        `, [plan, charge_id, planConfig.orderLimit, shop]);
+            SET status = 'active', billing_cycle_start = NOW(),
+                orders_this_month = 0, total_charged_this_month = 0,
+                updated_at = NOW()
+            WHERE shop = $1
+        `, [shop]);
 
-        logger.info(`✅ Subscription activated: ${shop} -> ${plan}`);
+        logger.info({ shop }, 'Usage billing subscription activated');
 
-        // Redirect to dashboard with success message
-        res.redirect(`/admin/dashboard?shop=${shop}&billing=success&plan=${plan}`);
+        res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}&billing=success`);
 
     } catch (error) {
-        logger.error('Error confirming subscription:', error);
-        res.redirect(`/admin/dashboard?shop=${req.query.shop}&billing=error`);
+        logger.error({ err: error }, 'Error confirming billing');
+        const shop = req.query.shop;
+        const shopHost = Buffer.from(`${shop}/admin`).toString('base64').replace(/=+$/, '');
+        res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}&billing=error`);
     }
+});
+
+// Keep old confirm endpoint for backward compat (redirects to new one)
+app.get('/api/subscription/confirm', (req, res) => {
+    const { shop, charge_id } = req.query;
+    res.redirect(`/api/billing/confirm?shop=${shop}&charge_id=${charge_id || ''}`);
 });
 
 // Cancel subscription
@@ -2964,7 +3205,6 @@ app.post('/api/subscription/cancel/:shop', async (req, res) => {
     try {
         const { shop } = req.params;
 
-        // Get current subscription
         const subResult = await db.query('SELECT * FROM subscriptions WHERE shop = $1', [shop]);
         if (subResult.rows.length === 0) {
             return res.status(404).json({ error: 'No subscription found' });
@@ -2981,75 +3221,100 @@ app.post('/api/subscription/cancel/:shop', async (req, res) => {
             }
         }
 
-        // Cancel via Shopify API if there's a charge ID
-        if (subscription.shopify_charge_id && accessToken) {
+        // Cancel via Shopify API
+        const subscriptionGid = subscription.shopify_subscription_id || subscription.shopify_charge_id;
+        if (subscriptionGid && accessToken) {
             try {
-                const mutation = `
+                await shopifyGraphQL(shop, accessToken, `
                     mutation AppSubscriptionCancel($id: ID!) {
                         appSubscriptionCancel(id: $id) {
                             appSubscription { id status }
                             userErrors { field message }
                         }
                     }
-                `;
-
-                await axios.post(
-                    `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
-                    { query: mutation, variables: { id: subscription.shopify_charge_id } },
-                    { headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' } }
-                );
+                `, { id: subscriptionGid });
             } catch (e) {
-                logger.info('Could not cancel Shopify subscription:', e.message);
+                logger.info({ shop, err: e.message }, 'Could not cancel Shopify subscription');
             }
         }
 
-        // Update local status
         await db.query(`
-            UPDATE subscriptions
-            SET status = 'cancelled', updated_at = NOW()
-            WHERE shop = $1
+            UPDATE subscriptions SET status = 'cancelled', updated_at = NOW() WHERE shop = $1
         `, [shop]);
 
         res.json({ success: true, message: 'Subscription cancelled' });
 
     } catch (error) {
-        logger.error('Error cancelling subscription:', error);
+        logger.error({ err: error }, 'Error cancelling subscription');
         res.status(500).json({ error: 'Failed to cancel subscription' });
     }
 });
 
-// Dev mode: Switch plan freely (only for test stores)
-const DEV_STORES = ['enna-test.myshopify.com'];
+// Retry billing for merchants who declined initially
+app.post('/api/billing/retry/:shop', async (req, res) => {
+    try {
+        const { shop } = req.params;
 
+        let accessToken = accessTokens.get(shop);
+        if (!accessToken) {
+            const result = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop]);
+            if (result.rows.length > 0) {
+                accessToken = result.rows[0].access_token;
+                accessTokens.set(shop, accessToken);
+            }
+        }
+
+        if (!accessToken) {
+            return res.status(401).json({ error: 'Not authenticated' });
+        }
+
+        const billingResult = await createUsageSubscription(shop, accessToken);
+
+        if (billingResult.alreadyActive) {
+            return res.json({ alreadyActive: true, message: 'Billing is already active' });
+        }
+
+        res.json({ confirmationUrl: billingResult.confirmationUrl });
+
+    } catch (error) {
+        logger.error({ err: error.message }, 'Error retrying billing');
+        res.status(500).json({ error: 'Failed to create billing subscription' });
+    }
+});
+
+// Dev mode: billing actions for test stores
 app.post('/api/subscription/dev-switch/:shop', async (req, res) => {
     try {
         const { shop } = req.params;
-        const { planId } = req.body;
+        const { action } = req.body;
 
-        // Only allow for dev stores
         if (!DEV_STORES.includes(shop)) {
             return res.status(403).json({ error: 'Dev mode only available for test stores' });
         }
 
-        const plan = PLANS[planId];
-        if (!plan) {
-            return res.status(400).json({ error: 'Invalid plan' });
+        if (action === 'activate') {
+            await db.query(`
+                UPDATE subscriptions SET status = 'active', updated_at = NOW() WHERE shop = $1
+            `, [shop]);
+            res.json({ success: true, message: 'Billing activated (dev mode)' });
+        } else if (action === 'deactivate') {
+            await db.query(`
+                UPDATE subscriptions SET status = 'cancelled', updated_at = NOW() WHERE shop = $1
+            `, [shop]);
+            res.json({ success: true, message: 'Billing deactivated (dev mode)' });
+        } else if (action === 'reset') {
+            await db.query(`
+                UPDATE subscriptions SET orders_this_month = 0, total_charged_this_month = 0,
+                    billing_cycle_start = NOW(), updated_at = NOW() WHERE shop = $1
+            `, [shop]);
+            res.json({ success: true, message: 'Billing counters reset (dev mode)' });
+        } else {
+            res.status(400).json({ error: 'Invalid action. Use: activate, deactivate, or reset' });
         }
 
-        // Update subscription directly without Shopify billing
-        await db.query(`
-            UPDATE subscriptions
-            SET plan_name = $1, status = 'active', monthly_order_limit = $2,
-                orders_this_month = 0, billing_cycle_start = NOW(), updated_at = NOW()
-            WHERE shop = $3
-        `, [planId, plan.orderLimit, shop]);
-
-        logger.info(`🔧 DEV: Switched ${shop} to ${planId} plan`);
-        res.json({ success: true, plan: planId, message: `Switched to ${plan.name} plan` });
-
     } catch (error) {
-        logger.error('Error switching plan:', error);
-        res.status(500).json({ error: 'Failed to switch plan' });
+        logger.error({ err: error }, 'Error in dev billing switch');
+        res.status(500).json({ error: 'Failed' });
     }
 });
 
@@ -4929,6 +5194,16 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
             logger.info(`⚠️ Could not determine product size requirements: ${e.message}`);
         }
 
+        // Allow explicit size override from request body (e.g., after "doesn't fit")
+        const { lockerSize: requestedSize } = req.body || {};
+        if (requestedSize) {
+            const validSizes = ['small', 'medium', 'large', 'x-large'];
+            if (validSizes.includes(requestedSize)) {
+                minRequiredSize = requestedSize;
+                logger.info(`📦 Explicit size requested: ${requestedSize}`);
+            }
+        }
+
         logger.info(`📦 Minimum required locker size: ${minRequiredSize}`);
 
         // Build list of sizes to try based on minimum requirement
@@ -5028,7 +5303,8 @@ async function registerWebhooks(shop, accessToken) {
         { topic: 'ORDERS_CREATE', callbackUrl: 'https://app.lockerdrop.it/webhooks/orders/create' },
         { topic: 'ORDERS_UPDATED', callbackUrl: 'https://app.lockerdrop.it/webhooks/orders/updated' },
         { topic: 'ORDERS_CANCELLED', callbackUrl: 'https://app.lockerdrop.it/webhooks/orders/cancelled' },
-        { topic: 'APP_UNINSTALLED', callbackUrl: 'https://app.lockerdrop.it/webhooks/app/uninstalled' }
+        { topic: 'APP_UNINSTALLED', callbackUrl: 'https://app.lockerdrop.it/webhooks/app/uninstalled' },
+        { topic: 'APP_SUBSCRIPTIONS_UPDATE', callbackUrl: 'https://app.lockerdrop.it/webhooks/app/subscriptions-update' }
     ];
 
     for (const wh of webhooks) {
@@ -5190,6 +5466,44 @@ app.post('/webhooks/app/uninstalled', express.json(), async (req, res) => {
     } catch (error) {
         logger.error('Error processing app/uninstalled webhook:', error);
         res.status(200).send('OK'); // Always respond 200 to Shopify
+    }
+});
+
+// Webhook receiver for subscription status changes
+app.post('/webhooks/app/subscriptions-update', express.json(), async (req, res) => {
+    try {
+        const shopDomain = req.headers['x-shopify-shop-domain'];
+        const subscriptionData = req.body.app_subscription;
+
+        logger.info({ shop: shopDomain, subscriptionId: subscriptionData?.admin_graphql_api_id },
+            'Subscription update webhook received');
+
+        if (subscriptionData) {
+            const newStatus = (subscriptionData.status || '').toLowerCase();
+            const statusMap = {
+                'active': 'active',
+                'cancelled': 'cancelled',
+                'declined': 'declined',
+                'expired': 'expired',
+                'frozen': 'frozen',
+                'pending': 'pending'
+            };
+
+            const mappedStatus = statusMap[newStatus] || newStatus;
+
+            if (mappedStatus) {
+                await db.query(
+                    `UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE shop = $2`,
+                    [mappedStatus, shopDomain]
+                );
+                logger.info({ shop: shopDomain, newStatus: mappedStatus }, 'Subscription status updated via webhook');
+            }
+        }
+
+        res.status(200).send('OK');
+    } catch (error) {
+        logger.error({ err: error }, 'Error processing subscription update webhook');
+        res.status(200).send('OK');
     }
 });
 
@@ -5613,10 +5927,11 @@ async function processNewOrder(order, shopDomain) {
                     ]
                 );
 
-                // Increment order count for billing
-                const canProcess = await canProcessOrder(shop);
-                if (canProcess.allowed) {
-                    await incrementOrderCount(shop);
+                // Charge usage fee via Shopify Billing
+                const chargeResult = await chargeUsageFee(shop, order.id.toString(), order.order_number?.toString());
+                if (!chargeResult.charged) {
+                    logger.warn({ shop, orderId: order.id, reason: chargeResult.reason },
+                        'Usage fee not charged -- order still processed');
                 }
 
                 logger.info(`✅ Order saved with pre-reserved locker! Link: ${reservation.dropoff_link}`);
@@ -5629,25 +5944,7 @@ async function processNewOrder(order, shopDomain) {
         // No reservation found - proceed with normal allocation
         logger.info('📦 No reservation found, attempting new locker allocation...');
 
-        // Check subscription status before processing
-        const canProcess = await canProcessOrder(shop);
-        if (!canProcess.allowed) {
-            logger.info(`⚠️ Order rejected - subscription issue: ${canProcess.reason}`);
-            if (canProcess.reason === 'trial_expired') {
-                logger.info('   Trial has expired - shop needs to subscribe');
-            } else if (canProcess.reason === 'limit_reached') {
-                logger.info(`   Monthly limit reached (${canProcess.subscription.orders_this_month}/${canProcess.subscription.monthly_order_limit})`);
-            } else {
-                logger.info('   Subscription is inactive');
-            }
-            // Still save the order but mark it as subscription_blocked
-            // For now we'll let it through but log the warning
-            // In production, you might want to notify the merchant
-        } else {
-            // Increment order count for billing
-            await incrementOrderCount(shop);
-            logger.info(`📊 Order counted for billing (${canProcess.subscription.orders_this_month + 1} this month)`);
-        }
+        // Usage fee will be charged after order is saved to database (see below)
 
         // Get access token for fetching product details
         let accessToken = accessTokens.get(shop);
@@ -5799,6 +6096,13 @@ async function processNewOrder(order, shopDomain) {
                 ]
             );
             logger.info(`✅ Order saved with pending_allocation status - needs manual locker assignment`);
+        }
+
+        // Charge usage fee via Shopify Billing (after order is saved)
+        const chargeResult2 = await chargeUsageFee(shop, order.id.toString(), order.order_number?.toString());
+        if (!chargeResult2.charged) {
+            logger.warn({ shop, orderId: order.id, reason: chargeResult2.reason },
+                'Usage fee not charged -- order still processed');
         }
 
         // Send email to seller with dropoff link
@@ -6506,6 +6810,43 @@ async function ensureOrdersNotesColumn() {
         logger.info('📝 Orders notes column ready');
     } catch (error) {
         logger.error('Error adding notes column:', error);
+    }
+}
+
+// Create subscriptions table for usage-based billing
+async function initSubscriptions() {
+    try {
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS subscriptions (
+                id SERIAL PRIMARY KEY,
+                shop VARCHAR(255) UNIQUE NOT NULL,
+                plan_name VARCHAR(50) DEFAULT 'usage',
+                status VARCHAR(50) DEFAULT 'pending',
+                shopify_subscription_id VARCHAR(255),
+                shopify_line_item_id VARCHAR(255),
+                capped_amount DECIMAL(10,2) DEFAULT 200.00,
+                per_order_fee DECIMAL(10,2) DEFAULT 1.50,
+                orders_this_month INTEGER DEFAULT 0,
+                total_charged_this_month DECIMAL(10,2) DEFAULT 0.00,
+                billing_cycle_start TIMESTAMP DEFAULT NOW(),
+                trial_ends_at TIMESTAMP,
+                monthly_order_limit INTEGER DEFAULT -1,
+                shopify_charge_id VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        // Migrate existing tables: add new columns if they don't exist
+        await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS shopify_subscription_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS shopify_line_item_id VARCHAR(255);`);
+        await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS capped_amount DECIMAL(10,2) DEFAULT 200.00;`);
+        await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS per_order_fee DECIMAL(10,2) DEFAULT 1.50;`);
+        await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS total_charged_this_month DECIMAL(10,2) DEFAULT 0.00;`);
+        // Add billing_charged column to orders for idempotency
+        await db.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS billing_charged BOOLEAN DEFAULT false;`);
+        logger.info('💳 Subscriptions table ready');
+    } catch (error) {
+        logger.error('Error creating subscriptions table:', error);
     }
 }
 
@@ -7565,6 +7906,9 @@ app.listen(PORT, async () => {
 
     // Initialize waitlist table
     await ensureWaitlistTable();
+
+    // Initialize subscriptions table
+    await initSubscriptions();
 
     // Schedule data retention cleanup
     scheduleDataRetention();

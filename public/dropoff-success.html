@@ -1,9 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9V5MYQXT0E"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-9V5MYQXT0E');
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Drop-off Complete!</title>
+    <title>Drop-off Status</title>
     <style>
         * {
             margin: 0;
@@ -21,6 +29,10 @@
             justify-content: center;
             padding: 24px;
             color: white;
+        }
+
+        body.doesnt-fit-theme {
+            background: linear-gradient(135deg, #b45309 0%, #92400e 100%);
         }
 
         .container {
@@ -102,14 +114,6 @@
             font-weight: 700;
         }
 
-        .message {
-            font-size: 16px;
-            line-height: 1.6;
-            opacity: 0.9;
-            margin-bottom: 32px;
-            animation: fadeInUp 0.5s ease-out 0.5s both;
-        }
-
         .next-steps {
             background: rgba(255, 255, 255, 0.1);
             border-radius: 12px;
@@ -139,7 +143,7 @@
         }
 
         .next-steps li::before {
-            content: "✓";
+            content: "\2713";
             position: absolute;
             left: 0;
             color: rgba(255,255,255,0.7);
@@ -208,37 +212,200 @@
             font-weight: 600;
             margin-top: 24px;
             animation: fadeInUp 0.5s ease-out 0.8s both;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
         }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 10px 20px;
+            font-size: 14px;
+        }
+
+        /* Doesn't fit UI */
+        .warning-icon {
+            width: 120px;
+            height: 120px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 32px;
+            animation: scaleIn 0.5s ease-out;
+            font-size: 60px;
+        }
+
+        .size-picker {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+
+        .size-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+            min-width: 80px;
+        }
+
+        .size-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .size-btn.selected {
+            background: white;
+            color: #92400e;
+            border-color: white;
+        }
+
+        .size-btn .size-label {
+            display: block;
+            font-size: 14px;
+        }
+
+        .size-btn .size-dims {
+            display: block;
+            font-size: 10px;
+            opacity: 0.7;
+            margin-top: 2px;
+        }
+
+        .error-msg {
+            background: rgba(220, 38, 38, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+            font-size: 14px;
+        }
+
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="success-icon">
-            <svg viewBox="0 0 24 24">
-                <path class="checkmark" d="M4 12l6 6L20 6"/>
-            </svg>
+        <!-- SUCCESS STATE (default) -->
+        <div id="success-container">
+            <div class="success-icon">
+                <svg viewBox="0 0 24 24">
+                    <path class="checkmark" d="M4 12l6 6L20 6"/>
+                </svg>
+            </div>
+
+            <h1>Drop-off Complete!</h1>
+            <p class="subtitle">Package secured in locker</p>
+
+            <div class="order-info">
+                <div class="order-number">Order Number</div>
+                <div class="order-value" id="order-number">#---</div>
+            </div>
+
+            <div class="next-steps">
+                <h3>What happens next?</h3>
+                <ul>
+                    <li>Customer will be notified via email</li>
+                    <li>They'll receive a link to open the locker</li>
+                    <li>You'll be notified when they pick up</li>
+                </ul>
+            </div>
+
+            <div class="status-update" id="status-update">
+                <span class="spinner"></span>
+                Updating order status...
+            </div>
         </div>
 
-        <h1>Drop-off Complete! 📦</h1>
-        <p class="subtitle">Package secured in locker</p>
+        <!-- DOESN'T FIT STATE -->
+        <div id="doesnt-fit-container" class="hidden">
+            <div class="warning-icon">!</div>
 
-        <div class="order-info">
-            <div class="order-number">Order Number</div>
-            <div class="order-value" id="order-number">#---</div>
+            <h1>Package Didn't Fit</h1>
+            <p class="subtitle">Select a larger size to get a new locker</p>
+
+            <div class="order-info">
+                <div class="order-number">Order Number</div>
+                <div class="order-value" id="df-order-number">#---</div>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.1); border-radius: 12px; padding: 20px;">
+                <h3 style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; opacity: 0.8;">Choose a locker size</h3>
+                <div class="size-picker" id="size-picker">
+                    <button class="size-btn" data-size="small" onclick="selectSize('small')">
+                        <span class="size-label">Small</span>
+                        <span class="size-dims">12x8x4"</span>
+                    </button>
+                    <button class="size-btn" data-size="medium" onclick="selectSize('medium')">
+                        <span class="size-label">Medium</span>
+                        <span class="size-dims">16x12x8"</span>
+                    </button>
+                    <button class="size-btn" data-size="large" onclick="selectSize('large')">
+                        <span class="size-label">Large</span>
+                        <span class="size-dims">20x16x12"</span>
+                    </button>
+                    <button class="size-btn" data-size="x-large" onclick="selectSize('x-large')">
+                        <span class="size-label">X-Large</span>
+                        <span class="size-dims">24x20x16"</span>
+                    </button>
+                </div>
+
+                <button class="btn" id="btn-new-locker" onclick="requestNewLocker()" disabled>
+                    Get New Locker
+                </button>
+
+                <div id="df-error" class="error-msg hidden"></div>
+            </div>
+
+            <div id="df-status" class="status-update hidden">
+                <span class="spinner"></span>
+                Clearing previous reservation...
+            </div>
+
+            <div style="margin-top: 20px;">
+                <a href="javascript:void(0)" class="btn-secondary btn" id="btn-dashboard" style="font-size: 13px; padding: 10px 20px;">
+                    Return to Dashboard
+                </a>
+            </div>
         </div>
 
-        <div class="next-steps">
-            <h3>What happens next?</h3>
-            <ul>
-                <li>Customer will be notified via email</li>
-                <li>They'll receive a link to open the locker</li>
-                <li>You'll be notified when they pick up</li>
-            </ul>
-        </div>
+        <!-- NEW LINK READY STATE -->
+        <div id="new-link-container" class="hidden">
+            <div class="success-icon">
+                <svg viewBox="0 0 24 24">
+                    <path class="checkmark" d="M4 12l6 6L20 6"/>
+                </svg>
+            </div>
 
-        <div class="status-update" id="status-update">
-            <span class="spinner"></span>
-            Updating order status...
+            <h1>New Locker Ready!</h1>
+            <p class="subtitle" id="new-size-label">Locker assigned</p>
+
+            <div class="order-info">
+                <div class="order-number">Order Number</div>
+                <div class="order-value" id="nl-order-number">#---</div>
+            </div>
+
+            <a href="#" id="btn-open-locker" class="btn" style="display: inline-block; text-decoration: none;">
+                Open New Locker
+            </a>
+
+            <div style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 12px; margin-top: 20px; font-size: 13px; opacity: 0.8;">
+                Make sure the package fits before closing the locker door.
+            </div>
         </div>
 
         <div class="footer">
@@ -247,7 +414,7 @@
     </div>
 
     <script>
-        // Get order info from URL - Harbor includes lockerId and towerId in callback
+        // Get order info from URL - Harbor includes params in callback
         const urlParams = new URLSearchParams(window.location.search);
         const orderNumber = urlParams.get('order');
         const requestId = urlParams.get('open_locker_request');
@@ -255,9 +422,13 @@
         const lockerId = urlParams.get('locker_id') || urlParams.get('lockerId');
         const towerId = urlParams.get('tower_id') || urlParams.get('towerId');
 
-        // Display order number
+        let selectedSize = null;
+
+        // Display order number in all sections
         if (orderNumber) {
             document.getElementById('order-number').textContent = '#' + orderNumber;
+            document.getElementById('df-order-number').textContent = '#' + orderNumber;
+            document.getElementById('nl-order-number').textContent = '#' + orderNumber;
         }
 
         // Notify the server that dropoff is complete
@@ -267,9 +438,7 @@
             try {
                 const response = await fetch('/api/dropoff-complete', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         orderNumber: orderNumber,
                         requestId: requestId,
@@ -282,24 +451,111 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    statusDiv.innerHTML = '✓ Customer has been notified';
+                    statusDiv.innerHTML = '\u2713 Customer has been notified';
                     statusDiv.classList.add('success');
                 } else {
-                    statusDiv.innerHTML = '✓ Drop-off recorded';
+                    statusDiv.innerHTML = '\u2713 Drop-off recorded';
                     statusDiv.classList.add('success');
                 }
             } catch (error) {
                 console.error('Error notifying server:', error);
-                statusDiv.innerHTML = '✓ Drop-off complete';
+                statusDiv.innerHTML = '\u2713 Drop-off complete';
                 statusDiv.classList.add('success');
             }
         }
 
-        // Call notification on page load
+        // Show the "doesn't fit" UI
+        function showDoesntFitUI() {
+            document.body.classList.add('doesnt-fit-theme');
+            document.getElementById('success-container').classList.add('hidden');
+            document.getElementById('doesnt-fit-container').classList.remove('hidden');
+
+            // Immediately clear stale reservation data on the server
+            const dfStatus = document.getElementById('df-status');
+            dfStatus.classList.remove('hidden');
+
+            fetch('/api/dropoff-doesnt-fit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderNumber: orderNumber })
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    dfStatus.innerHTML = '\u2713 Previous reservation cleared';
+                    dfStatus.classList.add('success');
+                } else {
+                    dfStatus.innerHTML = '\u2713 Ready for new selection';
+                    dfStatus.classList.add('success');
+                }
+            })
+            .catch(() => {
+                dfStatus.innerHTML = '\u2713 Ready';
+                dfStatus.classList.add('success');
+            });
+        }
+
+        // Size button selection
+        function selectSize(size) {
+            selectedSize = size;
+            document.querySelectorAll('.size-btn').forEach(btn => {
+                btn.classList.toggle('selected', btn.dataset.size === size);
+            });
+            document.getElementById('btn-new-locker').disabled = false;
+            document.getElementById('df-error').classList.add('hidden');
+        }
+
+        // Request a new locker with the selected size
+        async function requestNewLocker() {
+            if (!selectedSize) return;
+
+            const btn = document.getElementById('btn-new-locker');
+            const errorDiv = document.getElementById('df-error');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Getting new locker...';
+            errorDiv.classList.add('hidden');
+
+            try {
+                const response = await fetch('/api/dropoff-doesnt-fit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        orderNumber: orderNumber,
+                        newSize: selectedSize
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success && result.newDropoffLink) {
+                    // Show the new link
+                    document.getElementById('doesnt-fit-container').classList.add('hidden');
+                    document.getElementById('new-link-container').classList.remove('hidden');
+                    document.getElementById('new-size-label').textContent =
+                        result.lockerSize.charAt(0).toUpperCase() + result.lockerSize.slice(1) + ' locker assigned';
+                    document.getElementById('btn-open-locker').href = result.newDropoffLink;
+                } else {
+                    errorDiv.textContent = result.error || 'No lockers available at this size. Try a larger size.';
+                    errorDiv.classList.remove('hidden');
+                    btn.disabled = false;
+                    btn.textContent = 'Get New Locker';
+                }
+            } catch (error) {
+                console.error('Error requesting new locker:', error);
+                errorDiv.textContent = 'Something went wrong. Please try again or return to the dashboard.';
+                errorDiv.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Get New Locker';
+            }
+        }
+
+        // Route based on status
         if (orderNumber && status === 'success') {
             notifyDropoffComplete();
+        } else if (orderNumber && status && status !== 'success') {
+            showDoesntFitUI();
         } else {
-            document.getElementById('status-update').innerHTML = '✓ Drop-off complete';
+            document.getElementById('status-update').innerHTML = '\u2713 Drop-off complete';
             document.getElementById('status-update').classList.add('success');
         }
     </script>

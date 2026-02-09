@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9V5MYQXT0E"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-9V5MYQXT0E');
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LockerDrop - Dashboard</title>
@@ -1351,7 +1359,7 @@
             <button class="tab" onclick="showTab('products', this)">Product Sizes</button>
             <button class="tab" onclick="showTab('settings', this)">Settings</button>
             <button class="tab" onclick="showTab('learn', this)">Learn</button>
-            <button class="tab" onclick="showTab('billing', this)" style="display: none;">Billing</button>
+            <button class="tab" onclick="showTab('billing', this)">Billing</button>
         </div>
 
         <!-- Orders Tab -->
@@ -1820,140 +1828,98 @@
 
         <!-- Billing Tab -->
         <div id="billing" class="tab-content">
-            <!-- Current Subscription Status -->
+            <!-- Billing Approval Banner (shown when billing not yet approved) -->
+            <div class="card" id="billing-approval-banner" style="display: none; background: #fff4e6; border: 2px solid #996300;">
+                <div class="card-header" style="color: #996300;">
+                    Billing Approval Required
+                </div>
+                <p style="color: #6d7175; margin-bottom: 16px;">
+                    LockerDrop charges a small per-order fee ($1.50) only when your customers use locker pickup.
+                    Please approve billing to ensure uninterrupted service.
+                </p>
+                <button class="btn btn-primary" onclick="approveBilling()">Approve Billing</button>
+            </div>
+
+            <!-- Billing Status -->
             <div class="card">
                 <div class="card-header">
                     <span class="card-header-title">
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M3 5C3 3.89543 3.89543 3 5 3H15C16.1046 3 17 3.89543 17 5V15C17 16.1046 16.1046 17 15 17H5C3.89543 17 3 16.1046 3 15V5ZM5 5V7H15V5H5ZM5 9V15H15V9H5ZM7 11H10V13H7V11Z" fill="#5c6ac4"/>
                         </svg>
-                        Current Subscription
+                        Billing Status
                     </span>
                 </div>
                 <div id="subscription-status">
-                    <p style="color: #6d7175;">Loading subscription status...</p>
+                    <p style="color: #6d7175;">Loading billing status...</p>
                 </div>
             </div>
 
-            <!-- Usage Meter -->
-            <div class="card" id="usage-card" style="display: none;">
-                <div class="card-header">
-                    <span class="card-header-title">
-                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M3 16H17V18H3V16ZM5 9H7V15H5V9ZM9 5H11V15H9V5ZM13 11H15V15H13V11Z" fill="#5c6ac4"/>
-                        </svg>
-                        Monthly Usage
-                    </span>
-                </div>
-                <div id="usage-meter">
-                    <div style="margin-bottom: 12px;">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <span>Orders this month</span>
-                            <span id="usage-count" style="font-weight: 500;">0 / 0</span>
-                        </div>
-                        <div style="background: #e1e3e5; height: 8px; border-radius: 4px; overflow: hidden;">
-                            <div id="usage-bar" style="background: #5c6ac4; height: 100%; width: 0%; transition: width 0.3s;"></div>
-                        </div>
-                    </div>
-                    <p id="usage-message" class="form-help"></p>
-                </div>
-            </div>
-
-            <!-- Available Plans -->
+            <!-- Billing Overview -->
             <div class="card">
                 <div class="card-header">
                     <span class="card-header-title">
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2ZM10.5 14V15H9.5V14H8V13H11C11.2761 13 11.5 12.7761 11.5 12.5C11.5 12.2239 11.2761 12 11 12H9C8.17157 12 7.5 11.3284 7.5 10.5C7.5 9.67157 8.17157 9 9 9H9.5V8H10.5V9H12V10H9C8.72386 10 8.5 10.2239 8.5 10.5C8.5 10.7761 8.72386 11 9 11H11C11.8284 11 12.5 11.6716 12.5 12.5C12.5 13.3284 11.8284 14 11 14H10.5Z" fill="#5c6ac4"/>
                         </svg>
-                        Available Plans
+                        Pay Per Order
                     </span>
                 </div>
-                <p class="card-description">Choose the plan that fits your business needs.</p>
+                <p class="card-description">You're only charged when customers use locker pickup. Billed monthly on your Shopify invoice.</p>
 
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-                    <!-- Basic Plan -->
-                    <div class="plan-card" data-plan="basic" style="border: 2px solid #e1e3e5; border-radius: 12px; padding: 24px; position: relative;">
-                        <h3 style="font-size: 20px; margin-bottom: 8px;">Basic</h3>
-                        <div style="margin-bottom: 16px;">
-                            <span style="font-size: 36px; font-weight: 700;">$9</span>
-                            <span style="color: #6d7175;">/month</span>
-                        </div>
-                        <ul style="list-style: none; margin-bottom: 24px; line-height: 2;">
-                            <li>&#10003; 25 LockerDrop orders/month</li>
-                            <li>&#10003; Email notifications</li>
-                            <li>&#10003; Basic support</li>
-                            <li>&#10003; Dashboard access</li>
-                        </ul>
-                        <button class="btn btn-secondary plan-btn" style="width: 100%;" onclick="subscribeToPlan('basic')">Select Basic</button>
-                    </div>
-
-                    <!-- Pro Plan (Popular) -->
-                    <div class="plan-card" data-plan="pro" style="border: 2px solid #5c6ac4; border-radius: 12px; padding: 24px; position: relative; background: linear-gradient(135deg, #f4f5fa 0%, #fff 100%);">
-                        <span style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #5c6ac4; color: white; padding: 4px 16px; border-radius: 12px; font-size: 12px; font-weight: 600;">MOST POPULAR</span>
-                        <h3 style="font-size: 20px; margin-bottom: 8px;">Pro</h3>
-                        <div style="margin-bottom: 16px;">
-                            <span style="font-size: 36px; font-weight: 700;">$29</span>
-                            <span style="color: #6d7175;">/month</span>
-                        </div>
-                        <ul style="list-style: none; margin-bottom: 24px; line-height: 2;">
-                            <li>&#10003; 100 LockerDrop orders/month</li>
-                            <li>&#10003; Email & SMS notifications</li>
-                            <li>&#10003; Priority support</li>
-                            <li>&#10003; Dashboard access</li>
-                            <li>&#10003; Analytics</li>
-                        </ul>
-                        <button class="btn btn-primary plan-btn" style="width: 100%;" onclick="subscribeToPlan('pro')">Select Pro</button>
-                    </div>
-
-                    <!-- Enterprise Plan -->
-                    <div class="plan-card" data-plan="enterprise" style="border: 2px solid #e1e3e5; border-radius: 12px; padding: 24px; position: relative;">
-                        <h3 style="font-size: 20px; margin-bottom: 8px;">Enterprise</h3>
-                        <div style="margin-bottom: 16px;">
-                            <span style="font-size: 36px; font-weight: 700;">$99</span>
-                            <span style="color: #6d7175;">/month</span>
-                        </div>
-                        <ul style="list-style: none; margin-bottom: 24px; line-height: 2;">
-                            <li>&#10003; <strong>Unlimited</strong> orders</li>
-                            <li>&#10003; Email & SMS notifications</li>
-                            <li>&#10003; Dedicated support</li>
-                            <li>&#10003; Checkout UI block</li>
-                            <li>&#10003; Order status page block</li>
-                            <li>&#10003; <strong>Custom branded pickup page</strong></li>
-                            <li>&#10003; Upsell widgets</li>
-                            <li>&#10003; Rebuy integration</li>
-                        </ul>
-                        <button class="btn btn-secondary plan-btn" style="width: 100%;" onclick="subscribeToPlan('enterprise')">Select Enterprise</button>
+                <div style="background: #f4f6f8; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 20px;">
+                    <div style="font-size: 14px; color: #6d7175; margin-bottom: 8px;">Per order fee</div>
+                    <div id="billing-per-order-fee" style="font-size: 36px; font-weight: 700; color: #202223;">$1.50</div>
+                    <div style="font-size: 13px; color: #6d7175; margin-top: 8px;">
+                        Monthly cap: <strong id="billing-cap">$200.00</strong>
                     </div>
                 </div>
 
-                <p style="margin-top: 20px; color: #6d7175; font-size: 13px; text-align: center;">
-                    All plans include a 3-day free trial. Cancel anytime.
-                </p>
+                <div style="margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span style="color: #6d7175;">Charges this cycle</span>
+                        <span id="billing-total-charged" style="font-weight: 600;">$0.00</span>
+                    </div>
+                    <div style="background: #e1e3e5; height: 8px; border-radius: 4px; overflow: hidden;">
+                        <div id="billing-usage-bar" style="background: #5c6ac4; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                    <p id="billing-usage-message" class="form-help" style="margin-top: 8px;"></p>
+                </div>
+
+                <div>
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e1e3e5;">
+                        <span style="color: #6d7175;">Orders this cycle</span>
+                        <span id="billing-order-count" style="font-weight: 500;">0</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                        <span style="color: #6d7175;">Billing cycle started</span>
+                        <span id="billing-cycle-start" style="font-weight: 500;">--</span>
+                    </div>
+                </div>
             </div>
 
-            <!-- Dev Mode Plan Switcher (only for test stores) -->
+            <!-- Dev Mode (only for test stores) -->
             <div class="card" id="dev-mode-card" style="display: none; background: #fff4e6; border: 2px dashed #996300;">
                 <div class="card-header" style="color: #996300;">
-                    🔧 Dev Mode - Free Plan Switching
+                    Dev Mode - Billing Controls
                 </div>
                 <p style="color: #6d7175; margin-bottom: 16px;">
-                    Test store detected. Switch between plans freely without billing.
+                    Test store detected. Manage billing state without real Shopify charges.
                 </p>
                 <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                    <button class="btn" style="background: #f6f6f7;" onclick="devSwitchPlan('basic')">Switch to Basic</button>
-                    <button class="btn" style="background: #f6f6f7;" onclick="devSwitchPlan('pro')">Switch to Pro</button>
-                    <button class="btn" style="background: #5c6ac4; color: white;" onclick="devSwitchPlan('enterprise')">Switch to Enterprise</button>
+                    <button class="btn" style="background: #e3f5ef; color: #008060;" onclick="devBillingAction('activate')">Activate</button>
+                    <button class="btn" style="background: #f6f6f7;" onclick="devBillingAction('deactivate')">Deactivate</button>
+                    <button class="btn" style="background: #f6f6f7;" onclick="devBillingAction('reset')">Reset Counters</button>
                 </div>
             </div>
 
             <!-- Cancel Subscription -->
             <div class="card" id="cancel-card" style="display: none;">
-                <div class="card-header">Cancel Subscription</div>
+                <div class="card-header">Cancel Billing</div>
                 <p style="color: #6d7175; margin-bottom: 16px;">
-                    If you cancel, your subscription will remain active until the end of the current billing period.
+                    If you cancel, you will no longer be charged per order. Existing orders will still be fulfilled.
                 </p>
-                <button class="btn" style="background: #bf0711; color: white;" onclick="cancelSubscription()">Cancel Subscription</button>
+                <button class="btn" style="background: #bf0711; color: white;" onclick="cancelSubscription()">Cancel Billing</button>
             </div>
         </div>
 
@@ -3105,7 +3071,34 @@
                         <div style="margin-top: 12px; padding: 10px; background: #f0fdf4; border-radius: 6px; font-size: 12px; color: #065f46;">
                             💡 <strong>Tip:</strong> Save this link - you can reopen it if the door closes before you're done.
                         </div>
+                        <div style="margin-top: 8px;">
+                            <a href="javascript:void(0)" onclick="document.getElementById('size-picker-${order.orderNumber}').style.display='block'; this.style.display='none';" style="color: #6d7175; font-size: 12px; text-decoration: underline;">Wrong size? Choose a different locker size</a>
+                            <div id="size-picker-${order.orderNumber}" style="display: none; margin-top: 10px; padding: 12px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px;">
+                                <p style="color: #9a3412; font-size: 12px; margin-bottom: 8px; font-weight: 600;">Select a new locker size:</p>
+                                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                    <button class="btn btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', null)" style="font-size: 11px;">Auto</button>
+                                    <button class="btn btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'small')" style="font-size: 11px;">Small</button>
+                                    <button class="btn btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'medium')" style="font-size: 11px;">Medium</button>
+                                    <button class="btn btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'large')" style="font-size: 11px;">Large</button>
+                                    <button class="btn btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'x-large')" style="font-size: 11px;">X-Large</button>
+                                </div>
+                            </div>
+                        </div>
                         ` : '<span style="color: #008060; margin-left: 8px;">✓ Used</span>'}
+                    `;
+                } else if (dropoffPending && order.locationId) {
+                    // Order had a locker but it was cleared (doesn't fit / expired)
+                    dropoffContent.innerHTML = `
+                        <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                            <strong style="color: #c2410c;">Previous locker didn't fit or link expired.</strong>
+                            <p style="color: #9a3412; font-size: 13px; margin-top: 4px;">Select a size below to get a new locker.</p>
+                        </div>
+                        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                            <button class="btn btn-primary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', null)">Auto Size</button>
+                            <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'medium')">Medium</button>
+                            <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'large')">Large</button>
+                            <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'x-large')">X-Large</button>
+                        </div>
                     `;
                 } else {
                     dropoffContent.innerHTML = `
@@ -3252,6 +3245,41 @@
             } catch (error) {
                 console.error('Error regenerating dropoff link:', error);
                 alert('Error regenerating link. Please try again.');
+            }
+        }
+
+        // Regenerate dropoff link with a specific locker size (after "doesn't fit")
+        async function regenerateDropoffLinkWithSize(orderNumber, size) {
+            const sizeLabel = size ? size.charAt(0).toUpperCase() + size.slice(1) : 'auto-detected';
+            if (!confirm(`Generate a new dropoff link (${sizeLabel} locker) for order #${orderNumber}?`)) return;
+
+            try {
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = 'Generating...';
+                btn.disabled = true;
+
+                const body = size ? { lockerSize: size } : {};
+                const response = await window.__nativeFetch(`/api/regenerate-order-link/${shop}/${orderNumber}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`New ${result.lockerSize} locker assigned for order #${orderNumber}!`);
+                    await loadOrders();
+                    viewOrder(orderNumber);
+                } else {
+                    alert('Failed: ' + (result.details || result.error || 'Unknown error'));
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                console.error('Error generating dropoff link with size:', error);
+                alert('Error generating link. Please try again.');
             }
         }
 
@@ -4884,130 +4912,109 @@
                 const response = await window.__nativeFetch(`/api/subscription/${shop}`);
                 const data = await response.json();
                 currentSubscription = data;
-                renderSubscriptionStatus(data);
-                renderUsageMeter(data);
-                updatePlanButtons(data);
-                updateBrandingTabVisibility(data.features);
+                renderBillingStatus(data);
+                renderBillingUsage(data);
                 checkDevMode();
                 handleBillingUrlParams();
             } catch (error) {
                 console.error('Error loading subscription:', error);
-                document.getElementById('subscription-status').innerHTML = `
-                    <p style="color: #bf0711;">Error loading subscription status</p>
-                `;
+                document.getElementById('subscription-status').innerHTML =
+                    '<p style="color: #bf0711;">Error loading billing status</p>';
             }
         }
 
-        function renderSubscriptionStatus(sub) {
+        function renderBillingStatus(sub) {
             const statusEl = document.getElementById('subscription-status');
+            const approvalBanner = document.getElementById('billing-approval-banner');
+            const cancelCard = document.getElementById('cancel-card');
             let statusBadge = '';
             let statusMessage = '';
 
-            if (sub.status === 'trial') {
-                statusBadge = '<span style="background: #fff4e6; color: #996300; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;">Trial</span>';
-                if (sub.trialDaysLeft > 0) {
-                    statusMessage = `Your free trial ends in <strong>${sub.trialDaysLeft} day${sub.trialDaysLeft !== 1 ? 's' : ''}</strong>. Subscribe to a plan to continue using LockerDrop.`;
-                } else {
-                    statusMessage = '<span style="color: #bf0711;">Your trial has expired.</span> Please subscribe to continue using LockerDrop.';
-                }
-            } else if (sub.status === 'active') {
+            approvalBanner.style.display = 'none';
+            cancelCard.style.display = 'none';
+
+            if (sub.status === 'active') {
                 statusBadge = '<span style="background: #e3f5ef; color: #008060; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;">Active</span>';
-                statusMessage = `You're on the <strong>${sub.planName}</strong> plan ($${sub.price}/month).`;
-                document.getElementById('cancel-card').style.display = 'block';
+                statusMessage = 'Pay-per-order billing is active. You are charged $' + sub.perOrderFee.toFixed(2) + ' per locker pickup order on your Shopify invoice.';
+                cancelCard.style.display = 'block';
+            } else if (sub.status === 'pending' || sub.status === 'declined') {
+                statusBadge = '<span style="background: #fff4e6; color: #996300; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;">Pending</span>';
+                statusMessage = 'Billing has not been approved yet. Your orders are still being processed, but please approve billing to ensure uninterrupted service.';
+                approvalBanner.style.display = 'block';
             } else if (sub.status === 'cancelled') {
                 statusBadge = '<span style="background: #f0f1f2; color: #6d7175; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;">Cancelled</span>';
-                statusMessage = 'Your subscription has been cancelled. Subscribe to a plan to continue using LockerDrop.';
-            }
-
-            statusEl.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                    <span style="font-size: 18px; font-weight: 600;">${sub.planName} Plan</span>
-                    ${statusBadge}
-                </div>
-                <p style="color: #6d7175;">${statusMessage}</p>
-            `;
-        }
-
-        function renderUsageMeter(sub) {
-            const usageCard = document.getElementById('usage-card');
-            const usageCount = document.getElementById('usage-count');
-            const usageBar = document.getElementById('usage-bar');
-            const usageMessage = document.getElementById('usage-message');
-
-            if (sub.orderLimit === 'unlimited' || sub.orderLimit === -1) {
-                usageCard.style.display = 'block';
-                usageCount.textContent = `${sub.ordersUsed} orders used`;
-                usageBar.style.width = '0%';
-                usageMessage.textContent = 'Unlimited orders on your plan.';
+                statusMessage = 'Billing has been cancelled. Click below to re-activate.';
+                approvalBanner.style.display = 'block';
             } else {
-                usageCard.style.display = 'block';
-                const percent = Math.min(100, (sub.ordersUsed / sub.orderLimit) * 100);
-                usageCount.textContent = `${sub.ordersUsed} / ${sub.orderLimit}`;
-                usageBar.style.width = `${percent}%`;
+                statusBadge = '<span style="background: #f0f1f2; color: #6d7175; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;">' + (sub.status || 'Unknown') + '</span>';
+                statusMessage = 'Billing status: ' + (sub.status || 'unknown');
+            }
 
-                // Change color based on usage
-                if (percent >= 90) {
-                    usageBar.style.background = '#bf0711';
-                    usageMessage.innerHTML = '<span style="color: #bf0711;">You\'re almost at your monthly limit! Consider upgrading your plan.</span>';
-                } else if (percent >= 75) {
-                    usageBar.style.background = '#996300';
-                    usageMessage.textContent = 'You\'ve used most of your monthly allowance.';
-                } else {
-                    usageBar.style.background = '#5c6ac4';
-                    usageMessage.textContent = `${sub.ordersRemaining} orders remaining this billing cycle.`;
-                }
+            statusEl.innerHTML =
+                '<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">' +
+                    '<span style="font-size: 18px; font-weight: 600;">Pay Per Order</span>' +
+                    statusBadge +
+                '</div>' +
+                '<p style="color: #6d7175;">' + statusMessage + '</p>';
+        }
+
+        function renderBillingUsage(sub) {
+            document.getElementById('billing-per-order-fee').textContent = '$' + sub.perOrderFee.toFixed(2);
+            document.getElementById('billing-cap').textContent = '$' + sub.cappedAmount.toFixed(2);
+            document.getElementById('billing-order-count').textContent = sub.ordersThisMonth || 0;
+            document.getElementById('billing-total-charged').textContent = '$' + (sub.totalChargedThisMonth || 0).toFixed(2);
+
+            if (sub.billingCycleStart) {
+                document.getElementById('billing-cycle-start').textContent =
+                    new Date(sub.billingCycleStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            }
+
+            // Usage bar (charges vs cap)
+            const usageBar = document.getElementById('billing-usage-bar');
+            const usageMsg = document.getElementById('billing-usage-message');
+            const charged = sub.totalChargedThisMonth || 0;
+            const cap = sub.cappedAmount || 200;
+            const percent = Math.min(100, (charged / cap) * 100);
+            usageBar.style.width = percent + '%';
+
+            if (percent >= 90) {
+                usageBar.style.background = '#bf0711';
+                usageMsg.innerHTML = '<span style="color: #bf0711;">Approaching monthly cap. Orders beyond the cap are processed at no additional charge.</span>';
+            } else if (percent >= 75) {
+                usageBar.style.background = '#996300';
+                usageMsg.textContent = 'You\'ve used most of your monthly billing cap.';
+            } else {
+                usageBar.style.background = '#5c6ac4';
+                const remaining = (cap - charged).toFixed(2);
+                usageMsg.textContent = '$' + remaining + ' remaining in this billing cycle.';
             }
         }
 
-        function updatePlanButtons(sub) {
-            const planCards = document.querySelectorAll('.plan-card');
-
-            planCards.forEach(card => {
-                const planId = card.dataset.plan;
-                const btn = card.querySelector('.plan-btn');
-
-                if (sub.plan === planId && sub.status === 'active') {
-                    btn.textContent = 'Current Plan';
-                    btn.disabled = true;
-                    btn.classList.remove('btn-primary', 'btn-secondary');
-                    btn.style.background = '#e1e3e5';
-                    btn.style.cursor = 'default';
-                    card.style.borderColor = '#008060';
-                } else {
-                    btn.disabled = false;
-                    btn.style.cursor = 'pointer';
-                }
-            });
-        }
-
-        async function subscribeToPlan(planId) {
-            if (!confirm(`Subscribe to the ${planId.charAt(0).toUpperCase() + planId.slice(1)} plan?`)) {
-                return;
-            }
-
+        async function approveBilling() {
             try {
                 const response = await window.__nativeFetch(`/api/subscribe/${shop}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ planId })
+                    headers: { 'Content-Type': 'application/json' }
                 });
 
                 const result = await response.json();
 
-                if (result.confirmationUrl) {
-                    // Redirect to Shopify's payment page
+                if (result.alreadyActive) {
+                    alert('Billing is already active!');
+                    loadSubscription();
+                } else if (result.confirmationUrl) {
                     window.top.location.href = result.confirmationUrl;
                 } else {
-                    alert('Error: ' + (result.error || 'Could not create subscription'));
+                    alert('Error: ' + (result.error || 'Could not create billing subscription'));
                 }
             } catch (error) {
-                console.error('Error subscribing:', error);
-                alert('Error creating subscription: ' + error.message);
+                console.error('Error approving billing:', error);
+                alert('Error: ' + error.message);
             }
         }
 
         async function cancelSubscription() {
-            if (!confirm('Are you sure you want to cancel your subscription? You will lose access to LockerDrop features at the end of your billing period.')) {
+            if (!confirm('Are you sure you want to cancel billing? You will no longer be charged per order.')) {
                 return;
             }
 
@@ -5020,32 +5027,29 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert('Subscription cancelled successfully.');
+                    alert('Billing cancelled successfully.');
                     loadSubscription();
                 } else {
-                    alert('Error: ' + (result.error || 'Could not cancel subscription'));
+                    alert('Error: ' + (result.error || 'Could not cancel billing'));
                 }
             } catch (error) {
                 console.error('Error cancelling:', error);
-                alert('Error cancelling subscription: ' + error.message);
+                alert('Error: ' + error.message);
             }
         }
 
         function handleBillingUrlParams() {
             const billing = urlParams.get('billing');
-            const plan = urlParams.get('plan');
 
             if (billing === 'success') {
-                alert(`Successfully subscribed to the ${plan ? plan.charAt(0).toUpperCase() + plan.slice(1) : ''} plan!`);
-                // Clean up URL
+                alert('Billing activated! You will be charged per locker pickup order.');
                 window.history.replaceState({}, document.title, window.location.pathname + '?shop=' + shop);
-                // Reload subscription
                 loadSubscription();
-            } else if (billing === 'cancelled') {
-                alert('Subscription was not completed. You can subscribe anytime from the Billing tab.');
+            } else if (billing === 'declined') {
+                alert('Billing was not approved. You can approve anytime from the Billing tab.');
                 window.history.replaceState({}, document.title, window.location.pathname + '?shop=' + shop);
             } else if (billing === 'error') {
-                alert('There was an error processing your subscription. Please try again.');
+                alert('There was an error processing billing. Please try again.');
                 window.history.replaceState({}, document.title, window.location.pathname + '?shop=' + shop);
             }
         }
@@ -5060,7 +5064,7 @@
             }
         }
 
-        async function devSwitchPlan(planId) {
+        async function devBillingAction(action) {
             if (!DEV_STORES.includes(shop)) {
                 alert('Dev mode not available for this store');
                 return;
@@ -5070,20 +5074,20 @@
                 const response = await window.__nativeFetch(`/api/subscription/dev-switch/${shop}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ planId })
+                    body: JSON.stringify({ action })
                 });
 
                 const result = await response.json();
 
                 if (result.success) {
-                    alert(`Switched to ${planId.charAt(0).toUpperCase() + planId.slice(1)} plan!`);
-                    loadSubscription(); // Refresh subscription status
+                    alert(result.message);
+                    loadSubscription();
                 } else {
-                    alert('Error: ' + (result.error || 'Could not switch plan'));
+                    alert('Error: ' + (result.error || 'Action failed'));
                 }
             } catch (error) {
-                console.error('Error switching plan:', error);
-                alert('Error switching plan: ' + error.message);
+                console.error('Error:', error);
+                alert('Error: ' + error.message);
             }
         }
 
@@ -5515,9 +5519,10 @@
         });
 
         // Show/hide branding tab based on subscription
-        function updateBrandingTabVisibility(features) {
+        function updateBrandingTabVisibility() {
+            // All features available on usage-based billing
             const brandingTab = document.getElementById('branding-tab');
-            if (brandingTab && features?.customBranding) {
+            if (brandingTab) {
                 brandingTab.style.display = 'inline-block';
             }
         }

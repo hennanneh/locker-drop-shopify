@@ -1,6 +1,6 @@
 # LockerDrop Launch Checklist
 
-> **Last Updated:** 2026-02-05 (Harbor response received, items 9-12 updated)
+> **Last Updated:** 2026-02-09 (Item 11: locker size change flow completed)
 > **Sources:** Project Review | Harbor Checklist | Shopify App Store Requirements
 > **Estimated Total:** 100-160 hours across all phases
 
@@ -11,7 +11,7 @@
 | Priority | Count | Done | Description |
 |----------|-------|------|-------------|
 | 🔴 CRITICAL | 10 | 9 ✅ | Must fix before any real merchant or app store submission |
-| 🟡 HIGH | 13 | 6 ✅ | Should fix before launch |
+| 🟡 HIGH | 13 | 9 ✅ | Should fix before launch |
 | 🟢 MEDIUM | 12 | 1 ✅ | Needed for app store review or best practices |
 | 🔵 LOW | 5 | 0 | Post-launch improvements |
 
@@ -44,15 +44,15 @@
 | # | Task | Source | Priority | Status | Time Est. | Notes |
 |---|------|--------|----------|--------|-----------|-------|
 | 10 | Build stuck order detection for failed Harbor callbacks | Harbor | 🟡 HIGH | ✅ Done | 3-4 hrs | Cron runs 3x daily (2 AM, 10 AM, 6 PM). Detects: (a) `pending_dropoff` orders >24 hours old — seller forgot or callback failed, (b) `dropped_off` orders >1 hour old — pickup link generation failed. Emails seller with order table and dashboard link. |
-| 11 | Add locker size change flow for sellers | Harbor | 🟡 HIGH | ⬜ Not Started | 2-3 hrs | **Simpler than expected.** Harbor has built-in "doesn't fit" flow for dropoff — user selects "Doesn't fit", locker reopens, reservation cancelled. We just need to: (a) handle the cancellation callback, (b) let seller generate a new dropoff link for a different size, (c) update the order record. |
+| 11 | Add locker size change flow for sellers | Harbor | 🟡 HIGH | ✅ Done | 2-3 hrs | **Implemented.** New `POST /api/dropoff-doesnt-fit` public endpoint handles Harbor's "doesn't fit" redirect. `dropoff-success.html` detects non-success status, shows amber UI with size picker, lets seller get new locker link without leaving page. Dashboard order modal shows size picker for orders needing new locker. Regenerate endpoint accepts explicit `lockerSize` param. |
 | 12 | Add retry/troubleshooting on success pages | Harbor | 🟡 HIGH | ⬜ Not Started | 1-2 hrs | **Simpler than expected.** Harbor says retry same link works (usually 2nd try succeeds). Connection failures are 99% device issues, not trackable. Just need: (a) "Try again" button that re-opens same link, (b) brief troubleshooting tips (move closer, check Bluetooth), (c) support contact link. |
 | 13 | Add `express-rate-limit` to public API endpoints | Review | 🟡 HIGH | ✅ Done | 1-2 hrs | Three rate limiters: `publicApiLimiter` (30/min), `checkoutLimiter` (60/min), `webhookLimiter` (120/min). Applied to all public, checkout, and webhook routes. |
 | 14 | Add `node-cron` job for locker expiry | Review | 🟡 HIGH | ✅ Done | 3-4 hrs | Cron runs every 6 hours. Finds orders past `hold_time_days`, releases lockers via Harbor API, marks orders as `expired`, emails customer + seller. Also sends 1-day warning emails for orders approaching expiry. |
 | 15 | Add `orders/updated` webhook handler | Review | 🟡 HIGH | ✅ Done | 2-3 hrs | `ORDERS_UPDATED` webhook registered on install. Handler syncs customer name/email/phone from Shopify. Detects external fulfillment and marks orders as completed. Skips completed/cancelled/expired orders. |
 | 16 | Add structured logging (pino) | Harbor | 🟡 HIGH | ✅ Done | 3-4 hrs | Replaced all 417 `console.log`/`console.error` calls with `pino` structured logger. JSON output in production, pretty-printed in development. Log level configurable via `LOG_LEVEL` env var. |
 | 17 | Add frontend error tracking to dashboard + extensions | Harbor | 🟡 HIGH | ✅ Done | 2-3 hrs | Added `POST /api/errors` endpoint. Dashboard has `window.onerror` + `unhandledrejection` handlers. Checkout extension and order block extension report errors with `reportError()` helper. All errors logged via pino with source, stack trace, and context. |
-| 18 | Decide and clean up billing model | Review | 🟡 HIGH | 🔧 Needs Work | 2-4 hrs | **Decision made:** Per-order fee (Strategy 1) for launch. Use Shopify Billing API `usageRecordCreate` after each order. Remove or disable subscription code. See `lockerdrop-pricing-strategies.jsx` for all 5 strategies. |
-| 19 | Ensure billing plan changes work without reinstall | Shopify 1.2.3 | 🟡 HIGH | 🔧 Needs Work | 2-3 hrs | Merchants must upgrade/downgrade without contacting support. |
+| 18 | Decide and clean up billing model | Review | 🟡 HIGH | ✅ Done | 2-4 hrs | **Implemented:** Per-order fee ($1.50/order, $200/month cap, 7-day trial) via Shopify Billing API `appUsageRecordCreate`. Replaced old tier-based subscription system (trial/basic/pro/enterprise) with single usage-based plan. Auto-creates usage subscription on install via `appSubscriptionCreate` with `appUsagePricingDetails`. Charges per order in webhook. Dashboard billing tab shows usage. |
+| 19 | Ensure billing plan changes work without reinstall | Shopify 1.2.3 | 🟡 HIGH | ✅ Done | 2-3 hrs | Usage-based billing has no plan tiers — single model for all merchants. Billing retry endpoint (`POST /api/billing/retry/:shop`) allows merchants who declined to approve later. `POST /api/subscribe/:shop` creates new subscription without reinstall. Dashboard "Approve Billing" button handles re-approval. |
 
 ---
 
@@ -114,7 +114,7 @@
 - ~~**Harbor Production Credentials:** Items 2, 10-12, 32 are blocked or dependent on Harbor production API access.~~ **RESOLVED.** Harbor responded 2026-02-05. Production keys available on request. Items 10-12 scoped based on Harbor's answers (simpler than expected). Item 2+32 should be done together (replace hardcoded URLs with env vars, then swap credentials).
 - ~~**GraphQL Migration:** Item 5 — RESOLVED. All REST Admin API calls migrated to GraphQL.~~
 - ~~**App Bridge + Embedded Experience:** Items 6-7 — RESOLVED. App Bridge added, embedded = true, dashboard redirects to Shopify Admin.~~
-- **Billing Decision:** Item 18 blocks item 19. Decision made: per-order fee for launch. Needs implementation via Shopify `usageRecordCreate`. Remove or disable subscription code.
+- ~~**Billing Decision:** Item 18 blocks item 19.~~ **RESOLVED.** Per-order fee ($1.50/order) implemented via Shopify `appUsageRecordCreate`. Old tier subscription system replaced. Dashboard billing tab updated.
 - ~~**SSL CA Certificate:** Item 8 — RESOLVED. CA cert loaded from `DB_CA_CERT=./ca-certificate.crt` in `.env`.~~
 
 ---
@@ -125,7 +125,8 @@
 2. ~~**This week:** Items 1, 3, 4, 8 (quick critical fixes).~~ **DONE** — All 4 completed by Claude Code.
 3. ~~**Next up:** Items 5-7 (GraphQL migration + App Bridge + embedded experience).~~ **DONE** — All 3 completed by Claude Code.
 4. ~~**Then:** Items 13-17 (rate limiting, cron jobs, logging, error tracking).~~ **DONE** — All 5 completed by Claude Code.
-5. **Next:** Item 2+32 together (replace hardcoded Harbor URLs with env vars — prerequisite for production switch). Items 10-12 (Harbor edge cases — scoped simpler after Harbor's response). Billing cleanup (18-19).
+5. ~~**Next:** Billing cleanup (18-19).~~ **DONE** — Usage-based billing implemented by Claude Code.
+5b. **Next:** Item 2+32 together (replace hardcoded Harbor URLs with env vars — prerequisite for production switch). Items 11-12 (Harbor edge cases — scoped simpler after Harbor's response).
 6. **Then:** Request production keys from Harbor, swap `.env` values, test end-to-end.
 7. **Week 3-4:** Begin submission prep (20-28). Submit to Shopify App Store. Start Phase 4 while waiting for review.
 
