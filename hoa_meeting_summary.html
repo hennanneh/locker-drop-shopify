@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4130 Wycliff Ave HOA – Meeting Summary</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f9fafb; }
+  #root { max-width: 480px; margin: 0 auto; min-height: 100vh; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+const fmt = (v) => `$${v.toLocaleString()}`;
+
+function Stat({ label, value, sub, bg, tc }) {
+  return (
+    <div style={{ background: bg, borderRadius: 8, padding: '10px 12px' }}>
+      <p style={{ fontSize: 11, color: '#6b7280' }}>{label}</p>
+      <p style={{ fontSize: 16, fontWeight: 700, color: tc }}>{value}</p>
+      {sub && <p style={{ fontSize: 10, color: '#9ca3af' }}>{sub}</p>}
+    </div>
+  );
+}
+
+function Bullet({ items }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {items.map((item, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <span style={{ fontSize: 12, flexShrink: 0 }}>{item.icon}</span>
+          <span style={{ fontSize: 12, color: '#374151' }}>{item.text}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ExpenseBar({ label, amount, total, color }) {
+  const pct = ((amount / total) * 100).toFixed(0);
+  return (
+    <div style={{ marginBottom: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
+        <span style={{ color: '#4b5563' }}>{label}</span>
+        <span style={{ fontWeight: 600 }}>{fmt(amount)} <span style={{ color: '#9ca3af' }}>({pct}%)</span></span>
+      </div>
+      <div style={{ width: '100%', background: '#f3f4f6', borderRadius: 99, height: 8 }}>
+        <div style={{ width: `${pct}%`, background: color, borderRadius: 99, height: 8 }} />
+      </div>
+    </div>
+  );
+}
+
+const sections = [
+  {
+    id: 'overview', title: 'Financial Overview', emoji: '📊',
+    content: () => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Stat label="Annual Income" value="$30,724" bg="#f0fdf4" tc="#15803d" />
+          <Stat label="Annual Expenses" value="$32,707" bg="#fef2f2" tc="#b91c1c" />
+          <Stat label="Cash on Hand" value="$20,479" sub="Feb 2026" bg="#eff6ff" tc="#1d4ed8" />
+          <Stat label="Annual Deficit" value="-$1,983" sub="106.5% of income" bg="#fef2f2" tc="#b91c1c" />
+        </div>
+        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 10 }}>
+          <p style={{ fontSize: 11, color: '#92400e' }}>We're spending more than we bring in. A fee increase is needed to cover the gap and rebuild reserves.</p>
+        </div>
+      </div>
+    )
+  },
+  {
+    id: 'reserves', title: 'Reserves', emoji: '🏦',
+    content: () => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <Stat label="Current Balance" value="$20,479" bg="#eff6ff" tc="#1d4ed8" />
+          <Stat label="Reserve Level" value="7.5 months" sub="Target: 6+ months" bg="#f0fdf4" tc="#15803d" />
+        </div>
+        <Bullet items={[
+          { text: 'Current balance looks OK at 7.5 months', icon: '✓', color: 'green' },
+          { text: 'June insurance (~$16,400) drops us to ~$4,000 — barely 1.5 months', icon: '⚠️' },
+          { text: '$15,000 is the minimum safe floor', icon: '📍' },
+          { text: 'May 2024 we hit $6,484 — dangerously low', icon: '⚠️' },
+        ]} />
+      </div>
+    )
+  },
+  {
+    id: 'fees', title: 'Fee Increase', emoji: '💰',
+    content: () => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 10 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: '#991b1b' }}>Board recommends 15–20% increase</p>
+          <p style={{ fontSize: 11, color: '#b91c1c', marginTop: 4 }}>Needed to cover $1,983 annual deficit and rebuild reserves</p>
+        </div>
+        <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse', background: 'white', borderRadius: 8, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
+          <thead><tr style={{ background: '#f3f4f6' }}>
+            <th style={{ textAlign: 'left', padding: '6px 8px' }}>Increase</th>
+            <th style={{ textAlign: 'right', padding: '6px 8px' }}>Standard</th>
+            <th style={{ textAlign: 'right', padding: '6px 8px' }}>Corner</th>
+            <th style={{ textAlign: 'right', padding: '6px 8px' }}>Annual</th>
+          </tr></thead>
+          <tbody>
+            {[
+              { l: 'Current', s: '$307', c: '$358', r: '-$1,983', bg: '#fef2f2', rc: '#dc2626' },
+              { l: '10%', s: '$338', c: '$394', r: '+$1,089', bg: '#fffbeb', rc: '#16a34a' },
+              { l: '15% ✓', s: '$354', c: '$412', r: '+$2,625', bg: '#f0fdf4', rc: '#16a34a' },
+              { l: '20% ✓', s: '$369', c: '$429', r: '+$4,161', bg: '#f0fdf4', rc: '#16a34a' },
+            ].map((row, i) => (
+              <tr key={i} style={{ background: row.bg, borderTop: '1px solid #e5e7eb' }}>
+                <td style={{ padding: '6px 8px', fontWeight: 600 }}>{row.l}</td>
+                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{row.s}</td>
+                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{row.c}</td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: row.rc }}>{row.r}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <Bullet items={[
+          { text: 'Even at 20%, fees are within Dallas condo average ($300–$500/mo)', icon: '✓' },
+          { text: 'Insurance has risen 47% since 2022 — biggest cost driver', icon: '📈' },
+        ]} />
+      </div>
+    )
+  },
+  {
+    id: 'projects', title: '2026 Projects', emoji: '🔨',
+    content: () => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: 10 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: '#991b1b' }}>⚠️ Carport repairs needed — ice storm damage</p>
+        </div>
+        <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse', background: 'white', borderRadius: 8, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
+          <thead><tr style={{ background: '#f3f4f6' }}>
+            <th style={{ textAlign: 'left', padding: '6px 8px' }}>Item</th>
+            <th style={{ textAlign: 'right', padding: '6px 8px' }}>Low</th>
+            <th style={{ textAlign: 'right', padding: '6px 8px' }}>High</th>
+          </tr></thead>
+          <tbody>
+            <tr style={{ borderTop: '1px solid #e5e7eb' }}><td style={{ padding: '6px 8px' }}>Carports + Fascia</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>$26,000</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>$35,000</td></tr>
+            <tr style={{ borderTop: '1px solid #e5e7eb' }}><td style={{ padding: '6px 8px' }}>Tree Removal</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>$1,750</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>$1,750</td></tr>
+            <tr style={{ borderTop: '1px solid #e5e7eb', color: '#15803d' }}><td style={{ padding: '6px 8px' }}>Est. Insurance Payout</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>–$9,500</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>–$6,500</td></tr>
+            <tr style={{ borderTop: '1px solid #e5e7eb', background: '#eff6ff', fontWeight: 700 }}><td style={{ padding: '6px 8px' }}>Net Cost to HOA</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>$18,250</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>$30,250</td></tr>
+            <tr style={{ borderTop: '1px solid #e5e7eb', background: '#fffbeb', fontWeight: 700, fontSize: 13 }}><td style={{ padding: '6px 8px' }}>Per Unit (÷ 8)</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>$2,281</td><td style={{ padding: '6px 8px', textAlign: 'right' }}>$3,781</td></tr>
+          </tbody>
+        </table>
+        <Bullet items={[
+          { text: 'Carport insured for $15,000 (ACV) with $2,500 deductible', icon: '📋' },
+          { text: 'ACV depreciation will reduce payout — adjuster TBD', icon: '⚠️' },
+          { text: 'Similar to 2023 assessment ($3,049/unit — all paid)', icon: '✓' },
+        ]} />
+      </div>
+    )
+  },
+  {
+    id: 'expenses', title: 'Where the Money Goes', emoji: '📋',
+    content: () => (
+      <div>
+        <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 8 }}>2025 normalized expenses — $32,707 total</p>
+        <ExpenseBar label="Insurance" amount={16415} total={32707} color="#2563eb" />
+        <ExpenseBar label="Landscaping" amount={4220} total={32707} color="#16a34a" />
+        <ExpenseBar label="Trash" amount={3933} total={32707} color="#9333ea" />
+        <ExpenseBar label="Extra Land. & Trees" amount={3292} total={32707} color="#84cc16" />
+        <ExpenseBar label="Management" amount={1800} total={32707} color="#4f46e5" />
+        <ExpenseBar label="Repairs" amount={1011} total={32707} color="#f97316" />
+        <ExpenseBar label="Other" amount={2036} total={32707} color="#6b7280" />
+        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 8, marginTop: 8 }}>
+          <p style={{ fontSize: 11, color: '#6b7280' }}>Insurance alone is 50% of all expenses</p>
+        </div>
+      </div>
+    )
+  },
+  {
+    id: 'insurance', title: 'Insurance Trend', emoji: '📈',
+    content: () => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 4 }}>
+          {[
+            { yr: '2022', amt: '$11,182' },
+            { yr: '2023', amt: '$14,653' },
+            { yr: '2024', amt: '$16,364' },
+            { yr: '2025', amt: '$16,415' },
+          ].map(d => (
+            <div key={d.yr} style={{ textAlign: 'center', padding: 8, background: '#eff6ff', borderRadius: 6 }}>
+              <p style={{ fontSize: 10, color: '#6b7280' }}>{d.yr}</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8' }}>{d.amt}</p>
+            </div>
+          ))}
+        </div>
+        <Bullet items={[
+          { text: 'Up 47% from 2022 to 2024', icon: '📈' },
+          { text: 'Stabilized in 2025 — only +0.3% increase', icon: '✓' },
+          { text: '2026 renewal: $14,312 (property) + $2,103 (liability) = $16,415', icon: '📋' },
+        ]} />
+      </div>
+    )
+  },
+];
+
+function App() {
+  const [open, setOpen] = useState(sections.map((_, i) => i === 0));
+  const toggle = (idx) => setOpen(prev => prev.map((v, i) => i === idx ? !v : v));
+
+  return (
+    <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100vh', background: '#f9fafb' }}>
+      <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', padding: '16px', position: 'sticky', top: 0, zIndex: 10 }}>
+        <h1 style={{ fontSize: 18, fontWeight: 700, color: '#1f2937' }}>4130 Wycliff Ave HOA</h1>
+        <p style={{ fontSize: 12, color: '#6b7280' }}>Annual Meeting Summary • Feb 2026</p>
+      </div>
+      
+      <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {sections.map((section, idx) => (
+          <div key={section.id} style={{ background: 'white', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+            <button
+              onClick={() => toggle(idx)}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 12, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 16 }}>{section.emoji}</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color: '#1f2937' }}>{section.title}</span>
+              </div>
+              <span style={{ color: '#9ca3af', fontSize: 14 }}>{open[idx] ? '−' : '+'}</span>
+            </button>
+            {open[idx] && (
+              <div style={{ padding: '0 12px 12px' }}>
+                {section.content()}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      
+      <div style={{ padding: 12, textAlign: 'center' }}>
+        <p style={{ fontSize: 11, color: '#9ca3af' }}>Pecan Court Condominiums • 8 Units</p>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>
