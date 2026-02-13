@@ -2104,6 +2104,38 @@ app.post('/api/order/:shop/:orderId/cancel-locker', async (req, res) => {
     }
 });
 
+// Retry link - returns the dropoff or pickup link for an order (public, called from success pages)
+app.get('/api/retry-link/:orderNumber', async (req, res) => {
+    try {
+        const { orderNumber } = req.params;
+        const type = req.query.type || 'dropoff'; // 'dropoff' or 'pickup'
+
+        if (!orderNumber) {
+            return res.json({ success: false, error: 'Missing order number' });
+        }
+
+        const column = type === 'pickup' ? 'pickup_link' : 'dropoff_link';
+        const result = await pool.query(
+            `SELECT ${column} FROM orders WHERE order_number = $1`,
+            [orderNumber]
+        );
+
+        if (result.rows.length === 0) {
+            return res.json({ success: false, error: 'Order not found' });
+        }
+
+        const link = result.rows[0][column];
+        if (!link) {
+            return res.json({ success: false, error: 'No link available' });
+        }
+
+        res.json({ success: true, link });
+    } catch (error) {
+        logger.error('Error fetching retry link:', error);
+        res.json({ success: false, error: 'Failed to fetch link' });
+    }
+});
+
 // Dropoff complete callback - called from the success page when seller drops off
 app.post('/api/dropoff-complete', async (req, res) => {
     try {
@@ -2503,12 +2535,12 @@ app.get('/dropoff-success', (req, res) => {
 // Test stores that bypass real Shopify billing
 const DEV_STORES = ['enna-test.myshopify.com'];
 
-// Usage-based billing configuration ($1.50 per locker order, $200/month cap)
+// Usage-based billing configuration (per locker order, $200/month cap)
 const USAGE_BILLING = {
-    name: 'LockerDrop Pay Per Order',
+    name: 'LockerDrop Locker Pickup',
     perOrderFee: 1.50,
     cappedAmount: 200.00,
-    terms: '$1.50 per locker pickup order. Maximum $200.00 per 30-day billing cycle.',
+    terms: 'Locker pickup fee per order. Maximum $200.00 per 30-day billing cycle.',
     trialDays: 7,
     currencyCode: 'USD'
 };
@@ -2730,7 +2762,7 @@ async function chargeUsageFee(shop, shopifyOrderId, orderNumber) {
                 amount: parseFloat(sub.per_order_fee),
                 currencyCode: 'USD'
             },
-            description: `LockerDrop locker pickup - Order #${orderNumber}`
+            description: `Locker pickup fee - Order #${orderNumber}`
         };
 
         const data = await shopifyGraphQL(shop, accessToken, mutation, variables);
@@ -5844,11 +5876,16 @@ async function processNewOrder(order, shopDomain) {
         logger.info('🏪 Order data:', JSON.stringify(order, null, 2).substring(0, 500)); // First 500 chars
 
         // Check if this order uses LockerDrop shipping
-        const hasLockerDropShipping = order.shipping_lines.some(line =>
+        const hasLockerDropShipping = order.shipping_lines?.some(line =>
             line.title && line.title.toLowerCase().includes('lockerdrop')
         );
 
-        if (!hasLockerDropShipping) {
+        // Also check order attributes (checkout extension stores locker info here)
+        const hasLockerDropAttribute = order.note_attributes?.some(attr =>
+            attr.name === 'LockerDrop Pickup' && attr.value
+        );
+
+        if (!hasLockerDropShipping && !hasLockerDropAttribute) {
             logger.info('⏭️ Order does not use LockerDrop shipping, skipping');
             return;
         }
@@ -7660,11 +7697,20 @@ app.post('/carrier-service/rates', async (req, res) => {
 
                     // Calculate required locker size from combined dimensions
                     requiredLockerTypeId = calculateRequiredLockerSize(productDimensions);
+
+                    // If any product is not configured for LockerDrop, don't offer it
+                    if (requiredLockerTypeId === null) {
+                        logger.info('❌ One or more products not configured for LockerDrop - hiding option at checkout');
+                        return res.json({ rates: [] });
+                    }
+
                     requiredSizeName = LOCKER_SIZES.find(s => s.id === requiredLockerTypeId)?.name?.toLowerCase() || 'medium';
 
                     logger.info(`📦 Required locker size for cart: ${requiredSizeName} (type ${requiredLockerTypeId})`);
                 } else {
                     logger.info(`⚠️ No access token for ${shopDomain}, defaulting to medium`);
+                    // No token means we can't verify product sizes - don't offer LockerDrop
+                    return res.json({ rates: [] });
                 }
             } catch (sizeError) {
                 logger.info(`⚠️ Could not calculate locker size: ${sizeError.message}, defaulting to medium`);
