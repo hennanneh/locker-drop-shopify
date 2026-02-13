@@ -38,8 +38,8 @@ export default extension(
     async function checkLockerDropOrder() {
       try {
         const token = await sessionToken.get();
-        // Use order name (e.g., "#1011" -> "1011")
-        const orderNumber = orderName?.replace('#', '') || orderId?.split('/')?.pop();
+        // Prefer order GID (unique shopify_order_id) over order name (can be duplicated across shops)
+        const orderNumber = orderId?.split('/')?.pop() || orderName?.replace('#', '');
 
         console.log('LockerDrop OrderStatus: Checking order', orderNumber);
 

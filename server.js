@@ -4312,14 +4312,44 @@ app.get('/api/customer/order-status/:orderId', async (req, res) => {
         res.header('Access-Control-Allow-Methods', 'GET');
         res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-        // Find order in our database
-        const orderResult = await db.query(
-            `SELECT o.*, lp.location_name as locker_name
-             FROM orders o
-             LEFT JOIN locker_preferences lp ON o.location_id::text = lp.location_id::text AND o.shop = lp.shop
-             WHERE o.shopify_order_id = $1 OR o.order_number = $1 OR o.id::text = $1`,
-            [orderId]
-        );
+        // Extract shop domain from Shopify session token (JWT) to scope query to the correct store
+        let shopDomain = null;
+        const authHeader = req.headers.authorization;
+        if (authHeader?.startsWith('Bearer ')) {
+            try {
+                const token = authHeader.slice(7);
+                const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+                // Shopify session tokens have 'dest' (e.g. "https://store.myshopify.com") or 'iss' (e.g. "https://store.myshopify.com/admin")
+                const dest = payload.dest || payload.iss;
+                if (dest) {
+                    shopDomain = new URL(dest).hostname;
+                }
+            } catch (e) {
+                logger.info('⚠️ Could not decode session token for shop domain');
+            }
+        }
+
+        // Find order in our database, scoped to the shop if available
+        let orderResult;
+        if (shopDomain) {
+            orderResult = await db.query(
+                `SELECT o.*, lp.location_name as locker_name
+                 FROM orders o
+                 LEFT JOIN locker_preferences lp ON o.location_id::text = lp.location_id::text AND o.shop = lp.shop
+                 WHERE o.shop = $2 AND (o.shopify_order_id = $1 OR o.order_number = $1 OR o.id::text = $1)
+                 ORDER BY o.created_at DESC LIMIT 1`,
+                [orderId, shopDomain]
+            );
+        } else {
+            orderResult = await db.query(
+                `SELECT o.*, lp.location_name as locker_name
+                 FROM orders o
+                 LEFT JOIN locker_preferences lp ON o.location_id::text = lp.location_id::text AND o.shop = lp.shop
+                 WHERE o.shopify_order_id = $1 OR o.order_number = $1 OR o.id::text = $1
+                 ORDER BY o.created_at DESC LIMIT 1`,
+                [orderId]
+            );
+        }
 
         if (orderResult.rows.length === 0) {
             // Order not found in our system - might not be a LockerDrop order
@@ -7463,7 +7493,7 @@ async function registerCarrierService(shop, accessToken) {
                 name: 'LockerDrop',
                 callbackUrl: 'https://app.lockerdrop.it/carrier-service/rates',
                 active: true,
-                serviceDiscovery: true
+                supportsServiceDiscovery: true
             }
         });
 
@@ -7634,38 +7664,7 @@ app.post('/carrier-service/rates', async (req, res) => {
         const pickupDateISO = pickupDate.toISOString().split('T')[0];
         logger.info(`📅 Expected pickup: ${pickupDateFormatted} (${pickupDateISO})`);
 
-        // If checkout extension is enabled, return a single generic LockerDrop rate
-        // The checkout extension UI handles the specific locker selection
-        if (useNativePickup) {
-            logger.info('🔀 Checkout extension enabled - returning single LockerDrop rate');
-            const price = freePickup ? '0' : '100';
-            return res.json({
-                rates: [{
-                    service_name: 'LockerDrop Pickup',
-                    service_code: 'lockerdrop_pickup',
-                    total_price: price,
-                    currency: 'USD',
-                    description: `📅 Ready ${pickupDateFormatted} • Select locker location below`
-                }]
-            });
-        }
-
-        const destination = rateRequest.rate.destination;
-        let lat = destination.latitude;
-        let lon = destination.longitude;
-
-        // If no coordinates provided, try to geocode from zip code
-        if (!lat || !lon) {
-            logger.info(`📍 No coordinates provided, attempting zip code geocode for: ${destination.postal_code}`);
-            const geocoded = await geocodeZipCode(destination.postal_code, destination.country || 'US');
-            if (geocoded) {
-                lat = geocoded.latitude;
-                lon = geocoded.longitude;
-                logger.info(`📍 Using geocoded coordinates from zip: ${lat}, ${lon}`);
-            }
-        }
-
-        // Calculate required locker size from cart items
+        // Calculate required locker size from cart items (needed for both checkout extension and carrier service modes)
         let requiredLockerTypeId = 2; // Default to medium
         let requiredSizeName = 'medium';
         const rateItems = rateRequest.rate?.items || [];
@@ -7714,6 +7713,94 @@ app.post('/carrier-service/rates', async (req, res) => {
                 }
             } catch (sizeError) {
                 logger.info(`⚠️ Could not calculate locker size: ${sizeError.message}, defaulting to medium`);
+            }
+        }
+
+        // If checkout extension is enabled, check availability then return a single LockerDrop rate
+        // Product size/eligibility has already been checked above
+        if (useNativePickup) {
+            // Quick availability check: verify at least one enabled location has the required locker size
+            try {
+                let enabledIds = [];
+                if (shopDomain) {
+                    const prefsResult = await db.query(
+                        'SELECT location_id FROM locker_preferences WHERE shop = $1',
+                        [shopDomain]
+                    );
+                    enabledIds = prefsResult.rows.map(r => r.location_id);
+                }
+
+                if (enabledIds.length === 0) {
+                    logger.info('🔀 Checkout extension: no enabled locations - hiding rate');
+                    return res.json({ rates: [] });
+                }
+
+                // Get Harbor token and check availability
+                const harborTokenResp = await axios.post(
+                    'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                    `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
+                    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
+                );
+                const harborToken = harborTokenResp.data.access_token;
+
+                let anyLocationHasAvailability = false;
+                for (const locId of enabledIds) {
+                    try {
+                        const availResp = await axios.get(
+                            `https://api.sandbox.harborlockers.com/api/v1/locations/${locId}/availability`,
+                            { headers: { 'Authorization': `Bearer ${harborToken}` } }
+                        );
+                        const avail = availResp.data;
+                        if (avail.byType && Array.isArray(avail.byType)) {
+                            for (const typeAvail of avail.byType) {
+                                const typeName = typeAvail.lockerType?.name?.toLowerCase() || '';
+                                const available = typeAvail.lockerAvailability?.availableLockers || 0;
+                                const harborSizeId = getLockerSizeIdFromName(typeName);
+                                if (harborSizeId >= requiredLockerTypeId && available >= MIN_AVAILABLE_BUFFER) {
+                                    anyLocationHasAvailability = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (anyLocationHasAvailability) break;
+                    } catch (e) {
+                        logger.info(`⚠️ Could not check availability for location ${locId}: ${e.message}`);
+                    }
+                }
+
+                if (!anyLocationHasAvailability) {
+                    logger.info(`🔀 Checkout extension: no locations have ${requiredSizeName}+ lockers available - hiding rate`);
+                    return res.json({ rates: [] });
+                }
+            } catch (availError) {
+                logger.info(`⚠️ Availability check failed: ${availError.message} - showing rate anyway`);
+            }
+
+            logger.info(`🔀 Checkout extension enabled - returning single LockerDrop rate (required size: ${requiredSizeName})`);
+            const price = freePickup ? '0' : '100';
+            return res.json({
+                rates: [{
+                    service_name: 'LockerDrop Pickup',
+                    service_code: 'lockerdrop_pickup',
+                    total_price: price,
+                    currency: 'USD',
+                    description: `📅 Ready ${pickupDateFormatted} • Select locker location below`
+                }]
+            });
+        }
+
+        const destination = rateRequest.rate.destination;
+        let lat = destination.latitude;
+        let lon = destination.longitude;
+
+        // If no coordinates provided, try to geocode from zip code
+        if (!lat || !lon) {
+            logger.info(`📍 No coordinates provided, attempting zip code geocode for: ${destination.postal_code}`);
+            const geocoded = await geocodeZipCode(destination.postal_code, destination.country || 'US');
+            if (geocoded) {
+                lat = geocoded.latitude;
+                lon = geocoded.longitude;
+                logger.info(`📍 Using geocoded coordinates from zip: ${lat}, ${lon}`);
             }
         }
 

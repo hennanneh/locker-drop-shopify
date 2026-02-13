@@ -15,7 +15,7 @@ import {
 extension(
   'purchase.checkout.block.render',
   (root, api) => {
-    const { shop, shippingAddress, buyerJourney, settings, deliveryGroups } = api;
+    const { shop, shippingAddress, buyerJourney, settings, deliveryGroups, lines } = api;
 
     // Get custom title from settings
     const customTitle = settings?.current?.title || 'LockerDrop Pickup';
@@ -237,13 +237,28 @@ extension(
 
     // Intercept checkout
     buyerJourney.intercept(async ({ canBlockProgress }) => {
-      if (selectedLocker && !isLockerDropShippingSelected() && canBlockProgress) {
+      if (!canBlockProgress) return { behavior: 'allow' };
+
+      const lockerDropSelected = isLockerDropShippingSelected();
+
+      // Block: selected a locker but chose a different shipping method
+      if (selectedLocker && !lockerDropSelected) {
         return {
           behavior: 'block',
           reason: 'Shipping method mismatch',
           errors: [{ message: 'You selected a locker but chose a different shipping method. Please select "LockerDrop Pickup" as your shipping method, or click "Change location" to remove your locker selection.' }]
         };
       }
+
+      // Block: selected LockerDrop shipping but didn't pick a locker
+      if (lockerDropSelected && !selectedLocker) {
+        return {
+          behavior: 'block',
+          reason: 'No locker selected',
+          errors: [{ message: 'Please select a pickup locker location below, or choose a different shipping method.' }]
+        };
+      }
+
       return { behavior: 'allow' };
     });
 
@@ -283,8 +298,27 @@ extension(
 
       try {
         const addressQuery = encodeURIComponent(`${address?.city || ''} ${address?.provinceCode || ''} ${address?.zip || ''}`);
+
+        // Pass cart line items so the server can check availability for the correct locker size
+        let productsParam = '';
+        try {
+          const cartLines = lines?.current || [];
+          const products = cartLines
+            .filter(line => line.merchandise?.id)
+            .map(line => ({
+              variantId: line.merchandise.id,
+              productId: line.merchandise.product?.id || '',
+              quantity: line.quantity || 1
+            }));
+          if (products.length > 0) {
+            productsParam = `&products=${encodeURIComponent(JSON.stringify(products))}`;
+          }
+        } catch (e) {
+          console.warn('LockerDrop: Could not read cart lines:', e);
+        }
+
         const response = await fetchWithTimeout(
-          `https://app.lockerdrop.it/api/checkout/lockers?address=${addressQuery}&shop=${shop.myshopifyDomain}`,
+          `https://app.lockerdrop.it/api/checkout/lockers?address=${addressQuery}&shop=${shop.myshopifyDomain}${productsParam}`,
           10000
         );
 
