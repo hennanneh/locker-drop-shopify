@@ -1,6 +1,6 @@
 # LockerDrop Launch Checklist
 
-> **Last Updated:** 2026-02-09 (Item 11: locker size change flow completed)
+> **Last Updated:** 2026-03-09 (Documented Basic Shopify plan auto-assignment behavior and seller location change feature)
 > **Sources:** Project Review | Harbor Checklist | Shopify App Store Requirements
 > **Estimated Total:** 100-160 hours across all phases
 
@@ -11,8 +11,8 @@
 | Priority | Count | Done | Description |
 |----------|-------|------|-------------|
 | 🔴 CRITICAL | 10 | 9 ✅ | Must fix before any real merchant or app store submission |
-| 🟡 HIGH | 13 | 9 ✅ | Should fix before launch |
-| 🟢 MEDIUM | 12 | 1 ✅ | Needed for app store review or best practices |
+| 🟡 HIGH | 13 | 11 ✅ | Should fix before launch |
+| 🟢 MEDIUM | 12 | 4 ✅ | Needed for app store review or best practices |
 | 🔵 LOW | 5 | 0 | Post-launch improvements |
 
 ---
@@ -45,7 +45,7 @@
 |---|------|--------|----------|--------|-----------|-------|
 | 10 | Build stuck order detection for failed Harbor callbacks | Harbor | 🟡 HIGH | ✅ Done | 3-4 hrs | Cron runs 3x daily (2 AM, 10 AM, 6 PM). Detects: (a) `pending_dropoff` orders >24 hours old — seller forgot or callback failed, (b) `dropped_off` orders >1 hour old — pickup link generation failed. Emails seller with order table and dashboard link. |
 | 11 | Add locker size change flow for sellers | Harbor | 🟡 HIGH | ✅ Done | 2-3 hrs | **Implemented.** New `POST /api/dropoff-doesnt-fit` public endpoint handles Harbor's "doesn't fit" redirect. `dropoff-success.html` detects non-success status, shows amber UI with size picker, lets seller get new locker link without leaving page. Dashboard order modal shows size picker for orders needing new locker. Regenerate endpoint accepts explicit `lockerSize` param. |
-| 12 | Add retry/troubleshooting on success pages | Harbor | 🟡 HIGH | ⬜ Not Started | 1-2 hrs | **Simpler than expected.** Harbor says retry same link works (usually 2nd try succeeds). Connection failures are 99% device issues, not trackable. Just need: (a) "Try again" button that re-opens same link, (b) brief troubleshooting tips (move closer, check Bluetooth), (c) support contact link. |
+| 12 | Add retry/troubleshooting on success pages | Harbor | 🟡 HIGH | ✅ Done | 1-2 hrs | **Done.** Both `dropoff-success.html` and `pickup-success.html` now detect non-success status from Harbor and show a "Locker Didn't Open?" UI with: (a) "Try Again" button that fetches the original link via `/api/retry-link/:orderNumber` and redirects, (b) troubleshooting tips (location, internet, Bluetooth, refresh), (c) support@lockerdrop.it contact link. Dropoff page also has "Package didn't fit?" link on the success state for the size-change flow. |
 | 13 | Add `express-rate-limit` to public API endpoints | Review | 🟡 HIGH | ✅ Done | 1-2 hrs | Three rate limiters: `publicApiLimiter` (30/min), `checkoutLimiter` (60/min), `webhookLimiter` (120/min). Applied to all public, checkout, and webhook routes. |
 | 14 | Add `node-cron` job for locker expiry | Review | 🟡 HIGH | ✅ Done | 3-4 hrs | Cron runs every 6 hours. Finds orders past `hold_time_days`, releases lockers via Harbor API, marks orders as `expired`, emails customer + seller. Also sends 1-day warning emails for orders approaching expiry. |
 | 15 | Add `orders/updated` webhook handler | Review | 🟡 HIGH | ✅ Done | 2-3 hrs | `ORDERS_UPDATED` webhook registered on install. Handler syncs customer name/email/phone from Shopify. Detects external fulfillment and marks orders as completed. Skips completed/cancelled/expired orders. |
@@ -66,15 +66,15 @@
 | 20 | Create demo screencast video | Shopify 4.5.3 | 🟡 HIGH | ⬜ Not Started | 4-6 hrs | Required for submission. Show onboarding + core features in English. |
 | 21 | Prepare test credentials for Shopify review | Shopify 4.5.4 | 🟡 HIGH | ⬜ Not Started | 1-2 hrs | Functional credentials granting full access to all features. |
 | 22 | Create App Store listing content | Shopify 4.4 | 🟡 HIGH | ⬜ Not Started | 3-4 hrs | Name, subtitle, description, screenshots. No pricing in images, no stats/claims. |
-| 23 | Add geographic requirement to listing | Shopify 4.3.8 | 🟢 MEDIUM | ⬜ Not Started | 30 min | Harbor Lockers are US-only. Indicate in listing. |
-| 24 | Upload app icon to Dev Dashboard | Shopify 4.1.2 | 🟢 MEDIUM | ⬜ Not Started | 30 min | Must match between Dev Dashboard and App Store listing. |
+| 23 | Add geographic requirement to listing | Shopify 4.3.8 | 🟢 MEDIUM | ✅ Done | 30 min | Harbor Lockers are US-only. Indicated in listing. |
+| 24 | Upload app icon to Dev Dashboard | Shopify 4.1.2 | 🟢 MEDIUM | ✅ Done | 30 min | Uploaded 1200x1200 app-icon-1200.png to Dev Dashboard. |
 | 25 | Add emergency developer contact | Shopify 4.5.6 | 🟢 MEDIUM | ✅ Done | 15 min | Added to Partner Dashboard settings. |
 | 26 | Add theme extension setup deep links + instructions | Shopify 5.1.3 | 🟢 MEDIUM | 🔧 Needs Work | 2-3 hrs | Detailed instructions + deep links for installing theme blocks. |
 | 27 | Verify checkout extension displays properly | Shopify 5.6.1 | 🟢 MEDIUM | 🔧 Needs Work | 2-3 hrs | Test locker selection in checkout on desktop and mobile. |
 | 28 | Review scopes — remove any unnecessary ones | Shopify 3.2 | 🟢 MEDIUM | 🔧 Needs Work | 1-2 hrs | Must justify all requested scopes. Consider optional scopes. |
 | 38 | Add GDPR compliance webhooks | Shopify | 🔴 CRITICAL | ✅ Done | 2-3 hrs | Implemented `customers/data_request` (logs + queries customer data for export), `customers/redact` (anonymizes PII in orders table), `shop/redact` (reuses `processAppUninstall` cleanup). URLs declared in `shopify.app.toml` under `[webhooks.privacy_compliance]`. All handlers return 200 to Shopify. |
-| 39 | Complete protected customer data access request | Shopify | 🟡 HIGH | ⬜ Not Started | 1 hr | In Partner Dashboard, explain why we access customer email, name, phone, and address (needed for pickup notifications, locker assignment, and order fulfillment). |
-| 40 | Select app capabilities in Partner Dashboard | Shopify | 🟢 MEDIUM | ⬜ Not Started | 15 min | Select shipping/fulfillment category in Partner Dashboard. |
+| 39 | Complete protected customer data access request | Shopify | 🟡 HIGH | ✅ Done | 1 hr | Completed in Partner Dashboard. Explained access to customer email, name, phone, and address (needed for pickup notifications, locker assignment, and order fulfillment). |
+| 40 | Select app capabilities in Partner Dashboard | Shopify | 🟢 MEDIUM | ✅ Done | 15 min | Selected shipping/fulfillment category in Partner Dashboard. |
 
 ---
 

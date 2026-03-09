@@ -1,6 +1,6 @@
 # LockerDrop — Project Reference
 
-> Last Updated: 2026-02-09
+> Last Updated: 2026-03-09
 > Branch: `main`
 > See also: [UX_REVIEW.md](UX_REVIEW.md) | [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md)
 
@@ -322,6 +322,7 @@ locker-drop-shopify/
 | POST | `/api/regenerate-links/:shop` | Bulk regenerate dropoff/pickup links |
 | POST | `/api/regenerate-order-link/:shop/:orderNumber` | Regenerate single order link |
 | POST | `/api/cancel-locker/:shop/:orderId` | Cancel and release locker |
+| POST | `/api/order-change-location/:shop/:orderNumber` | Change locker location for pending orders (generates new dropoff link) |
 
 ### Customer Notifications
 | Method | Path | Purpose |
@@ -441,6 +442,7 @@ locker-drop-shopify/
 - **What:** Displays nearby locker options as cards with distance, availability, and date picker
 - **Tech:** React (JSX), Shopify Checkout UI Extensions API
 - **Deploy:** `shopify app deploy` (requires Shopify Plus for checkout extensions)
+- **Note:** Basic/Standard Shopify plans cannot use checkout UI extensions. On those plans, locker locations are auto-assigned based on the customer's shipping address. Sellers can change the assigned location from the dashboard.
 
 ### 2. lockerdrop-order-block (Admin UI Extension)
 - **Where:** Shopify Admin → Order Details page
@@ -524,6 +526,7 @@ locker-drop-shopify/
 30. **Embedded app experience** — dashboard redirects to Shopify Admin when accessed directly, App Bridge loaded from CDN
 31. **Custom email template** — order confirmation reads from `note_attributes`, with shipping line fallback; `docs/email-template-order-confirmation.liquid`
 32. **GDPR compliance webhooks** — `customers/data_request` (query for export), `customers/redact` (anonymize PII), `shop/redact` (full cleanup); declared in `shopify.app.toml`
+33. **Change locker location** — Sellers can change the assigned locker location for pending orders from the dashboard. Click "Change" next to the location, select a new one, and a new dropoff link is generated automatically. Essential for Basic Shopify plans where locker locations are auto-assigned (no checkout UI extension available).
 
 ---
 
@@ -545,9 +548,9 @@ pending → pending_dropoff → dropped_off → ready_for_pickup → completed
 ```
 
 ### Fulfillment Flow
-1. Customer selects locker at checkout (carrier rates or checkout extension)
+1. Customer selects locker at checkout (checkout extension on Plus) or locker is auto-assigned (carrier rates on Basic/Standard)
 2. Order created in Shopify → webhook fires → order saved in DB
-3. Seller sees order in dashboard → generates dropoff link → drops off package
+3. Seller sees order in dashboard → can change location if needed → generates dropoff link → drops off package
 4. Dropoff callback → status set to `ready_for_pickup` → email/SMS sent to customer
 5. Customer clicks pickup link → locker opens → picks up package
 6. Pickup callback → status set to `completed` → locker released → Shopify order fulfilled
@@ -769,6 +772,7 @@ Add `?shop=enna-test.myshopify.com` to the URL
 | GDPR compliance webhooks | #38 | `customers/data_request`, `customers/redact`, `shop/redact` |
 | Usage-based billing | #18-19 | $1.50/order via `appUsageRecordCreate`, $200/month cap, 7-day trial. Replaces old tier subscriptions. Dashboard billing tab, auto-create on install, `APP_SUBSCRIPTIONS_UPDATE` webhook. |
 | Locker size change flow | #11 | "Doesn't fit" detection on dropoff-success page, size picker UI, `POST /api/dropoff-doesnt-fit` endpoint, dashboard size picker in order modal, explicit size param on regenerate endpoint. |
+| Change locker location | — | Seller can change locker location for pending orders from dashboard. Click "Change" → select new location → "Move Order". Auto-generates new dropoff link. Essential for Basic Shopify plans where locations are auto-assigned. |
 
 ---
 

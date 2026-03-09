@@ -25,9 +25,9 @@ LockerDrop lets your customers pick up their orders from secure smart lockers in
 
 LockerDrop is a shipping option that lets customers pick up their orders from Harbor smart lockers. Instead of traditional home delivery:
 
-- **Customers** choose a convenient locker location at checkout
-- **You** drop off packages at the locker using a secure access code
-- **Customers** pick up when it's convenient for them using their own code
+- **Customers** choose a convenient locker location at checkout (or one is auto-assigned based on their address)
+- **You** drop off packages at the locker using a secure link
+- **Customers** pick up when it's convenient for them using their own link
 
 ### Benefits for Your Business
 
@@ -191,12 +191,14 @@ If a customer lost their pickup code:
 ### Handling Issues
 
 **Package doesn't fit?**
-- Contact Harbor Locker support to reassign to larger locker
-- Or contact LockerDrop support for assistance
+- From the order detail in your dashboard, click **"Change Size"** to request a different locker size
+- A new drop-off link will be generated automatically
 
 **Wrong locker location?**
-- Contact support to reassign before dropping off
-- Never drop off at a different location than assigned
+- Open the order in your dashboard and click **"Change"** next to the locker location
+- Select a new location from the dropdown and click **"Move Order"**
+- A new drop-off link will be generated at the new location
+- You can only change the location before dropping off (pending orders only)
 
 **Customer didn't pick up?**
 - After 5 days, packages are returned
@@ -281,8 +283,16 @@ Different products need different locker sizes. A t-shirt fits in a small locker
 ### "Order shows wrong locker size"
 
 1. Don't drop off if the package won't fit
-2. Contact LockerDrop support to reassign
-3. We'll update the order with a larger locker
+2. Open the order in your dashboard and click **"Change Size"**
+3. Select the correct size — a new drop-off link will be generated automatically
+
+### "Order was auto-assigned a location I don't want"
+
+On Basic Shopify plans, customers can't select a specific locker at checkout, so a location is auto-assigned based on their address. To change it:
+
+1. Open the order in your dashboard
+2. Click **"Change"** next to the locker location
+3. Pick a better location and click **"Move Order"**
 
 ### "Customer missed pickup deadline"
 
@@ -296,9 +306,9 @@ Different products need different locker sizes. A t-shirt fits in a small locker
 ### "I dropped off at the wrong locker"
 
 1. **Do not leave it there** if possible
-2. Contact Harbor support immediately
-3. Contact LockerDrop support to update the order
-4. Customer will receive corrected pickup instructions
+2. If you haven't closed the door yet, retrieve the package
+3. Open the order in your dashboard and click **"Change"** to reassign to the correct location
+4. If the locker door is already closed, contact support@lockerdrop.it for assistance
 
 ---
 

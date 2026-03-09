@@ -8,15 +8,16 @@
 
 ### What is LockerDrop?
 
-LockerDrop is a Shopify app that adds smart locker pickup as a shipping option. Customers can choose to pick up their orders from secure Harbor Locker locations instead of home delivery.
+LockerDrop is a Shopify app that adds smart locker pickup as an option at checkout. You personally drop off orders at a nearby Harbor Locker location, and customers pick them up at their convenience. It's not a shipping carrier — it's a self-managed pickup service ideal for local sellers.
 
 ### How does it work?
 
-1. Customer selects "LockerDrop Pickup" at checkout
+1. Customer selects "LockerDrop Pickup" at checkout (on Shopify Plus, they choose a specific locker; on Basic plans, a nearby location is auto-assigned)
 2. A locker is **reserved immediately** when they complete payment
 3. You receive the order with a drop-off link
-4. You drop the package at the assigned locker using your phone
-5. Customer gets notified automatically and picks up using their link
+4. You can change the locker location from the dashboard if needed (before drop-off)
+5. You drop the package at the assigned locker using your phone
+6. Customer gets notified automatically and picks up using their link
 
 ### What are Harbor Lockers?
 
@@ -25,13 +26,13 @@ Harbor Lockers are secure, automated pickup lockers located in convenient public
 ### Is LockerDrop free for customers?
 
 That depends on your settings! You can configure LockerDrop to be:
-- **Free** (most common) - as a delivery alternative
-- **Discounted** - cheaper than home delivery
-- **Standard rate** - same as other shipping options
+- **Free** (most common) - as a convenient pickup option
+- **Discounted** - lower cost than other options
+- **Standard rate** - same as other checkout options
 
 ### What happens if lockers are full?
 
-If no lockers of the required size are available, checkout will **not allow** the customer to select LockerDrop. This prevents situations where an order is placed but no locker can be assigned. The customer will need to choose regular shipping or wait until lockers become available.
+If no lockers of the required size are available, checkout will **not allow** the customer to select LockerDrop. This prevents situations where an order is placed but no locker can be assigned. The customer will need to choose another option or wait until lockers become available.
 
 ### Can lockers get "oversold"?
 
@@ -46,7 +47,7 @@ No! Unlike some systems that just check availability, LockerDrop actually **rese
 1. Install the LockerDrop app from the Shopify App Store
 2. Select which locker locations you want to use
 3. Configure your product sizes
-4. LockerDrop will appear as a shipping option at checkout
+4. LockerDrop will appear as a pickup option at checkout
 
 ### Do I need special equipment?
 
@@ -82,7 +83,13 @@ Products that may NOT work:
 
 ### How much does LockerDrop cost me?
 
-LockerDrop is free to install. You only pay a small per-order fee ($1-$2) each time a customer uses locker pickup at checkout. No monthly subscription, no setup fees. You only pay when you're making sales.
+LockerDrop is free to install. You only pay a small locker pickup fee each time a customer uses locker pickup at checkout. No monthly subscription, no setup fees. You only pay when you're making sales.
+
+### Do customers choose their own locker location?
+
+It depends on your Shopify plan:
+- **Shopify Plus:** Customers see an interactive locker picker at checkout and choose their preferred location.
+- **Basic / Standard Shopify:** The checkout UI extension isn't available, so a nearby locker location is **auto-assigned** based on the customer's shipping address. You can easily change the assigned location from your dashboard — just open the order, click **"Change"** next to the locker location, and select a different one.
 
 ### Can I use multiple locker locations?
 
@@ -111,14 +118,13 @@ Each order includes:
 
 ### What if the package doesn't fit?
 
-**Before dropping off:**
-- Contact support to reassign to a larger locker
-- Never force a package that doesn't fit
+**From the dashboard:**
+- Open the order and click **"Change Size"** to select a different locker size
+- A new drop-off link will be generated automatically
 
-**If you discover at the locker:**
-- Do not leave the package
-- Return and contact support
-- We'll assign a different locker
+**At the locker:**
+- Select "doesn't fit" on the Harbor screen — you'll be guided to choose a larger size
+- Never force a package into a locker
 
 ### Can I drop off multiple orders at once?
 
@@ -180,8 +186,9 @@ If still not working, contact Harbor support.
 
 ### "Can I change the locker location?"
 
-- Before you drop off: Yes, contact LockerDrop support
-- After you drop off: No, the package must be picked up at the assigned location
+- **Before drop-off:** Yes! Open the order in the dashboard, click **"Change"** next to the locker location, select a new location, and click **"Move Order"**. A new drop-off link is generated automatically.
+- **After drop-off:** No, the package must be picked up at the assigned location.
+- **Note:** On Basic Shopify plans, customers can't select a locker at checkout — a location is auto-assigned based on their address. Sellers can change the assigned location from the dashboard at any time before drop-off.
 
 ### "How long will my order be held?"
 
@@ -242,8 +249,8 @@ Billing is handled through Shopify's built-in billing system. You can view your 
 
 ### Can I pause my LockerDrop service?
 
-Since LockerDrop uses per-order pricing, there are no monthly fees to pause. Simply stop offering locker pickup and you won't incur any charges. If you need to temporarily disable the service:
-- Remove LockerDrop as a shipping option in your settings
+Since LockerDrop only charges when customers use locker pickup, there are no monthly fees to pause. Simply stop offering locker pickup and you won't incur any charges. If you need to temporarily disable the service:
+- Disable LockerDrop in your settings
 - Existing orders must still be fulfilled
 - Re-enabling is instant
 
@@ -324,5 +331,5 @@ When contacting support, please include:
 
 ---
 
-*Last updated: January 2026*
+*Last updated: March 2026*
 *Questions not answered here? Email support@lockerdrop.it*

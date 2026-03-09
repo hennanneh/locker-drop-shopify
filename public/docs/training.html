@@ -284,22 +284,24 @@
             <p class="subtitle">Everything you need to know to manage LockerDrop orders</p>
 
             <h2>Welcome to LockerDrop!</h2>
-            <p>LockerDrop lets your customers pick up their orders from secure smart lockers instead of waiting at home for delivery. This guide will teach you everything you need to know to manage orders and provide great customer service.</p>
+            <p>LockerDrop lets your customers pick up their orders from secure smart lockers. You drop off packages yourself at nearby locker locations — no shipping carriers involved. This guide will teach you everything you need to know to manage orders and provide great customer service.</p>
 
             <h3>What is LockerDrop?</h3>
-            <p>LockerDrop is a shipping option that lets customers pick up their orders from Harbor smart lockers. Instead of traditional home delivery:</p>
+            <p>LockerDrop is a <strong>pickup option</strong> — not a last-mile shipping service. Instead of shipping packages through a carrier, you personally drop off orders at a nearby Harbor smart locker, and your customer picks them up at their convenience.</p>
             <ul>
-                <li><strong>Customers</strong> choose a convenient locker location at checkout</li>
-                <li><strong>You</strong> drop off packages at the locker using a secure access code</li>
-                <li><strong>Customers</strong> pick up when it's convenient for them using their own code</li>
+                <li><strong>Customers</strong> choose a convenient locker location at checkout (or one is auto-assigned based on their address)</li>
+                <li><strong>You</strong> personally drop off packages at the locker using a secure access link</li>
+                <li><strong>You</strong> can change the assigned locker location from your dashboard if needed</li>
+                <li><strong>Customers</strong> pick up when it's convenient for them using their own link</li>
             </ul>
+            <p>This is ideal for <strong>local sellers</strong> who can easily reach nearby locker locations — think of it as a self-service pickup point you manage yourself.</p>
 
             <h3>Benefits for Your Business</h3>
             <ul class="benefit-list">
                 <li><strong>No missed deliveries</strong> - Customers pick up when they want</li>
-                <li><strong>Reduced shipping costs</strong> - Often cheaper than last-mile delivery</li>
-                <li><strong>Faster fulfillment</strong> - Drop off locally, no waiting for carriers</li>
-                <li><strong>Happy customers</strong> - Flexible pickup on their schedule</li>
+                <li><strong>No shipping carriers needed</strong> - You handle drop-off yourself, no third-party delays</li>
+                <li><strong>Faster fulfillment</strong> - Drop off locally on your own schedule</li>
+                <li><strong>Happy customers</strong> - Flexible pickup at their convenience</li>
             </ul>
 
             <h2>Understanding the Dashboard</h2>
@@ -330,20 +332,16 @@
                     <td>Set dimensions for products to auto-select locker sizes</td>
                 </tr>
                 <tr>
-                    <td><strong>Billing</strong></td>
-                    <td>View per-order usage and billing</td>
-                </tr>
-                <tr>
-                    <td><strong>Branding</strong></td>
-                    <td>Customize pickup success page with your branding</td>
-                </tr>
-                <tr>
                     <td><strong>Settings</strong></td>
-                    <td>Configure pricing and processing times</td>
+                    <td>Configure pricing, processing times, and custom branding</td>
                 </tr>
                 <tr>
-                    <td><strong>Help</strong></td>
-                    <td>Quick reference and documentation</td>
+                    <td><strong>Billing</strong></td>
+                    <td>View usage this billing cycle</td>
+                </tr>
+                <tr>
+                    <td><strong>Learn</strong></td>
+                    <td>Training guide, FAQ, and documentation links</td>
                 </tr>
             </table>
 
@@ -559,7 +557,7 @@
                 <li>Check the <strong>"Exclude"</strong> checkbox in that row</li>
                 <li>Click <strong>Save All Changes</strong></li>
             </ol>
-            <p>When a customer's cart contains an excluded product, LockerDrop will not appear as a shipping option at checkout.</p>
+            <p>When a customer's cart contains an excluded product, LockerDrop will not appear as a pickup option at checkout.</p>
 
             <div class="info-box">
                 <strong>Tip:</strong> Products without dimensions configured are automatically excluded from LockerDrop. Make sure to set dimensions for all products you want available for locker pickup.
@@ -590,7 +588,7 @@
             </table>
 
             <h2>Pricing</h2>
-            <p>LockerDrop is <strong>free to install</strong>. You only pay a small per-order fee each time a customer uses locker pickup at checkout.</p>
+            <p>LockerDrop is <strong>free to install</strong>. You only pay a locker pickup fee each time a customer uses locker pickup at checkout.</p>
 
             <h3>How Billing Works</h3>
             <table>
@@ -607,19 +605,19 @@
                     <td><strong>None</strong></td>
                 </tr>
                 <tr>
-                    <td>Per locker pickup order</td>
-                    <td><strong>$1-$2</strong></td>
+                    <td>Locker pickup fee</td>
+                    <td><strong>Per order</strong></td>
                 </tr>
             </table>
 
-            <p>Billing is handled through Shopify's built-in billing system. You can view your usage in the <strong>Billing</strong> tab of the dashboard.</p>
+            <p>All billing is handled through Shopify's built-in billing system. You can view your usage this cycle in the <strong>Billing</strong> tab of the dashboard, and your invoices in Shopify Admin under Settings &gt; Billing.</p>
 
             <div class="info-box">
                 <strong>Zero risk:</strong> You only pay when customers use locker pickup. No orders = no charges.
             </div>
 
             <h2>Custom Branding</h2>
-            <p>You can customize the pickup success page that customers see after collecting their order.</p>
+            <p>In the <strong>Settings</strong> tab, you can customize the pickup success page that customers see after collecting their order.</p>
 
             <h3>Branding Options</h3>
             <ul>
@@ -633,7 +631,7 @@
 
             <h3>Setting Up Branding</h3>
             <ol>
-                <li>Go to the <strong>Branding</strong> tab</li>
+                <li>Go to the <strong>Settings</strong> tab and scroll to the Branding section</li>
                 <li>Upload your logo URL</li>
                 <li>Choose your brand colors using the color picker</li>
                 <li>Write a custom success message</li>
@@ -675,9 +673,23 @@
             <div class="warning-box">
                 <strong>"Package doesn't fit"</strong>
                 <ol>
-                    <li>Don't drop off if the package won't fit</li>
-                    <li>Contact LockerDrop support to reassign to a larger locker</li>
+                    <li>Don't force a package that won't fit</li>
+                    <li>From the order detail in your dashboard, click <strong>"Change Size"</strong> to request a different locker size</li>
+                    <li>Select the correct size and the system will reserve a new locker automatically</li>
+                    <li>To prevent this in the future, set accurate product dimensions in the <strong>Product Sizes</strong> tab</li>
                 </ol>
+            </div>
+
+            <div class="warning-box">
+                <strong>"Wrong locker location" or "Need to change location"</strong>
+                <p style="margin: 8px 0;">On Basic Shopify plans, customers can't choose a specific locker at checkout — a location is auto-assigned based on their shipping address. You can easily change it:</p>
+                <ol>
+                    <li>Open the order in your dashboard</li>
+                    <li>Click <strong>"Change"</strong> next to the locker location</li>
+                    <li>Select a new location from the dropdown</li>
+                    <li>Click <strong>"Move Order"</strong> — a new drop-off link is generated automatically</li>
+                </ol>
+                <p style="margin-top: 8px;"><strong>Note:</strong> You can only change the location before dropping off (pending orders only).</p>
             </div>
 
             <h2>Quick Reference Card</h2>
@@ -714,7 +726,7 @@
 
     <div class="footer">
         <p>LockerDrop - Pickup on Your Schedule</p>
-        <p style="margin-top: 8px;">&copy; 2025 LockerDrop. All rights reserved.</p>
+        <p style="margin-top: 8px;">&copy; 2026 LockerDrop. All rights reserved.</p>
     </div>
 </body>
 </html>

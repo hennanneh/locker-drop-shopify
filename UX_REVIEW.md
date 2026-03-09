@@ -1,6 +1,6 @@
 # LockerDrop UX Review
 
-This document provides a comprehensive overview of the LockerDrop user experience for sellers and buyers. Last updated: January 2026.
+This document provides a comprehensive overview of the LockerDrop user experience for sellers and buyers. Last updated: March 2026.
 
 ---
 
@@ -196,6 +196,7 @@ Currently hidden (`display: none`). Reserved for future billing/subscription fea
 - Open drop-off link directly
 
 #### From Order Modal
+- **Change Location**: Click "Change" next to locker location → select new location → "Move Order" (pending orders only). Generates new dropoff link at new location. Essential for Basic Shopify plan orders where location is auto-assigned.
 - **Mark as Dropped Off**: Manual status update (useful if auto-detection fails)
 - **Resend Pickup Email**: Re-sends notification to customer
 - **Cancel Locker**: Releases reservation (with confirmation dialog)
@@ -205,17 +206,18 @@ Currently hidden (`display: none`). Reserved for future billing/subscription fea
 
 ## 3. BUYER CHECKOUT EXPERIENCE
 
-### Standard Shopify Checkout (Non-Plus)
-For stores without Shopify Plus, LockerDrop appears as a shipping rate:
+### Standard Shopify Checkout (Basic / Standard Plans)
+For stores without Shopify Plus, LockerDrop appears as a shipping rate. Customers **cannot** select a specific locker — one is auto-assigned based on their shipping address:
 
 1. Customer enters shipping address
 2. At shipping method selection, sees "LockerDrop Pickup - $1.00" (or FREE)
 3. Shipping rate description shows nearest locker location
 4. Customer selects LockerDrop and proceeds to payment
-5. After payment, order is processed with locker info in order notes
+5. After payment, a nearby locker location is auto-assigned based on shipping address
+6. **Seller can change the assigned location** from the dashboard before drop-off (click "Change" next to locker location in order modal)
 
 ### Shopify Plus Checkout Extension
-For Shopify Plus stores, a richer experience via checkout UI extension:
+For Shopify Plus stores, customers get a richer experience via checkout UI extension and can select their preferred locker:
 
 #### Location: After Delivery Address
 - Renders in `purchase.checkout.delivery-address.render-after` target

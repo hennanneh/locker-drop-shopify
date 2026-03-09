@@ -13,7 +13,7 @@ LockerDrop lets you pick up your order from a secure smart locker instead of wai
 ## How It Works
 
 ### 1. Shop & Checkout
-Add items to your cart and proceed to checkout. At the shipping step, select **"LockerDrop Pickup"** and choose a locker location near you.
+Add items to your cart and proceed to checkout. At the shipping step, select **"LockerDrop Pickup"**. Depending on the store, you may be able to choose a specific locker location, or one will be automatically assigned based on your address.
 
 ### 2. We Prepare Your Order
 The seller packages your order and drops it off at your chosen locker location.
