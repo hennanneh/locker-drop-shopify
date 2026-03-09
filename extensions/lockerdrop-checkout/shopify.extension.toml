@@ -33,3 +33,39 @@ block_progress = true
   name = "Section title"
   description = "Custom title for the locker pickup section"
 
+  [[extensions.settings.fields]]
+  key = "badge_text"
+  type = "single_line_text_field"
+  name = "Badge text"
+  description = "Text shown in the badge next to the title (e.g. FREE, SAVE $5, NEW). Leave blank to hide."
+
+  [[extensions.settings.fields]]
+  key = "show_badge"
+  type = "boolean"
+  name = "Show badge"
+  description = "Display a badge next to the section title"
+
+  [[extensions.settings.fields]]
+  key = "show_benefits"
+  type = "boolean"
+  name = "Show benefits tagline"
+  description = "Display the benefits text below the title (e.g. Skip delivery fees, Pick up 24/7)"
+
+  [[extensions.settings.fields]]
+  key = "benefits_text"
+  type = "single_line_text_field"
+  name = "Benefits text"
+  description = "Custom benefits tagline. Leave blank for default."
+
+  [[extensions.settings.fields]]
+  key = "show_availability"
+  type = "boolean"
+  name = "Show locker availability"
+  description = "Display how many lockers are available at each location"
+
+  [[extensions.settings.fields]]
+  key = "compact_mode"
+  type = "boolean"
+  name = "Compact layout"
+  description = "Use tighter spacing for a more compact appearance"
+

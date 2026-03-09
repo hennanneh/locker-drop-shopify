@@ -38,6 +38,11 @@ async function setupDatabase() {
         id SERIAL PRIMARY KEY,
         shop VARCHAR(255) UNIQUE NOT NULL,
         access_token TEXT,
+        shop_plan VARCHAR(100),
+        carrier_service_registered BOOLEAN DEFAULT false,
+        plan_last_checked TIMESTAMP,
+        partner_development BOOLEAN DEFAULT false,
+        shopify_plus BOOLEAN DEFAULT false,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       

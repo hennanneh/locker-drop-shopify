@@ -15,31 +15,31 @@
     <!-- Polaris Design Tokens -->
     <style>
         :root {
-            /* Colors - Polaris tokens */
-            --p-color-bg: #f1f1f1;
+            /* Colors - LockerDrop tokens */
+            --p-color-bg: #f8f9fa;
             --p-color-bg-surface: #ffffff;
             --p-color-bg-surface-secondary: #f6f6f7;
             --p-color-bg-surface-hover: #f1f1f1;
-            --p-color-bg-fill-brand: #008060;
-            --p-color-bg-fill-brand-hover: #006e52;
-            --p-color-bg-fill-brand-selected: #004c3f;
-            --p-color-bg-fill-success: #aee9d1;
-            --p-color-bg-fill-warning: #ffea8a;
-            --p-color-bg-fill-critical: #fed3d1;
-            --p-color-bg-fill-info: #a4e8f2;
+            --p-color-bg-fill-brand: #FE5535;
+            --p-color-bg-fill-brand-hover: #e64d2e;
+            --p-color-bg-fill-brand-selected: #d04528;
+            --p-color-bg-fill-success: #dcfce7;
+            --p-color-bg-fill-warning: #fff7ed;
+            --p-color-bg-fill-critical: #fef2f2;
+            --p-color-bg-fill-info: #eff6ff;
 
             --p-color-text: #202223;
             --p-color-text-secondary: #6d7175;
-            --p-color-text-success: #008060;
-            --p-color-text-warning: #8a6116;
-            --p-color-text-critical: #d72c0d;
+            --p-color-text-success: #16a34a;
+            --p-color-text-warning: #c2410c;
+            --p-color-text-critical: #dc2626;
 
             --p-color-border: #8c9196;
             --p-color-border-secondary: #e1e3e5;
             --p-color-border-tertiary: #c9cccf;
 
             --p-color-icon: #5c5f62;
-            --p-color-icon-brand: #008060;
+            --p-color-icon-brand: #FE5535;
 
             /* Spacing - 4px base */
             --p-space-0: 0;
@@ -99,30 +99,134 @@
         }
 
         /* === FRAME / LAYOUT === */
+        .app-layout {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 200px;
+            background: #1a1a2e;
+            padding: 24px 12px;
+            flex-shrink: 0;
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            overflow-y: auto;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-logo {
+            color: #FE5535;
+            font-weight: 800;
+            font-size: 18px;
+            padding: 0 10px 24px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 16px;
+            letter-spacing: -0.3px;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+        }
+
+        .sidebar-nav-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            color: rgba(255,255,255,0.5);
+            font-size: 14px;
+            font-weight: 500;
+            background: none;
+            border: none;
+            cursor: pointer;
+            text-align: left;
+            margin-bottom: 2px;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .sidebar-nav-item:hover {
+            color: rgba(255,255,255,0.8);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .sidebar-nav-item.active {
+            color: white;
+            background: rgba(254, 85, 53, 0.2);
+        }
+
+        .sidebar-nav-item .nav-icon {
+            width: 18px;
+            text-align: center;
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        .sidebar-nav-item.active .nav-icon {
+            opacity: 1;
+        }
+
+        .sidebar-footer {
+            padding: 16px 10px 0;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.4);
+            font-size: 12px;
+        }
+
+        .main-content {
+            flex: 1;
+            margin-left: 200px;
+            background: var(--p-color-bg);
+            min-height: 100vh;
+        }
+
+        /* Mobile header (hidden on desktop) */
+        .mobile-header {
+            display: none;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: #1a1a2e;
+            color: white;
+        }
+
+        .mobile-hamburger {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 22px;
+            cursor: pointer;
+            padding: 4px;
+            line-height: 1;
+        }
+
+        .mobile-logo {
+            color: #FE5535;
+            font-weight: 800;
+            font-size: 16px;
+        }
+
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 99;
+        }
+
+        /* Legacy header (hidden, kept for Shopify embed detection) */
         .header {
-            background: var(--p-color-bg-surface);
-            border-bottom: 1px solid var(--p-color-border-secondary);
-            padding: var(--p-space-400) var(--p-space-600);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .logo {
-            font-size: var(--p-font-size-500);
-            font-weight: var(--p-font-weight-semibold);
-            color: var(--p-color-text-success);
-            display: flex;
-            align-items: center;
-            gap: var(--p-space-200);
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: var(--p-space-300);
-            color: var(--p-color-text-secondary);
-            font-size: var(--p-font-size-100);
+            display: none;
         }
 
         .container {
@@ -131,49 +235,9 @@
             padding: var(--p-space-600);
         }
 
-        /* === TABS (Polaris-style) === */
+        /* === TABS (sidebar replaces horizontal tabs) === */
         .nav-tabs {
-            display: flex;
-            gap: var(--p-space-100);
-            margin-bottom: var(--p-space-500);
-            border-bottom: 1px solid var(--p-color-border-secondary);
-            padding-bottom: 0;
-            background: transparent;
-            box-shadow: none;
-        }
-
-        .tab {
-            position: relative;
-            padding: var(--p-space-300) var(--p-space-400);
-            border: none;
-            background: transparent;
-            border-radius: 0;
-            cursor: pointer;
-            font-size: var(--p-font-size-200);
-            font-weight: var(--p-font-weight-medium);
-            color: var(--p-color-text-secondary);
-            transition: color 0.15s ease;
-        }
-
-        .tab:hover {
-            color: var(--p-color-text);
-            background: transparent;
-        }
-
-        .tab.active {
-            color: var(--p-color-text);
-            background: transparent;
-        }
-
-        .tab.active::after {
-            content: '';
-            position: absolute;
-            bottom: -1px;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: var(--p-color-bg-fill-brand);
-            border-radius: 3px 3px 0 0;
+            display: none;
         }
 
         .tab-content {
@@ -184,13 +248,14 @@
             display: block;
         }
 
-        /* === CARD (Polaris LegacyCard) === */
+        /* === CARD === */
         .card {
             background: var(--p-color-bg-surface);
-            border-radius: var(--p-border-radius-200);
-            box-shadow: var(--p-shadow-card);
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
             margin-bottom: var(--p-space-500);
             overflow: hidden;
+            border: none;
         }
 
         .card > *:first-child {
@@ -365,19 +430,23 @@
             font-size: var(--p-font-size-100);
         }
 
-        /* === DATA TABLE (Polaris DataTable) === */
+        /* === DATA TABLE === */
         .orders-table {
             width: 100%;
             border-collapse: collapse;
+            border-radius: 10px;
+            overflow: hidden;
         }
 
         .orders-table th {
             text-align: left;
             padding: var(--p-space-300) var(--p-space-400);
-            background: var(--p-color-bg-surface-secondary);
-            font-size: var(--p-font-size-100);
+            background: #f8f9fa;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
             font-weight: var(--p-font-weight-medium);
-            color: var(--p-color-text-secondary);
+            color: #888;
             border-bottom: 1px solid var(--p-color-border-secondary);
         }
 
@@ -414,12 +483,12 @@
         .orders-table td {
             padding: var(--p-space-300) var(--p-space-400);
             border-bottom: 1px solid var(--p-color-border-secondary);
-            font-size: var(--p-font-size-200);
+            font-size: 13px;
             vertical-align: middle;
         }
 
         .orders-table tr:hover td {
-            background: var(--p-color-bg-surface-hover);
+            background: #fafafa;
         }
 
         /* === BADGE (Polaris Badge) === */
@@ -434,23 +503,23 @@
         }
 
         .status-pending_dropoff {
-            background: var(--p-color-bg-fill-warning);
-            color: var(--p-color-text-warning);
+            background: #fff7ed;
+            color: #c2410c;
         }
 
         .status-ready_for_pickup {
-            background: var(--p-color-bg-fill-success);
-            color: var(--p-color-text-success);
+            background: #f0fdf4;
+            color: #16a34a;
         }
 
         .status-completed {
-            background: var(--p-color-bg-surface-secondary);
-            color: var(--p-color-text-secondary);
+            background: #f3f4f6;
+            color: #6b7280;
         }
 
         .status-cancelled {
-            background: var(--p-color-bg-fill-critical);
-            color: var(--p-color-text-critical);
+            background: #fef2f2;
+            color: #dc2626;
         }
 
         /* === FILTER BUTTONS (Polaris SegmentedControl style) === */
@@ -506,7 +575,7 @@
         }
 
         .locker-item.selected {
-            background: #f0fdf4;
+            background: #fff7ed;
         }
 
         .locker-checkbox {
@@ -583,12 +652,12 @@
         .modal-content {
             background: var(--p-color-bg-surface);
             margin: 5% auto;
-            border-radius: var(--p-border-radius-300);
+            border-radius: 16px;
             width: 90%;
             max-width: 620px;
             max-height: 80vh;
             overflow: hidden;
-            box-shadow: 0 26px 80px rgba(0, 0, 0, 0.2), 0 0 1px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1);
         }
 
         .modal-content > * {
@@ -695,9 +764,15 @@
         .stat-card {
             background: var(--p-color-bg-surface);
             padding: var(--p-space-400);
-            border-radius: var(--p-border-radius-200);
-            box-shadow: var(--p-shadow-card);
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border-left: 3px solid #e5e7eb;
         }
+
+        .stat-card:nth-child(1) { border-left-color: #FE5535; }
+        .stat-card:nth-child(2) { border-left-color: #22c55e; }
+        .stat-card:nth-child(3) { border-left-color: #3b82f6; }
+        .stat-card:nth-child(4) { border-left-color: #a855f7; }
 
         .stat-label {
             color: var(--p-color-text-secondary);
@@ -828,7 +903,7 @@
         }
 
         .onboarding-header {
-            background: linear-gradient(135deg, #008060 0%, #004c3f 100%);
+            background: linear-gradient(135deg, #FE5535 0%, #d04528 100%);
             color: white;
             padding: var(--p-space-600);
             text-align: center;
@@ -917,13 +992,13 @@
         }
 
         .onboarding-tip {
-            background: #f0fdf4;
-            border-left: 3px solid var(--p-color-bg-fill-brand);
+            background: #fff7ed;
+            border-left: 3px solid #FE5535;
             padding: var(--p-space-300) var(--p-space-400);
             border-radius: 0 var(--p-border-radius-100) var(--p-border-radius-100) 0;
             margin-bottom: var(--p-space-400);
             font-size: var(--p-font-size-100);
-            color: #065f46;
+            color: #9a3412;
         }
 
         .onboarding-footer {
@@ -1033,30 +1108,31 @@
 
         /* === MOBILE RESPONSIVE === */
         @media (max-width: 768px) {
-            .header {
-                padding: var(--p-space-300) var(--p-space-400);
-                flex-direction: column;
-                gap: var(--p-space-200);
-                text-align: center;
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                z-index: 200;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .sidebar-overlay.active {
+                display: block;
+                z-index: 199;
+            }
+
+            .mobile-header {
+                display: flex;
+            }
+
+            .main-content {
+                margin-left: 0;
             }
 
             .container {
                 padding: var(--p-space-400);
-            }
-
-            .nav-tabs {
-                flex-wrap: nowrap;
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-                padding-bottom: var(--p-space-100);
-                gap: 0;
-            }
-
-            .tab {
-                padding: var(--p-space-200) var(--p-space-300);
-                font-size: var(--p-font-size-100);
-                white-space: nowrap;
-                flex-shrink: 0;
             }
 
             .card-header {
@@ -1209,21 +1285,8 @@
                 grid-template-columns: 1fr;
             }
 
-            .header {
-                padding: 10px 12px;
-            }
-
-            .logo {
-                font-size: 18px;
-            }
-
             .container {
                 padding: 12px;
-            }
-
-            .tab {
-                padding: 8px 12px;
-                font-size: 12px;
             }
 
             .btn {
@@ -1253,7 +1316,7 @@
         }
 
         .locker-map-marker.selected {
-            background: #008060;
+            background: #FE5535;
             transform: scale(1.2);
         }
 
@@ -1277,39 +1340,78 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
+    <!-- Legacy header (hidden, kept for embed detection) -->
     <div class="header" id="app-header">
-        <div class="logo">🔐 LockerDrop.it</div>
+        <div class="logo">LockerDrop</div>
         <div class="user-info">
             <span id="store-name"></span>
         </div>
     </div>
     <script>
-        // Hide custom header when embedded in Shopify (App Bridge provides its own)
+        // Hide legacy header when embedded in Shopify (App Bridge provides its own chrome)
         if (window.self !== window.top) {
             document.getElementById('app-header').style.display = 'none';
         }
     </script>
 
-    <!-- Reconnect Banner - shown when Shopify token is invalid -->
-    <div id="reconnect-banner" style="display: none; background: #ffc107; color: #333; padding: 16px 24px; text-align: center; font-weight: 500;">
-        <span id="reconnect-message">Your Shopify connection has expired. Some features may not work.</span>
-        <button onclick="reconnectToShopify()" style="margin-left: 16px; padding: 8px 20px; background: #5c6ac4; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-            Reconnect to Shopify
-        </button>
-    </div>
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">LockerDrop</div>
+            <nav class="sidebar-nav">
+                <button class="sidebar-nav-item active" data-tab="orders" onclick="showTab('orders')">
+                    <span class="nav-icon">&#128230;</span> Orders
+                </button>
+                <button class="sidebar-nav-item" data-tab="lockers" onclick="showTab('lockers')">
+                    <span class="nav-icon">&#128274;</span> My Lockers
+                </button>
+                <button class="sidebar-nav-item" data-tab="products" onclick="showTab('products')">
+                    <span class="nav-icon">&#128229;</span> Product Sizes
+                </button>
+                <button class="sidebar-nav-item" data-tab="settings" onclick="showTab('settings')">
+                    <span class="nav-icon">&#9881;</span> Settings
+                </button>
+                <button class="sidebar-nav-item" data-tab="billing" onclick="showTab('billing')">
+                    <span class="nav-icon">&#128179;</span> Billing
+                </button>
+                <button class="sidebar-nav-item" data-tab="learn" onclick="showTab('learn')">
+                    <span class="nav-icon">&#128218;</span> Learn
+                </button>
+            </nav>
+            <div class="sidebar-footer" id="sidebar-store-name"></div>
+        </aside>
 
-    <!-- Scope Warning Banner - shown when fulfillment permissions are missing -->
-    <div id="scope-warning-banner" style="display: none; background: #fff3cd; color: #856404; padding: 16px 24px; text-align: center; font-weight: 500; border-bottom: 1px solid #ffeeba;">
-        <span id="scope-warning-message">Auto-fulfillment is disabled. Missing permission: write_fulfillments.</span>
-        <button onclick="reconnectToShopify()" style="margin-left: 16px; padding: 8px 20px; background: #f58220; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-            Grant Permissions
-        </button>
-        <button onclick="dismissScopeWarning()" style="margin-left: 8px; padding: 8px 12px; background: transparent; color: #856404; border: 1px solid #856404; border-radius: 6px; cursor: pointer;">
-            Dismiss
-        </button>
-    </div>
+        <!-- Mobile overlay for sidebar -->
+        <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 
-    <div class="container">
+        <!-- Main content area -->
+        <main class="main-content">
+            <!-- Mobile header -->
+            <div class="mobile-header">
+                <button class="mobile-hamburger" onclick="toggleSidebar()">&#9776;</button>
+                <span class="mobile-logo">LockerDrop</span>
+            </div>
+
+            <!-- Reconnect Banner -->
+            <div id="reconnect-banner" style="display: none; background: #ffc107; color: #333; padding: 16px 24px; text-align: center; font-weight: 500;">
+                <span id="reconnect-message">Your Shopify connection has expired. Some features may not work.</span>
+                <button onclick="reconnectToShopify()" style="margin-left: 16px; padding: 8px 20px; background: #FE5535; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    Reconnect to Shopify
+                </button>
+            </div>
+
+            <!-- Scope Warning Banner -->
+            <div id="scope-warning-banner" style="display: none; background: #fff3cd; color: #856404; padding: 16px 24px; text-align: center; font-weight: 500; border-bottom: 1px solid #ffeeba;">
+                <span id="scope-warning-message">Auto-fulfillment is disabled. Missing permission: write_fulfillments.</span>
+                <button onclick="reconnectToShopify()" style="margin-left: 16px; padding: 8px 20px; background: #FE5535; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    Grant Permissions
+                </button>
+                <button onclick="dismissScopeWarning()" style="margin-left: 8px; padding: 8px 12px; background: transparent; color: #856404; border: 1px solid #856404; border-radius: 6px; cursor: pointer;">
+                    Dismiss
+                </button>
+            </div>
+
+            <div class="container">
         <!-- Priority Action Banner (shows when action needed) -->
         <div id="priority-banner" class="priority-banner" style="display: none;">
             <div class="priority-content">
@@ -1828,52 +1930,16 @@
 
         <!-- Billing Tab -->
         <div id="billing" class="tab-content">
-            <!-- Billing Approval Banner (shown when billing not yet approved) -->
-            <div class="card" id="billing-approval-banner" style="display: none; background: #fff4e6; border: 2px solid #996300;">
-                <div class="card-header" style="color: #996300;">
-                    Billing Approval Required
-                </div>
-                <p style="color: #6d7175; margin-bottom: 16px;">
-                    LockerDrop charges a small per-order fee ($1.50) only when your customers use locker pickup.
-                    Please approve billing to ensure uninterrupted service.
-                </p>
-                <button class="btn btn-primary" onclick="approveBilling()">Approve Billing</button>
-            </div>
-
-            <!-- Billing Status -->
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-header-title">
-                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M3 5C3 3.89543 3.89543 3 5 3H15C16.1046 3 17 3.89543 17 5V15C17 16.1046 16.1046 17 15 17H5C3.89543 17 3 16.1046 3 15V5ZM5 5V7H15V5H5ZM5 9V15H15V9H5ZM7 11H10V13H7V11Z" fill="#5c6ac4"/>
-                        </svg>
-                        Billing Status
-                    </span>
-                </div>
-                <div id="subscription-status">
-                    <p style="color: #6d7175;">Loading billing status...</p>
-                </div>
-            </div>
-
-            <!-- Billing Overview -->
             <div class="card">
                 <div class="card-header">
                     <span class="card-header-title">
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M10 2C5.58172 2 2 5.58172 2 10C2 14.4183 5.58172 18 10 18C14.4183 18 18 14.4183 18 10C18 5.58172 14.4183 2 10 2ZM10.5 14V15H9.5V14H8V13H11C11.2761 13 11.5 12.7761 11.5 12.5C11.5 12.2239 11.2761 12 11 12H9C8.17157 12 7.5 11.3284 7.5 10.5C7.5 9.67157 8.17157 9 9 9H9.5V8H10.5V9H12V10H9C8.72386 10 8.5 10.2239 8.5 10.5C8.5 10.7761 8.72386 11 9 11H11C11.8284 11 12.5 11.6716 12.5 12.5C12.5 13.3284 11.8284 14 11 14H10.5Z" fill="#5c6ac4"/>
                         </svg>
-                        Pay Per Order
+                        Usage This Cycle
                     </span>
                 </div>
-                <p class="card-description">You're only charged when customers use locker pickup. Billed monthly on your Shopify invoice.</p>
-
-                <div style="background: #f4f6f8; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 20px;">
-                    <div style="font-size: 14px; color: #6d7175; margin-bottom: 8px;">Per order fee</div>
-                    <div id="billing-per-order-fee" style="font-size: 36px; font-weight: 700; color: #202223;">$1.50</div>
-                    <div style="font-size: 13px; color: #6d7175; margin-top: 8px;">
-                        Monthly cap: <strong id="billing-cap">$200.00</strong>
-                    </div>
-                </div>
+                <p class="card-description">A locker pickup fee is charged per order on your Shopify invoice.</p>
 
                 <div style="margin-bottom: 16px;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
@@ -1881,45 +1947,41 @@
                         <span id="billing-total-charged" style="font-weight: 600;">$0.00</span>
                     </div>
                     <div style="background: #e1e3e5; height: 8px; border-radius: 4px; overflow: hidden;">
-                        <div id="billing-usage-bar" style="background: #5c6ac4; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                        <div id="billing-usage-bar" style="background: #FE5535; height: 100%; width: 0%; transition: width 0.3s;"></div>
                     </div>
-                    <p id="billing-usage-message" class="form-help" style="margin-top: 8px;"></p>
+                    <div style="display: flex; justify-content: space-between; margin-top: 4px;">
+                        <span style="color: #6d7175; font-size: 12px;" id="billing-usage-message"></span>
+                        <span style="color: #6d7175; font-size: 12px;">Cap: <strong id="billing-cap">$200.00</strong></span>
+                    </div>
                 </div>
 
                 <div>
                     <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e1e3e5;">
-                        <span style="color: #6d7175;">Orders this cycle</span>
+                        <span style="color: #6d7175;">Locker pickup orders</span>
                         <span id="billing-order-count" style="font-weight: 500;">0</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; padding: 8px 0;">
-                        <span style="color: #6d7175;">Billing cycle started</span>
+                        <span style="color: #6d7175;">Cycle started</span>
                         <span id="billing-cycle-start" style="font-weight: 500;">--</span>
                     </div>
                 </div>
             </div>
 
+            <div class="info-box" style="margin-top: 0;">
+                All billing is managed through Shopify. View your invoices in
+                <strong>Shopify Admin &rarr; Settings &rarr; Billing</strong>.
+            </div>
+
             <!-- Dev Mode (only for test stores) -->
             <div class="card" id="dev-mode-card" style="display: none; background: #fff4e6; border: 2px dashed #996300;">
                 <div class="card-header" style="color: #996300;">
-                    Dev Mode - Billing Controls
+                    Dev Mode
                 </div>
-                <p style="color: #6d7175; margin-bottom: 16px;">
-                    Test store detected. Manage billing state without real Shopify charges.
-                </p>
                 <div style="display: flex; gap: 12px; flex-wrap: wrap;">
                     <button class="btn" style="background: #e3f5ef; color: #008060;" onclick="devBillingAction('activate')">Activate</button>
                     <button class="btn" style="background: #f6f6f7;" onclick="devBillingAction('deactivate')">Deactivate</button>
                     <button class="btn" style="background: #f6f6f7;" onclick="devBillingAction('reset')">Reset Counters</button>
                 </div>
-            </div>
-
-            <!-- Cancel Subscription -->
-            <div class="card" id="cancel-card" style="display: none;">
-                <div class="card-header">Cancel Billing</div>
-                <p style="color: #6d7175; margin-bottom: 16px;">
-                    If you cancel, you will no longer be charged per order. Existing orders will still be fulfilled.
-                </p>
-                <button class="btn" style="background: #bf0711; color: white;" onclick="cancelSubscription()">Cancel Billing</button>
             </div>
         </div>
 
@@ -1929,6 +1991,71 @@
             <div id="settings-save-status" style="display: none; padding: 12px 16px; background: #e3f5ef; border-radius: 8px; margin-bottom: 20px; color: #008060; font-size: 14px;">
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="#008060" style="vertical-align: middle; margin-right: 8px;"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/></svg>
                 <span>Settings saved</span>
+            </div>
+
+            <!-- Shipping Setup Card -->
+            <div class="card" id="shipping-setup-card" style="display: none;">
+                <div class="card-header">
+                    <span class="card-header-title">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M17.707 9.293l-5-5A1 1 0 0012 4H4a2 2 0 00-2 2v8a2 2 0 002 2h1.17A3.001 3.001 0 0011 15.83 3.001 3.001 0 0016.83 14H18a1 1 0 001-1V10a1 1 0 00-.293-.707zM7 15a1 1 0 110-2 1 1 0 010 2zm7 0a1 1 0 110-2 1 1 0 010 2z" fill="#5c6ac4"/>
+                        </svg>
+                        Shipping Setup
+                    </span>
+                    <span id="shipping-status-badge" style="font-size: 12px; padding: 2px 8px; border-radius: 10px; font-weight: 500;"></span>
+                </div>
+
+                <!-- State A: Carrier service registered (green) -->
+                <div id="shipping-state-registered" style="display: none;">
+                    <div style="background: #e3f5ef; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="#008060"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/></svg>
+                        <span style="color: #008060; font-size: 14px;"><strong>Carrier service active.</strong> LockerDrop can calculate shipping rates automatically.</span>
+                    </div>
+                    <p style="font-size: 14px; color: #6d7175; margin-bottom: 12px;">Make sure LockerDrop is added as a shipping rate in your shipping profile. If you haven't done this yet:</p>
+                    <ol style="margin: 0 0 12px 0; padding-left: 20px; font-size: 13px; line-height: 1.8; color: #6d7175;">
+                        <li>Go to <strong>Settings → Shipping and delivery</strong></li>
+                        <li>Click <strong>Manage</strong> on your shipping profile</li>
+                        <li>In your shipping zone, click <strong>Add rate</strong> → <strong>"Use carrier or app to calculate rates"</strong> → select <strong>LockerDrop</strong></li>
+                    </ol>
+                    <button class="btn btn-secondary" onclick="openShippingSettings()">Open Shipping Settings</button>
+                </div>
+
+                <!-- State B: Eligible but not registered (yellow) -->
+                <div id="shipping-state-eligible" style="display: none;">
+                    <div style="background: #fff8e6; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="#8a6d00"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 3a1 1 0 011 1v4a1 1 0 01-2 0V6a1 1 0 011-1zm0 8a1 1 0 100 2 1 1 0 000-2z"/></svg>
+                        <span style="color: #8a6d00; font-size: 14px;"><strong>Your plan supports carrier-calculated shipping</strong> but the carrier service isn't registered yet.</span>
+                    </div>
+                    <p style="font-size: 14px; color: #6d7175; margin-bottom: 12px;">Click below to register LockerDrop as a carrier service, then add it to your shipping zones.</p>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-primary" id="register-carrier-btn" onclick="retryCarrierRegistration()">Register Carrier Service</button>
+                        <button class="btn btn-secondary" onclick="openShippingSettings()">Open Shipping Settings</button>
+                    </div>
+                </div>
+
+                <!-- State C: Not eligible — manual rate (blue/info) -->
+                <div id="shipping-state-manual" style="display: none;">
+                    <div style="background: #f0f4ff; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: flex-start; gap: 8px;">
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="#5c6ac4" style="flex-shrink: 0; margin-top: 2px;"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V6h2v3z"/></svg>
+                        <span style="color: #3b4b7a; font-size: 14px;">Your Shopify plan (<strong id="plan-name-display"></strong>) doesn't include carrier-calculated shipping. Use a manual shipping rate instead — it works great!</span>
+                    </div>
+                    <p style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">Add a manual shipping rate for LockerDrop:</p>
+                    <ol style="margin: 0 0 12px 0; padding-left: 20px; font-size: 13px; line-height: 1.8; color: #6d7175;">
+                        <li>Go to <strong>Settings → Shipping and delivery</strong></li>
+                        <li>Select the <strong>General Shipping Rate</strong> profile</li>
+                        <li>In your shipping zone (e.g. United States), click <strong>Add rate</strong></li>
+                        <li>Rate Type should be <strong>"Use flat rate"</strong>, Shipping Rate should be set to <strong>"custom"</strong></li>
+                        <li>Set custom rate name to <strong>"LockerDrop Pickup"</strong></li>
+                        <li>Set the price (e.g. <strong>$0.00</strong> for free pickup)</li>
+                    </ol>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button class="btn btn-secondary" onclick="openShippingSettings()">Open Shipping Settings</button>
+                        <button class="btn btn-secondary" onclick="retryCarrierRegistration()" style="font-size: 13px;">Upgraded plan? Try carrier setup</button>
+                    </div>
+                    <p style="font-size: 12px; color: #8c9196; margin-top: 8px;">
+                        Want automatic rates? Enable <a href="https://help.shopify.com/en/manual/shipping/setting-up-and-managing-your-shipping/calculated-shipping-rates" target="_blank" style="color: #5c6ac4;">carrier-calculated shipping</a> ($20/mo add-on) or upgrade to Advanced.
+                    </p>
+                </div>
             </div>
 
             <!-- Pricing Section -->
@@ -2169,6 +2296,17 @@
                 <div class="detail-row">
                     <span class="detail-label">Locker Location:</span>
                     <span id="modal-locker">Not assigned</span>
+                    <button id="btn-change-location" class="btn btn-secondary btn-small" onclick="toggleLocationPicker()" style="margin-left: 8px; font-size: 11px;">Change</button>
+                </div>
+                <div id="location-picker-row" class="detail-row" style="display: none;">
+                    <span class="detail-label">New Location:</span>
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <select id="location-picker-select" style="padding: 6px 10px; border: 1px solid #c4cdd5; border-radius: 6px; font-size: 13px; min-width: 200px;">
+                            <option value="">Loading locations...</option>
+                        </select>
+                        <button class="btn btn-primary btn-small" onclick="changeOrderLocation()" id="btn-confirm-location" style="font-size: 12px;">Move Order</button>
+                        <button class="btn btn-secondary btn-small" onclick="toggleLocationPicker()" style="font-size: 12px;">Cancel</button>
+                    </div>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Status:</span>
@@ -2270,7 +2408,7 @@
         <div class="modal-content">
             <div class="onboarding-header">
                 <h2>Welcome to LockerDrop!</h2>
-                <p>Let's get you set up in just 3 quick steps</p>
+                <p>Let's get you set up in just 4 quick steps</p>
             </div>
 
             <div class="onboarding-progress">
@@ -2285,6 +2423,10 @@
                 <div class="progress-step" data-step="3">
                     <span class="step-number">3</span>
                     <span>Schedule</span>
+                </div>
+                <div class="progress-step" data-step="4">
+                    <span class="step-number">4</span>
+                    <span>Shipping</span>
                 </div>
             </div>
 
@@ -2332,6 +2474,53 @@
                     <div style="background: var(--p-color-bg-surface-secondary); border-radius: var(--p-border-radius-200); padding: var(--p-space-400); text-align: center;">
                         <p style="margin-bottom: var(--p-space-200);">✅ <strong>Default:</strong> Monday - Friday</p>
                         <p style="color: var(--p-color-text-secondary); font-size: 13px;">You can customize this anytime in the Settings tab</p>
+                    </div>
+                </div>
+
+                <!-- Step 4: Shipping Setup -->
+                <div class="onboarding-step" data-step="4">
+                    <h3>Add LockerDrop to Shipping</h3>
+                    <p>One last step — add LockerDrop as a shipping option so customers can see it at checkout.</p>
+                    <div id="onboarding-shipping-loading" style="text-align: center; padding: 20px; color: #6d7175;">
+                        Checking your store plan...
+                    </div>
+                    <!-- Carrier service instructions (confirmed registered) -->
+                    <div id="onboarding-carrier-instructions" style="display: none;">
+                        <div style="background: #e3f5ef; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; font-size: 14px; color: #008060;">
+                            LockerDrop carrier service is registered — just add it to your shipping zones.
+                        </div>
+                        <div style="background: var(--p-color-bg-surface-secondary); border-radius: var(--p-border-radius-200); padding: var(--p-space-400);">
+                            <ol style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 2;">
+                                <li>Go to <strong>Settings → Shipping and delivery</strong></li>
+                                <li>Click <strong>Manage</strong> on your shipping profile</li>
+                                <li>In your shipping zone (e.g. United States), click <strong>Add rate</strong></li>
+                                <li>Select <strong>"Use carrier or app to calculate rates"</strong></li>
+                                <li>Choose <strong>LockerDrop</strong> from the dropdown</li>
+                                <li>Click <strong>Done</strong>, then <strong>Save</strong></li>
+                            </ol>
+                        </div>
+                    </div>
+                    <!-- Manual rate instructions (carrier not registered — Basic/Standard or registration failed) -->
+                    <div id="onboarding-manual-instructions" style="display: none;">
+                        <div style="background: var(--p-color-bg-surface-secondary); border-radius: var(--p-border-radius-200); padding: var(--p-space-400);">
+                            <p style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">Add a manual shipping rate for LockerDrop:</p>
+                            <ol style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 2;">
+                                <li>Go to <strong>Settings → Shipping and delivery</strong></li>
+                                <li>Select the <strong>General Shipping Rate</strong> profile</li>
+                                <li>In your shipping zone (e.g. United States), click <strong>Add rate</strong></li>
+                                <li>Rate Type should be <strong>"Use flat rate"</strong>, Shipping Rate should be set to <strong>"custom"</strong></li>
+                                <li>Set custom rate name to <strong>"LockerDrop Pickup"</strong></li>
+                                <li>Set the price (e.g. <strong>$0.00</strong> for free pickup)</li>
+                            </ol>
+                        </div>
+                        <div class="onboarding-tip" style="margin-top: 12px; font-size: 13px; color: var(--p-color-text-secondary);">
+                            On Advanced or Shopify Plus? LockerDrop can calculate rates automatically. <a href="https://help.shopify.com/en/manual/shipping/setting-up-and-managing-your-shipping/calculated-shipping-rates" target="_blank" style="color: #5c6ac4;">Learn more</a>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; text-align: center;">
+                        <button class="btn btn-secondary" onclick="openShippingSettings()">
+                            Open Shipping Settings
+                        </button>
                     </div>
                 </div>
             </div>
@@ -2412,12 +2601,15 @@
         if (!shop) {
             alert('Shop parameter missing! Please access this page from Shopify.');
         } else {
-            document.getElementById('store-name').textContent = shop.replace('.myshopify.com', '');
+            var shopDisplayName = shop.replace('.myshopify.com', '');
+            document.getElementById('store-name').textContent = shopDisplayName;
+            var sidebarFooter = document.getElementById('sidebar-store-name');
+            if (sidebarFooter) sidebarFooter.textContent = shopDisplayName;
         }
 
         // ========== ONBOARDING WIZARD ==========
         let currentOnboardingStep = 1;
-        const totalOnboardingSteps = 3;
+        const totalOnboardingSteps = 4;
 
         // Check if user needs onboarding (no locker preferences saved)
         async function checkOnboardingNeeded() {
@@ -2498,13 +2690,20 @@
             if (currentOnboardingStep < totalOnboardingSteps) {
                 currentOnboardingStep++;
                 updateOnboardingUI();
+                // When reaching shipping step, ensure plan data is loaded
+                if (currentOnboardingStep === 4 && !shopPlanData) {
+                    fetchShopPlan().then(planInfo => {
+                        updateShippingSetupCard(planInfo);
+                        updateOnboardingShippingStep(planInfo);
+                    });
+                }
             } else {
                 // Completed onboarding
                 closeOnboardingModal();
                 hideSetupReminderBanner();
                 localStorage.removeItem(`lockerdrop_onboarding_skipped_${shop}`);
                 // Navigate to lockers tab to start setup
-                showTab('lockers', document.querySelector('.tab[onclick*="lockers"]'));
+                showTab('lockers');
             }
         }
 
@@ -2532,7 +2731,143 @@
             closeOnboardingModal();
             hideSetupReminderBanner();
             localStorage.removeItem(`lockerdrop_onboarding_skipped_${shop}`);
-            showTab('lockers', document.querySelector('.tab[onclick*="lockers"]'));
+            showTab('lockers');
+        }
+
+        function openShippingSettings() {
+            window.open(`https://${shop}/admin/settings/shipping`, '_blank');
+        }
+
+        // ========== SHOP PLAN DETECTION ==========
+        let shopPlanData = null;
+
+        async function fetchShopPlan() {
+            if (!shop) return null;
+            try {
+                const response = await window.__nativeFetch(`/api/shop-plan/${shop}`);
+                if (!response.ok) return null;
+                shopPlanData = await response.json();
+                return shopPlanData;
+            } catch (error) {
+                console.error('Error fetching shop plan:', error);
+                return null;
+            }
+        }
+
+        function updateShippingSetupCard(planInfo) {
+            const card = document.getElementById('shipping-setup-card');
+            if (!card) return;
+            if (!planInfo) {
+                // API failed — show card with manual setup as fallback
+                card.style.display = '';
+                const badge = document.getElementById('shipping-status-badge');
+                const stateRegistered = document.getElementById('shipping-state-registered');
+                const stateEligible = document.getElementById('shipping-state-eligible');
+                const stateManual = document.getElementById('shipping-state-manual');
+                if (stateRegistered) stateRegistered.style.display = 'none';
+                if (stateEligible) stateEligible.style.display = 'none';
+                if (stateManual) stateManual.style.display = '';
+                const planDisplay = document.getElementById('plan-name-display');
+                if (planDisplay) planDisplay.textContent = 'Unknown';
+                if (badge) {
+                    badge.textContent = 'Manual setup';
+                    badge.style.background = '#f0f4ff';
+                    badge.style.color = '#5c6ac4';
+                }
+                return;
+            }
+
+            card.style.display = '';
+            const badge = document.getElementById('shipping-status-badge');
+
+            // Hide all states first
+            document.getElementById('shipping-state-registered').style.display = 'none';
+            document.getElementById('shipping-state-eligible').style.display = 'none';
+            document.getElementById('shipping-state-manual').style.display = 'none';
+
+            if (planInfo.carrierServiceRegistered) {
+                // State A: Carrier service active
+                document.getElementById('shipping-state-registered').style.display = '';
+                badge.textContent = 'Active';
+                badge.style.background = '#e3f5ef';
+                badge.style.color = '#008060';
+            } else if (planInfo.carrierServiceEligible) {
+                // State B: Eligible but not registered
+                document.getElementById('shipping-state-eligible').style.display = '';
+                badge.textContent = 'Action needed';
+                badge.style.background = '#fff8e6';
+                badge.style.color = '#8a6d00';
+            } else {
+                // State C: Not eligible — manual rate
+                document.getElementById('shipping-state-manual').style.display = '';
+                document.getElementById('plan-name-display').textContent = planInfo.plan || 'Basic';
+                badge.textContent = 'Manual setup';
+                badge.style.background = '#f0f4ff';
+                badge.style.color = '#5c6ac4';
+            }
+        }
+
+        function updateOnboardingShippingStep(planInfo) {
+            const loading = document.getElementById('onboarding-shipping-loading');
+            const carrierInstr = document.getElementById('onboarding-carrier-instructions');
+            const manualInstr = document.getElementById('onboarding-manual-instructions');
+
+            if (!loading) return;
+            loading.style.display = 'none';
+
+            // Only show carrier instructions if carrier service is actually registered and confirmed working
+            if (planInfo && planInfo.carrierServiceRegistered) {
+                if (carrierInstr) carrierInstr.style.display = '';
+                if (manualInstr) manualInstr.style.display = 'none';
+            } else {
+                // Show manual rate instructions (covers: Basic plan, registration failed, API error)
+                if (carrierInstr) carrierInstr.style.display = 'none';
+                if (manualInstr) manualInstr.style.display = '';
+            }
+        }
+
+        async function retryCarrierRegistration() {
+            const btn = document.getElementById('register-carrier-btn');
+            const originalText = btn ? btn.textContent : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Registering...';
+            }
+            try {
+                const response = await window.__nativeFetch(`/api/register-carrier/${shop}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include'
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('Carrier service registered! Now add LockerDrop to your shipping zones in Settings → Shipping and delivery.');
+                    // Refresh plan data
+                    const planInfo = await fetchShopPlan();
+                    if (planInfo) {
+                        updateShippingSetupCard(planInfo);
+                        updateOnboardingShippingStep(planInfo);
+                    }
+                } else {
+                    alert(result.message || 'Could not register carrier service. Your plan may not support it.');
+                }
+            } catch (error) {
+                console.error('Error registering carrier:', error);
+                alert('Failed to register carrier service. Please try again later.');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+            }
+        }
+
+        // Load plan info on page init
+        if (shop) {
+            fetchShopPlan().then(planInfo => {
+                updateShippingSetupCard(planInfo);
+                updateOnboardingShippingStep(planInfo);
+            });
         }
 
         // Check onboarding when page loads
@@ -2542,18 +2877,29 @@
             }, 500); // Small delay to let the page initialize
         }
 
+        // Sidebar toggle for mobile
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebar-overlay').classList.toggle('active');
+        }
+        function closeSidebar() {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('sidebar-overlay').classList.remove('active');
+        }
+
         // Tab Navigation
-        function showTab(tabName, clickedTab) {
-            const tabs = document.querySelectorAll('.tab');
-            const contents = document.querySelectorAll('.tab-content');
+        function showTab(tabName) {
+            // Deactivate all sidebar nav items and tab contents
+            document.querySelectorAll('.sidebar-nav-item').forEach(item => item.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
 
-            tabs.forEach(tab => tab.classList.remove('active'));
-            contents.forEach(content => content.classList.remove('active'));
-
-            if (clickedTab) {
-                clickedTab.classList.add('active');
-            }
+            // Activate the selected sidebar item and tab content
+            var sidebarItem = document.querySelector('.sidebar-nav-item[data-tab="' + tabName + '"]');
+            if (sidebarItem) sidebarItem.classList.add('active');
             document.getElementById(tabName).classList.add('active');
+
+            // Close mobile sidebar after selection
+            closeSidebar();
 
             if (tabName === 'lockers') {
                 // Initialize map when tab first becomes visible
@@ -2578,23 +2924,20 @@
         // Navigate to Orders tab with a specific filter
         function navigateToOrderFilter(status) {
             // Switch to orders tab
-            const ordersTab = document.querySelector('.tab[onclick*="orders"]');
-            showTab('orders', ordersTab);
+            showTab('orders');
             // Apply the filter
             filterOrders(status);
         }
 
         // Navigate to a specific tab
         function navigateToTab(tabName) {
-            const tab = document.querySelector(`.tab[onclick*="${tabName}"]`);
-            showTab(tabName, tab);
+            showTab(tabName);
         }
 
         // Show only active/saved lockers
         function showActiveLockers() {
             // Navigate to lockers tab
-            const tab = document.querySelector('.tab[onclick*="lockers"]');
-            showTab('lockers', tab);
+            showTab('lockers');
 
             // Use setTimeout to ensure the tab is visible before modifying checkbox
             setTimeout(() => {
@@ -2787,8 +3130,8 @@
 
                 const completedSubtext = document.getElementById('stat-completed-subtext');
                 if (completedCount > 0) {
-                    const savings = completedCount * 8; // $8 avg shipping cost
-                    completedSubtext.innerHTML = `<span class="success">💰 Saved ~$${savings} in shipping</span>`;
+                    const savings = completedCount * 8; // $8 avg cost savings
+                    completedSubtext.innerHTML = `<span class="success">💰 Saved ~$${savings} vs traditional delivery</span>`;
                 } else {
                     completedSubtext.innerHTML = '';
                 }
@@ -2943,13 +3286,13 @@
                 if (currentFilter === 'active') {
                     message = '📭 No active orders';
                     subtext = 'Orders will appear here when customers choose LockerDrop at checkout.';
-                    actionHtml = `<button class="btn btn-secondary btn-small" onclick="showTab('learn', document.querySelector('.tab[onclick*=\\'learn\\']'))" style="margin-top: 12px;">View Quick Start Guide</button>`;
+                    actionHtml = `<button class="btn btn-secondary btn-small" onclick="showTab('learn')" style="margin-top: 12px;">View Quick Start Guide</button>`;
                 } else if (currentFilter === 'all') {
                     message = '📭 No orders yet';
                     subtext = 'Once customers select locker pickup at checkout, their orders will appear here.';
                     actionHtml = savedPreferenceIds.length === 0
-                        ? `<button class="btn btn-primary btn-small" onclick="showTab('lockers', document.querySelector('.tab[onclick*=\\'lockers\\']'))" style="margin-top: 12px;">Select Your Lockers</button>`
-                        : `<button class="btn btn-secondary btn-small" onclick="showTab('learn', document.querySelector('.tab[onclick*=\\'learn\\']'))" style="margin-top: 12px;">View Quick Start Guide</button>`;
+                        ? `<button class="btn btn-primary btn-small" onclick="showTab('lockers')" style="margin-top: 12px;">Select Your Lockers</button>`
+                        : `<button class="btn btn-secondary btn-small" onclick="showTab('learn')" style="margin-top: 12px;">View Quick Start Guide</button>`;
                 } else if (currentFilter === 'pending_dropoff') {
                     message = '🎉 All caught up!';
                     subtext = 'No orders waiting for drop-off. Great job staying on top of things!';
@@ -2988,7 +3331,7 @@
                     <td data-label="Pickup Date">${order.pickupDate ? formatPickupDate(order.pickupDate) : '<span style="color: #6d7175;">-</span>'}</td>
                     <td data-label="Customer">${order.customerName}</td>
                     <td data-label="Locker">${order.lockerName || 'Not assigned'}</td>
-                    <td data-label="Drop-off">${order.dropoffLink ? `<a href="${order.dropoffLink}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'pending_dropoff' ? 'Open' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
+                    <td data-label="Drop-off">${order.dropoffLink ? `<a href="/dropoff-confirm?order=${order.orderNumber}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'pending_dropoff' ? 'Drop Off' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
                     <td data-label="Pickup">${order.pickupLink ? `<a href="${order.pickupLink}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'ready_for_pickup' ? 'Open' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
                     <td data-label="Status"><span class="status-badge status-${order.status}">${formatStatus(order.status, order.completedAt)}</span></td>
                     <td>
@@ -3046,6 +3389,7 @@
                     return;
                 }
 
+                currentModalOrderNumber = order.orderNumber;
                 document.getElementById('modal-order-number').textContent = '#' + order.orderNumber;
                 document.getElementById('modal-customer').textContent = order.customerName;
                 document.getElementById('modal-email').textContent = order.customerEmail || 'Not provided';
@@ -3053,36 +3397,28 @@
                 document.getElementById('modal-locker').textContent = order.lockerName || 'Not assigned';
                 document.getElementById('modal-status').textContent = formatStatus(order.status, order.completedAt);
 
+                // Show/hide location change button based on status
+                const canChangeLocation = ['pending', 'pending_dropoff'].includes(order.status);
+                document.getElementById('btn-change-location').style.display = canChangeLocation ? 'inline-block' : 'none';
+                document.getElementById('location-picker-row').style.display = 'none';
+
                 // Dropoff link section
                 const dropoffContent = document.getElementById('dropoff-content');
                 const dropoffPending = order.status === 'pending_dropoff';
                 if (order.dropoffLink) {
                     dropoffContent.innerHTML = `
                         <p style="color: var(--p-color-text-secondary); font-size: 13px; margin-bottom: 12px;">
-                            Open this link <strong>at the locker</strong> to unlock it and drop off the package.
+                            Verify locker size and open the locker <strong>at the locker location</strong>.
                         </p>
-                        <a href="${order.dropoffLink}" target="_blank" class="btn btn-primary">
-                            🔓 Open Locker Link
+                        <a href="/dropoff-confirm?order=${order.orderNumber}" target="_blank" class="btn btn-primary">
+                            📦 Drop Off Package
                         </a>
                         ${dropoffPending ? `
                         <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLink('${order.orderNumber}')" style="margin-left: 8px;" title="Regenerate if link expired">
                             🔄 Regenerate
                         </button>
                         <div style="margin-top: 12px; padding: 10px; background: #f0fdf4; border-radius: 6px; font-size: 12px; color: #065f46;">
-                            💡 <strong>Tip:</strong> Save this link - you can reopen it if the door closes before you're done.
-                        </div>
-                        <div style="margin-top: 8px;">
-                            <a href="javascript:void(0)" onclick="document.getElementById('size-picker-${order.orderNumber}').style.display='block'; this.style.display='none';" style="color: #6d7175; font-size: 12px; text-decoration: underline;">Wrong size? Choose a different locker size</a>
-                            <div id="size-picker-${order.orderNumber}" style="display: none; margin-top: 10px; padding: 12px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px;">
-                                <p style="color: #9a3412; font-size: 12px; margin-bottom: 8px; font-weight: 600;">Select a new locker size:</p>
-                                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                                    <button class="btn btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', null)" style="font-size: 11px;">Auto</button>
-                                    <button class="btn btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'small')" style="font-size: 11px;">Small</button>
-                                    <button class="btn btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'medium')" style="font-size: 11px;">Medium</button>
-                                    <button class="btn btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'large')" style="font-size: 11px;">Large</button>
-                                    <button class="btn btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'x-large')" style="font-size: 11px;">X-Large</button>
-                                </div>
-                            </div>
+                            💡 <strong>Tip:</strong> You can verify or change the locker size before opening.
                         </div>
                         ` : '<span style="color: #008060; margin-left: 8px;">✓ Used</span>'}
                     `;
@@ -3148,8 +3484,78 @@
             }
         }
 
+        let currentModalOrderNumber = null;
+
         function closeModal() {
             document.getElementById('orderModal').style.display = 'none';
+            document.getElementById('location-picker-row').style.display = 'none';
+        }
+
+        async function toggleLocationPicker() {
+            const row = document.getElementById('location-picker-row');
+            if (row.style.display !== 'none') {
+                row.style.display = 'none';
+                return;
+            }
+
+            row.style.display = '';
+            const select = document.getElementById('location-picker-select');
+            select.innerHTML = '<option value="">Loading locations...</option>';
+
+            try {
+                const response = await window.__nativeFetch(`/api/locker-preferences/${shop}`);
+                const preferences = await response.json();
+
+                if (preferences.length === 0) {
+                    select.innerHTML = '<option value="">No locations configured</option>';
+                    return;
+                }
+
+                select.innerHTML = '<option value="">Select a location...</option>' +
+                    preferences.map(p => `<option value="${p.location_id}">${p.location_name || 'Location ' + p.location_id}</option>`).join('');
+            } catch (error) {
+                console.error('Error loading locations:', error);
+                select.innerHTML = '<option value="">Failed to load locations</option>';
+            }
+        }
+
+        async function changeOrderLocation() {
+            const select = document.getElementById('location-picker-select');
+            const newLocationId = select.value;
+            if (!newLocationId || !currentModalOrderNumber) return;
+
+            const locationName = select.options[select.selectedIndex].text;
+            if (!confirm(`Move order #${currentModalOrderNumber} to ${locationName}? This will generate a new dropoff link.`)) return;
+
+            const btn = document.getElementById('btn-confirm-location');
+            btn.disabled = true;
+            btn.textContent = 'Moving...';
+
+            try {
+                const response = await window.__nativeFetch(`/api/order-change-location/${shop}/${currentModalOrderNumber}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ newLocationId, locationName })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`Order moved to ${locationName}!`);
+                    document.getElementById('location-picker-row').style.display = 'none';
+                    await loadOrders();
+                    viewOrder(currentModalOrderNumber);
+                } else {
+                    alert('Failed: ' + (result.error || 'Unknown error'));
+                    btn.disabled = false;
+                    btn.textContent = 'Move Order';
+                }
+            } catch (error) {
+                console.error('Error changing location:', error);
+                alert('Error changing location. Please try again.');
+                btn.disabled = false;
+                btn.textContent = 'Move Order';
+            }
         }
 
         // Resend notification to customer
@@ -3390,6 +3796,7 @@
         let lockerTotalCount = 0;
         let savedPreferenceIds = [];
         let originalSavedIds = []; // Track original state to detect changes
+        let prefsLoaded = false;
         let lockerMap = null;
         let lockerMarkers = [];
         let allLockersForMap = []; // Store all lockers for map display
@@ -3397,6 +3804,12 @@
         // Initialize the locker map
         function initLockerMap() {
             if (lockerMap) return; // Already initialized
+            if (typeof L === 'undefined') {
+                console.warn('Leaflet not loaded, skipping map');
+                const mapEl = document.getElementById('locker-map');
+                if (mapEl) mapEl.style.display = 'none';
+                return;
+            }
 
             lockerMap = L.map('locker-map').setView([39.8283, -98.5795], 4); // Center of USA
 
@@ -3408,7 +3821,9 @@
 
         // Update map with locker markers
         function updateLockerMap(lockers) {
+            if (typeof L === 'undefined') return; // Leaflet not available
             if (!lockerMap) initLockerMap();
+            if (!lockerMap) return; // Still no map (init failed)
 
             // Clear existing markers
             lockerMarkers.forEach(marker => lockerMap.removeLayer(marker));
@@ -3565,13 +3980,20 @@
                 }
 
                 // Load saved preferences first if needed (so we know IDs for filtering)
-                if (savedPreferenceIds.length === 0 || originalSavedIds.length === 0) {
-                    const prefsResponse = await window.__nativeFetch(`/api/locker-preferences/${shop}`);
-                    const preferences = await prefsResponse.json();
-                    savedPreferenceIds = preferences.map(p => p.location_id.toString());
-                    // Store original state for change detection
-                    originalSavedIds = [...savedPreferenceIds];
-                    updateSaveButtonState();
+                if (!prefsLoaded) {
+                    try {
+                        const prefsResponse = await window.__nativeFetch(`/api/locker-preferences/${shop}`);
+                        const preferences = await prefsResponse.json();
+                        if (Array.isArray(preferences)) {
+                            savedPreferenceIds = preferences.map(p => p.location_id.toString());
+                            originalSavedIds = [...savedPreferenceIds];
+                        }
+                        prefsLoaded = true;
+                        updateSaveButtonState();
+                    } catch (prefsError) {
+                        console.warn('Could not load preferences, continuing without:', prefsError);
+                        prefsLoaded = true; // Don't retry on every page
+                    }
                 }
 
                 // Build URL - use saved_only param for efficient server-side filtering
@@ -3585,6 +4007,9 @@
 
                 // Load available lockers
                 const response = await window.__nativeFetch(url);
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                }
                 const data = await response.json();
 
                 // Handle both old format (array) and new format (object with lockers and pagination)
@@ -3684,7 +4109,11 @@
                 updateLockerMap(filteredLockers);
             } catch (error) {
                 console.error('Error loading lockers:', error);
-                lockerList.innerHTML = `<p style="color: #bf0711;">Error loading lockers. Please try again.</p>`;
+                lockerList.innerHTML = `<div style="padding: 20px; text-align: center;">
+                    <p style="color: #bf0711; margin-bottom: 8px;">Error loading lockers. Please try again.</p>
+                    <p style="color: #6d7175; font-size: 12px;">${error.message || 'Unknown error'}</p>
+                    <button class="btn btn-secondary" onclick="loadLockers(${page})" style="margin-top: 12px;">Retry</button>
+                </div>`;
             }
         }
 
@@ -3761,7 +4190,7 @@
             if (selectedLockers.length === 0) {
                 const confirmed = confirm(
                     '⚠️ No lockers selected!\n\n' +
-                    'Customers won\'t see LockerDrop as a shipping option at checkout if you have no lockers enabled.\n\n' +
+                    'Customers won\'t see LockerDrop as a pickup option at checkout if you have no lockers enabled.\n\n' +
                     'Are you sure you want to continue with no lockers?'
                 );
                 if (!confirmed) return;
@@ -4912,54 +5341,14 @@
                 const response = await window.__nativeFetch(`/api/subscription/${shop}`);
                 const data = await response.json();
                 currentSubscription = data;
-                renderBillingStatus(data);
                 renderBillingUsage(data);
                 checkDevMode();
-                handleBillingUrlParams();
             } catch (error) {
-                console.error('Error loading subscription:', error);
-                document.getElementById('subscription-status').innerHTML =
-                    '<p style="color: #bf0711;">Error loading billing status</p>';
+                console.error('Error loading billing:', error);
             }
-        }
-
-        function renderBillingStatus(sub) {
-            const statusEl = document.getElementById('subscription-status');
-            const approvalBanner = document.getElementById('billing-approval-banner');
-            const cancelCard = document.getElementById('cancel-card');
-            let statusBadge = '';
-            let statusMessage = '';
-
-            approvalBanner.style.display = 'none';
-            cancelCard.style.display = 'none';
-
-            if (sub.status === 'active') {
-                statusBadge = '<span style="background: #e3f5ef; color: #008060; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;">Active</span>';
-                statusMessage = 'Pay-per-order billing is active. You are charged $' + sub.perOrderFee.toFixed(2) + ' per locker pickup order on your Shopify invoice.';
-                cancelCard.style.display = 'block';
-            } else if (sub.status === 'pending' || sub.status === 'declined') {
-                statusBadge = '<span style="background: #fff4e6; color: #996300; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;">Pending</span>';
-                statusMessage = 'Billing has not been approved yet. Your orders are still being processed, but please approve billing to ensure uninterrupted service.';
-                approvalBanner.style.display = 'block';
-            } else if (sub.status === 'cancelled') {
-                statusBadge = '<span style="background: #f0f1f2; color: #6d7175; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;">Cancelled</span>';
-                statusMessage = 'Billing has been cancelled. Click below to re-activate.';
-                approvalBanner.style.display = 'block';
-            } else {
-                statusBadge = '<span style="background: #f0f1f2; color: #6d7175; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 500;">' + (sub.status || 'Unknown') + '</span>';
-                statusMessage = 'Billing status: ' + (sub.status || 'unknown');
-            }
-
-            statusEl.innerHTML =
-                '<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">' +
-                    '<span style="font-size: 18px; font-weight: 600;">Pay Per Order</span>' +
-                    statusBadge +
-                '</div>' +
-                '<p style="color: #6d7175;">' + statusMessage + '</p>';
         }
 
         function renderBillingUsage(sub) {
-            document.getElementById('billing-per-order-fee').textContent = '$' + sub.perOrderFee.toFixed(2);
             document.getElementById('billing-cap').textContent = '$' + sub.cappedAmount.toFixed(2);
             document.getElementById('billing-order-count').textContent = sub.ordersThisMonth || 0;
             document.getElementById('billing-total-charged').textContent = '$' + (sub.totalChargedThisMonth || 0).toFixed(2);
@@ -4984,73 +5373,9 @@
                 usageBar.style.background = '#996300';
                 usageMsg.textContent = 'You\'ve used most of your monthly billing cap.';
             } else {
-                usageBar.style.background = '#5c6ac4';
+                usageBar.style.background = '#FE5535';
                 const remaining = (cap - charged).toFixed(2);
-                usageMsg.textContent = '$' + remaining + ' remaining in this billing cycle.';
-            }
-        }
-
-        async function approveBilling() {
-            try {
-                const response = await window.__nativeFetch(`/api/subscribe/${shop}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-
-                const result = await response.json();
-
-                if (result.alreadyActive) {
-                    alert('Billing is already active!');
-                    loadSubscription();
-                } else if (result.confirmationUrl) {
-                    window.top.location.href = result.confirmationUrl;
-                } else {
-                    alert('Error: ' + (result.error || 'Could not create billing subscription'));
-                }
-            } catch (error) {
-                console.error('Error approving billing:', error);
-                alert('Error: ' + error.message);
-            }
-        }
-
-        async function cancelSubscription() {
-            if (!confirm('Are you sure you want to cancel billing? You will no longer be charged per order.')) {
-                return;
-            }
-
-            try {
-                const response = await window.__nativeFetch(`/api/subscription/cancel/${shop}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    alert('Billing cancelled successfully.');
-                    loadSubscription();
-                } else {
-                    alert('Error: ' + (result.error || 'Could not cancel billing'));
-                }
-            } catch (error) {
-                console.error('Error cancelling:', error);
-                alert('Error: ' + error.message);
-            }
-        }
-
-        function handleBillingUrlParams() {
-            const billing = urlParams.get('billing');
-
-            if (billing === 'success') {
-                alert('Billing activated! You will be charged per locker pickup order.');
-                window.history.replaceState({}, document.title, window.location.pathname + '?shop=' + shop);
-                loadSubscription();
-            } else if (billing === 'declined') {
-                alert('Billing was not approved. You can approve anytime from the Billing tab.');
-                window.history.replaceState({}, document.title, window.location.pathname + '?shop=' + shop);
-            } else if (billing === 'error') {
-                alert('There was an error processing billing. Please try again.');
-                window.history.replaceState({}, document.title, window.location.pathname + '?shop=' + shop);
+                usageMsg.textContent = '$' + remaining + ' remaining this cycle.';
             }
         }
 
@@ -5531,12 +5856,16 @@
     <!-- Footer -->
     <footer style="text-align: center; padding: 20px; margin-top: 40px; border-top: 1px solid #e1e3e5; color: #6d7175; font-size: 13px;">
         <p>
-            <a href="/docs/training" style="color: #6d7175; margin: 0 8px;">Training</a> |
-            <a href="/docs/faq" style="color: #6d7175; margin: 0 8px;">FAQ</a> |
-            <a href="/privacy" style="color: #6d7175; margin: 0 8px;">Privacy Policy</a> |
+            <a href="/docs/training" target="_blank" style="color: #6d7175; margin: 0 8px;">Training</a> |
+            <a href="/docs/faq" target="_blank" style="color: #6d7175; margin: 0 8px;">FAQ</a> |
+            <a href="/privacy" target="_blank" style="color: #6d7175; margin: 0 8px;">Privacy Policy</a> |
             <a href="mailto:support@lockerdrop.it" style="color: #6d7175; margin: 0 8px;">Support</a>
         </p>
         <p style="margin-top: 8px;">&copy; 2025 LockerDrop. All rights reserved.</p>
     </footer>
+
+        </main><!-- end main-content -->
+    </div><!-- end app-layout -->
+
 </body>
 </html>

@@ -473,17 +473,49 @@ app.get('/auth/callback', async (req, res) => {
             logger.error('❌ Database save error:', dbError);
         }
 
-        // Register webhooks and carrier service (don't fail if they already exist)
+        // Register webhooks (don't fail if they already exist)
         try {
             await registerWebhooks(shop, accessToken);
         } catch (e) {
             logger.info('⚠️ Webhook registration skipped:', e.message);
         }
 
+        // Detect shop plan and conditionally register carrier service
+        let carrierRegistered = false;
         try {
-            await registerCarrierService(shop, accessToken);
-        } catch (e) {
-            logger.info('⚠️ Carrier service registration skipped (may already exist):', e.message);
+            const planData = await getShopPlan(shop, accessToken);
+            if (planData) {
+                await db.query(
+                    `UPDATE stores SET shop_plan = $1, partner_development = $2, shopify_plus = $3, plan_last_checked = NOW() WHERE shop = $4`,
+                    [planData.displayName, planData.partnerDevelopment, planData.shopifyPlus, shop]
+                );
+                logger.info({ shop, plan: planData.displayName, eligible: isCarrierEligible(planData) }, 'Shop plan detected');
+
+                if (isCarrierEligible(planData)) {
+                    try {
+                        const result = await registerCarrierService(shop, accessToken);
+                        carrierRegistered = !!result;
+                    } catch (e) {
+                        logger.info('⚠️ Carrier service registration skipped (may already exist):', e.message);
+                    }
+                } else {
+                    logger.info({ shop, plan: planData.displayName }, 'Skipping carrier service — plan does not support carrier-calculated shipping');
+                }
+            } else {
+                // Couldn't detect plan — try registering anyway
+                try {
+                    const result = await registerCarrierService(shop, accessToken);
+                    carrierRegistered = !!result;
+                } catch (e) {
+                    logger.info('⚠️ Carrier service registration skipped:', e.message);
+                }
+            }
+            await db.query(
+                'UPDATE stores SET carrier_service_registered = $1 WHERE shop = $2',
+                [carrierRegistered, shop]
+            );
+        } catch (planError) {
+            logger.error({ shop, err: planError.message }, 'Error during plan detection / carrier registration');
         }
 
         // Create authenticated session
@@ -1196,7 +1228,7 @@ async function requireAuth(req, res, next) {
 }
 
 // API authentication middleware for sensitive dashboard API calls
-function requireApiAuth(req, res, next) {
+async function requireApiAuth(req, res, next) {
     const shop = req.params.shop;
 
     if (!shop) {
@@ -1206,6 +1238,24 @@ function requireApiAuth(req, res, next) {
     // Check if session is authenticated for this shop
     if (req.session && req.session.authenticated && req.session.shop === shop) {
         return next();
+    }
+
+    // Fallback: verify the shop is installed (has access token in DB)
+    // This handles embedded iframe contexts where third-party cookies are blocked
+    try {
+        const result = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop]);
+        if (result.rows.length > 0 && result.rows[0].access_token) {
+            // Shop is installed — create session for subsequent requests
+            if (req.session) {
+                req.session.authenticated = true;
+                req.session.shop = shop;
+                req.session.authenticatedAt = Date.now();
+            }
+            logger.info(`🔐 API auth via DB verification for ${shop}`);
+            return next();
+        }
+    } catch (dbError) {
+        logger.error('Database error during API auth:', dbError);
     }
 
     // For API calls, return 401 instead of redirecting
@@ -2136,6 +2186,160 @@ app.get('/api/retry-link/:orderNumber', async (req, res) => {
     }
 });
 
+// Get order info for the dropoff confirm page (pre-locker-open size verification)
+app.get('/api/order-dropoff-info/:orderNumber', async (req, res) => {
+    try {
+        const { orderNumber } = req.params;
+
+        if (!orderNumber) {
+            return res.status(400).json({ success: false, error: 'Order number required' });
+        }
+
+        const result = await db.query(
+            `SELECT o.id, o.order_number, o.location_id, o.locker_id, o.dropoff_link, o.status,
+                    COALESCE(lp.location_name, 'Location ' || o.location_id) as location_name
+             FROM orders o
+             LEFT JOIN locker_preferences lp ON o.location_id = lp.location_id AND o.shop = lp.shop
+             WHERE o.order_number = $1`,
+            [orderNumber]
+        );
+
+        if (result.rows.length === 0) {
+            return res.json({ success: false, error: 'Order not found' });
+        }
+
+        const order = result.rows[0];
+
+        // Determine current locker size from the reservation if available
+        let lockerSize = 'medium'; // default
+        try {
+            const reservationResult = await db.query(
+                `SELECT locker_size FROM locker_reservations
+                 WHERE used_by_order_id = $1::text AND locker_size IS NOT NULL
+                 ORDER BY created_at DESC LIMIT 1`,
+                [String(order.id)]
+            );
+            if (reservationResult.rows.length > 0 && reservationResult.rows[0].locker_size) {
+                lockerSize = reservationResult.rows[0].locker_size.toLowerCase();
+            }
+        } catch (e) {
+            logger.info(`Could not fetch reservation size: ${e.message}`);
+        }
+
+        res.json({
+            success: true,
+            orderNumber: order.order_number,
+            locationId: order.location_id,
+            locationName: order.location_name,
+            lockerSize: lockerSize,
+            dropoffLink: order.dropoff_link,
+            status: order.status
+        });
+    } catch (error) {
+        logger.error('Error fetching order dropoff info:', error);
+        res.status(500).json({ success: false, error: 'Failed to load order info' });
+    }
+});
+
+// Change locker size before dropoff (called from dropoff-confirm page)
+app.post('/api/dropoff-change-size', async (req, res) => {
+    try {
+        const { orderNumber, newSize } = req.body;
+
+        logger.info(`📦 Dropoff change size (pre-open): order=${orderNumber}, newSize=${newSize}`);
+
+        if (!orderNumber || !newSize) {
+            return res.status(400).json({ success: false, error: 'Order number and new size required' });
+        }
+
+        const sizeMap = { 'small': 1, 'medium': 2, 'large': 3, 'x-large': 4 };
+        if (!sizeMap[newSize]) {
+            return res.status(400).json({ success: false, error: `Invalid size: ${newSize}` });
+        }
+
+        // Find the order
+        const orderResult = await db.query(
+            "SELECT id, shop, shopify_order_id, order_number, location_id, locker_id, tower_id, status FROM orders WHERE order_number = $1",
+            [orderNumber]
+        );
+
+        if (orderResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+
+        const order = orderResult.rows[0];
+
+        if (!order.location_id) {
+            return res.json({ success: false, error: 'No locker location assigned. Please assign a location from the dashboard.' });
+        }
+
+        // Clear existing locker reservation before getting a new one
+        await db.query(
+            `UPDATE orders SET
+                locker_id = NULL, dropoff_link = NULL, dropoff_request_id = NULL,
+                tower_id = NULL, status = 'pending_dropoff', updated_at = NOW()
+            WHERE id = $1`,
+            [order.id]
+        );
+        logger.info(`🧹 Cleared previous locker for order #${orderNumber} to switch to ${newSize}`);
+
+        // Try requested size and cascade up to larger sizes
+        const sizeNames = ['small', 'medium', 'large', 'x-large'];
+        const startIndex = sizeNames.indexOf(newSize);
+        const sizesToTry = sizeNames.slice(startIndex).map(name => ({ id: sizeMap[name], name }));
+
+        let dropoffLink = null;
+        let usedSize = null;
+
+        for (const size of sizesToTry) {
+            try {
+                logger.info(`🔗 Trying ${size.name} locker (type ${size.id}) for order #${orderNumber}...`);
+                dropoffLink = await generateDropoffLink(
+                    order.location_id,
+                    size.id,
+                    order.shopify_order_id,
+                    order.order_number
+                );
+                usedSize = size.name;
+                logger.info(`✅ Success with ${size.name} locker!`);
+                break;
+            } catch (sizeError) {
+                const errorDetail = sizeError.response?.data?.detail || sizeError.message;
+                logger.info(`   ❌ ${size.name} failed: ${errorDetail}`);
+                if (!errorDetail.includes('No locker available')) {
+                    throw sizeError;
+                }
+            }
+        }
+
+        if (!dropoffLink) {
+            const triedSizes = sizesToTry.map(s => s.name).join(', ');
+            return res.json({
+                success: false,
+                error: `No lockers available. Tried: ${triedSizes}. Please try again later.`
+            });
+        }
+
+        // Save new link to order
+        await db.query(
+            'UPDATE orders SET dropoff_link = $1, locker_id = $2, dropoff_request_id = $3, tower_id = $4, updated_at = NOW() WHERE id = $5',
+            [dropoffLink.linkToken, dropoffLink.lockerId, dropoffLink.id, dropoffLink.towerId, order.id]
+        );
+
+        logger.info(`✅ Pre-open size change: ${usedSize} locker assigned for order #${orderNumber}`);
+
+        return res.json({
+            success: true,
+            orderNumber: order.order_number,
+            newDropoffLink: dropoffLink.linkToken,
+            lockerSize: usedSize
+        });
+    } catch (error) {
+        logger.error('Error processing dropoff size change:', error);
+        res.status(500).json({ success: false, error: 'Failed to change locker size' });
+    }
+});
+
 // Dropoff complete callback - called from the success page when seller drops off
 app.post('/api/dropoff-complete', async (req, res) => {
     try {
@@ -2415,6 +2619,104 @@ app.post('/api/dropoff-doesnt-fit', async (req, res) => {
     }
 });
 
+// Change locker location for an order (seller dashboard)
+app.post('/api/order-change-location/:shop/:orderNumber', requireApiAuth, async (req, res) => {
+    try {
+        const { shop, orderNumber } = req.params;
+        const { newLocationId, locationName } = req.body;
+
+        logger.info(`📍 Changing location for order #${orderNumber} to location ${newLocationId} (${locationName})`);
+
+        if (!newLocationId) {
+            return res.status(400).json({ success: false, error: 'New location ID required' });
+        }
+
+        // Find the order
+        const orderResult = await db.query(
+            "SELECT id, shop, shopify_order_id, order_number, location_id, locker_id, status FROM orders WHERE shop = $1 AND order_number = $2",
+            [shop, orderNumber]
+        );
+
+        if (orderResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+
+        const order = orderResult.rows[0];
+
+        // Only allow location change for pending orders
+        if (!['pending', 'pending_dropoff'].includes(order.status)) {
+            return res.status(400).json({ success: false, error: `Cannot change location for order in ${order.status} status` });
+        }
+
+        // Clear existing locker assignment and update location
+        await db.query(
+            `UPDATE orders SET
+                location_id = $1, location_name = $2,
+                locker_id = NULL, tower_id = NULL,
+                dropoff_link = NULL, dropoff_request_id = NULL,
+                status = 'pending_dropoff', updated_at = NOW()
+            WHERE id = $3`,
+            [newLocationId, locationName, order.id]
+        );
+
+        // Update locker_preferences location_name if we have it
+        await db.query(
+            `INSERT INTO locker_preferences (shop, location_id, location_name)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (shop, location_id) DO UPDATE SET location_name = $3`,
+            [shop, newLocationId, locationName]
+        ).catch(() => {}); // ignore if constraint doesn't exist
+
+        // Generate a new dropoff link at the new location
+        let dropoffLink = null;
+        try {
+            const sizeNames = ['small', 'medium', 'large', 'x-large'];
+            const sizeMap = { 'small': 1, 'medium': 2, 'large': 3, 'x-large': 4 };
+
+            for (const sizeName of sizeNames.slice(1)) { // start from medium
+                try {
+                    dropoffLink = await generateDropoffLink(
+                        newLocationId,
+                        sizeMap[sizeName],
+                        order.shopify_order_id,
+                        order.order_number
+                    );
+                    logger.info(`✅ New dropoff link generated at ${locationName} (${sizeName})`);
+                    break;
+                } catch (sizeError) {
+                    const errorDetail = sizeError.response?.data?.detail || sizeError.message;
+                    if (!errorDetail.includes('No locker available')) {
+                        throw sizeError;
+                    }
+                }
+            }
+        } catch (linkError) {
+            logger.warn(`⚠️ Could not generate dropoff link at new location: ${linkError.message}`);
+        }
+
+        // Save the dropoff link if we got one
+        if (dropoffLink) {
+            await db.query(
+                'UPDATE orders SET dropoff_link = $1, locker_id = $2, dropoff_request_id = $3, tower_id = $4 WHERE id = $5',
+                [dropoffLink.linkToken, dropoffLink.lockerId, dropoffLink.id, dropoffLink.towerId, order.id]
+            );
+        }
+
+        logger.info(`✅ Order #${orderNumber} moved to ${locationName} (location ${newLocationId})`);
+
+        res.json({
+            success: true,
+            orderNumber,
+            locationId: newLocationId,
+            locationName,
+            hasDropoffLink: !!dropoffLink
+        });
+    } catch (error) {
+        logger.error('Error changing order location:', error);
+        res.status(500).json({ success: false, error: 'Failed to change location' });
+    }
+});
+
 // Resend pickup notification to customer (SMS and/or Email)
 app.post('/api/resend-notification/:orderNumber', (req, res, next) => {
     // Verify session is authenticated
@@ -2526,6 +2828,10 @@ app.get('/pickup-success', (req, res) => {
 // Serve dropoff success page
 app.get('/dropoff-success', (req, res) => {
     res.sendFile(path.join(__dirname, 'public/dropoff-success.html'));
+});
+
+app.get('/dropoff-confirm', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public/dropoff-confirm.html'));
 });
 
 // ============================================
@@ -3347,6 +3653,135 @@ app.post('/api/subscription/dev-switch/:shop', async (req, res) => {
     } catch (error) {
         logger.error({ err: error }, 'Error in dev billing switch');
         res.status(500).json({ error: 'Failed' });
+    }
+});
+
+// ============================================
+// SHOP PLAN DETECTION
+// ============================================
+
+// Get shop plan + carrier service status (re-checks hourly)
+app.get('/api/shop-plan/:shop', async (req, res) => {
+    try {
+        const { shop } = req.params;
+
+        // Get stored plan info
+        const storeResult = await db.query(
+            'SELECT shop_plan, carrier_service_registered, plan_last_checked, partner_development, shopify_plus FROM stores WHERE shop = $1',
+            [shop]
+        );
+
+        if (storeResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Store not found' });
+        }
+
+        const store = storeResult.rows[0];
+        let planData = {
+            displayName: store.shop_plan,
+            partnerDevelopment: store.partner_development || false,
+            shopifyPlus: store.shopify_plus || false
+        };
+
+        // Re-check if plan is stale (>1 hour old) or never checked
+        const lastChecked = store.plan_last_checked ? new Date(store.plan_last_checked) : null;
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+        if (!lastChecked || lastChecked < oneHourAgo) {
+            // Get fresh plan data from Shopify
+            let accessToken = accessTokens.get(shop);
+            if (!accessToken) {
+                const tokenResult = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop]);
+                if (tokenResult.rows.length > 0) {
+                    accessToken = tokenResult.rows[0].access_token;
+                    accessTokens.set(shop, accessToken);
+                }
+            }
+
+            if (accessToken) {
+                const freshPlan = await getShopPlan(shop, accessToken);
+                if (freshPlan) {
+                    planData = freshPlan;
+                    const wasEligible = isCarrierEligible({ displayName: store.shop_plan, partnerDevelopment: store.partner_development, shopifyPlus: store.shopify_plus });
+                    const nowEligible = isCarrierEligible(freshPlan);
+
+                    // Auto-register carrier service if plan upgraded to eligible
+                    if (nowEligible && !wasEligible && !store.carrier_service_registered) {
+                        logger.info({ shop, plan: freshPlan.displayName }, 'Plan upgraded — auto-registering carrier service');
+                        try {
+                            const result = await registerCarrierService(shop, accessToken);
+                            if (result) {
+                                await db.query('UPDATE stores SET carrier_service_registered = true WHERE shop = $1', [shop]);
+                                store.carrier_service_registered = true;
+                            }
+                        } catch (e) {
+                            logger.warn({ shop, err: e.message }, 'Auto carrier registration failed after plan upgrade');
+                        }
+                    }
+
+                    await db.query(
+                        `UPDATE stores SET shop_plan = $1, partner_development = $2, shopify_plus = $3, plan_last_checked = NOW() WHERE shop = $4`,
+                        [freshPlan.displayName, freshPlan.partnerDevelopment, freshPlan.shopifyPlus, shop]
+                    );
+                }
+            }
+        }
+
+        res.json({
+            plan: planData.displayName,
+            carrierServiceEligible: isCarrierEligible(planData),
+            carrierServiceRegistered: store.carrier_service_registered || false,
+            partnerDevelopment: planData.partnerDevelopment,
+            shopifyPlus: planData.shopifyPlus,
+            planLastChecked: store.plan_last_checked
+        });
+    } catch (error) {
+        logger.error({ err: error }, 'Error getting shop plan');
+        res.status(500).json({ error: 'Failed to get shop plan' });
+    }
+});
+
+// Retry carrier service registration (for merchants who upgraded plan or enabled add-on)
+app.post('/api/register-carrier/:shop', requireApiAuth, async (req, res) => {
+    try {
+        const { shop } = req.params;
+
+        // Get access token
+        let accessToken = accessTokens.get(shop);
+        if (!accessToken) {
+            const tokenResult = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop]);
+            if (tokenResult.rows.length > 0) {
+                accessToken = tokenResult.rows[0].access_token;
+                accessTokens.set(shop, accessToken);
+            }
+        }
+
+        if (!accessToken) {
+            return res.status(400).json({ error: 'No access token found. Please reinstall the app.' });
+        }
+
+        // Re-query plan from Shopify
+        const planData = await getShopPlan(shop, accessToken);
+        if (planData) {
+            await db.query(
+                `UPDATE stores SET shop_plan = $1, partner_development = $2, shopify_plus = $3, plan_last_checked = NOW() WHERE shop = $4`,
+                [planData.displayName, planData.partnerDevelopment, planData.shopifyPlus, shop]
+            );
+        }
+
+        // Try to register carrier service
+        const result = await registerCarrierService(shop, accessToken);
+        const success = !!result;
+
+        await db.query('UPDATE stores SET carrier_service_registered = $1 WHERE shop = $2', [success, shop]);
+
+        if (success) {
+            res.json({ success: true, message: 'Carrier service registered successfully. Add LockerDrop to your shipping zones.' });
+        } else {
+            res.json({ success: false, message: 'Could not register carrier service. Your plan may not support carrier-calculated shipping.' });
+        }
+    } catch (error) {
+        logger.error({ shop: req.params.shop, err: error.message }, 'Error registering carrier service');
+        res.status(500).json({ error: 'Failed to register carrier service' });
     }
 });
 
@@ -6958,6 +7393,58 @@ async function ensureProductExcludedColumn() {
     }
 }
 
+// Ensure store plan columns exist
+async function ensureStorePlanColumns() {
+    try {
+        await db.query(`
+            ALTER TABLE stores ADD COLUMN IF NOT EXISTS shop_plan VARCHAR(100);
+            ALTER TABLE stores ADD COLUMN IF NOT EXISTS carrier_service_registered BOOLEAN DEFAULT false;
+            ALTER TABLE stores ADD COLUMN IF NOT EXISTS plan_last_checked TIMESTAMP;
+            ALTER TABLE stores ADD COLUMN IF NOT EXISTS partner_development BOOLEAN DEFAULT false;
+            ALTER TABLE stores ADD COLUMN IF NOT EXISTS shopify_plus BOOLEAN DEFAULT false;
+        `);
+        logger.info('🏪 Store plan columns ready');
+    } catch (error) {
+        logger.error('Error adding store plan columns:', error);
+    }
+}
+
+// Query shop plan from Shopify GraphQL
+async function getShopPlan(shop, accessToken) {
+    try {
+        const result = await shopifyGraphQL(shop, accessToken, `
+            { shop { plan { displayName partnerDevelopment shopifyPlus } } }
+        `);
+        const plan = result.shop?.plan;
+        if (!plan) {
+            logger.warn({ shop }, 'Could not retrieve shop plan');
+            return null;
+        }
+        return {
+            displayName: plan.displayName,
+            partnerDevelopment: plan.partnerDevelopment || false,
+            shopifyPlus: plan.shopifyPlus || false
+        };
+    } catch (error) {
+        logger.error({ shop, err: error.message }, 'Error querying shop plan');
+        return null;
+    }
+}
+
+// Check if a plan likely supports carrier-calculated shipping
+// Note: partnerDevelopment stores may or may not have CCS enabled,
+// so we attempt registration for them but don't guarantee eligibility.
+function isCarrierEligible(planData) {
+    if (!planData) return false;
+    if (planData.shopifyPlus) return true;
+    const name = (planData.displayName || '').toLowerCase();
+    if (name.includes('advanced') || name.includes('plus')) return true;
+    // Dev stores: only eligible if plan name suggests Advanced/Plus
+    // Basic dev stores don't have carrier-calculated shipping enabled
+    if (planData.partnerDevelopment && (name.includes('advanced') || name.includes('plus'))) return true;
+    return false;
+}
+
 // Log data access
 async function logDataAccess(userId, action, details = {}, req = null) {
     try {
@@ -7499,7 +7986,16 @@ async function registerCarrierService(shop, accessToken) {
 
         const errors = result.carrierServiceCreate?.userErrors;
         if (errors && errors.length > 0) {
-            logger.info('⚠️ Carrier service registration:', errors[0].message);
+            const msg = errors[0].message || 'Unknown error';
+            // "already configured" means it's already registered — treat as success
+            if (msg.includes('already configured') || msg.includes('already exists')) {
+                logger.info({ shop }, '✅ Carrier service already registered');
+                return { id: 'existing', name: 'LockerDrop' };
+            }
+            logger.warn({ error: msg, shop }, '⚠️ Carrier service registration failed: ' + msg);
+            if (msg.includes('Carrier Calculated Shipping must be enabled')) {
+                logger.warn({ shop }, '⚠️ Store plan does not support carrier-calculated shipping. Merchant needs to enable it or upgrade their plan.');
+            }
             return null;
         }
 
@@ -8042,6 +8538,9 @@ app.listen(PORT, async () => {
 
     // Initialize subscriptions table
     await initSubscriptions();
+
+    // Ensure store plan columns exist
+    await ensureStorePlanColumns();
 
     // Schedule data retention cleanup
     scheduleDataRetention();

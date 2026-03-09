@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Confirm Drop-off Size</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #008060 0%, #006e52 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            color: white;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 420px;
+            width: 100%;
+        }
+
+        .icon {
+            width: 100px;
+            height: 100px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            font-size: 48px;
+            animation: scaleIn 0.5s ease-out;
+        }
+
+        @keyframes scaleIn {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            animation: fadeInUp 0.5s ease-out 0.2s both;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+            margin-bottom: 28px;
+            animation: fadeInUp 0.5s ease-out 0.3s both;
+        }
+
+        .order-info {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 24px;
+            backdrop-filter: blur(10px);
+            animation: fadeInUp 0.5s ease-out 0.4s both;
+        }
+
+        .order-number {
+            font-size: 13px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .order-value {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .size-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            animation: fadeInUp 0.5s ease-out 0.5s both;
+            margin-bottom: 20px;
+        }
+
+        .size-section h3 {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+            opacity: 0.8;
+        }
+
+        .current-size-label {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-bottom: 12px;
+        }
+
+        .size-picker {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .size-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 12px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+            min-width: 75px;
+        }
+
+        .size-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .size-btn.selected {
+            background: white;
+            color: #006e52;
+            border-color: white;
+        }
+
+        .size-btn .size-label {
+            display: block;
+            font-size: 14px;
+        }
+
+        .size-btn .size-dims {
+            display: block;
+            font-size: 10px;
+            opacity: 0.7;
+            margin-top: 2px;
+        }
+
+        .size-btn.selected .size-dims {
+            opacity: 0.6;
+        }
+
+        .btn {
+            display: inline-block;
+            background: white;
+            color: #008060;
+            padding: 16px 32px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            font-size: 17px;
+            animation: fadeInUp 0.5s ease-out 0.6s both;
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-loading {
+            pointer-events: none;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(0,128,96,0.3);
+            border-radius: 50%;
+            border-top-color: #008060;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        .spinner-white {
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .status-msg {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 14px;
+            margin-top: 16px;
+        }
+
+        .status-msg.error {
+            background: rgba(220, 38, 38, 0.3);
+        }
+
+        .footer {
+            margin-top: 40px;
+            font-size: 12px;
+            opacity: 0.6;
+            animation: fadeInUp 0.5s ease-out 0.8s both;
+        }
+
+        .footer a {
+            color: white;
+            text-decoration: none;
+        }
+
+        .loading-container {
+            text-align: center;
+            padding: 40px 0;
+        }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- LOADING STATE -->
+        <div id="loading-container" class="loading-container">
+            <div class="icon"><span class="spinner-white" style="width:40px;height:40px;border-width:3px;display:inline-block;border:3px solid rgba(0,128,96,0.3);border-radius:50%;border-top-color:#008060;animation:spin 1s ease-in-out infinite;"></span></div>
+            <h1>Loading order...</h1>
+        </div>
+
+        <!-- MAIN CONFIRM STATE -->
+        <div id="confirm-container" class="hidden">
+            <div class="icon">📦</div>
+
+            <h1>Verify Locker Size</h1>
+            <p class="subtitle">Make sure the size is right before opening the locker</p>
+
+            <div class="order-info">
+                <div class="order-number">Order</div>
+                <div class="order-value" id="order-number">#---</div>
+            </div>
+
+            <div class="size-section">
+                <h3>Locker size</h3>
+                <p class="current-size-label" id="current-size-label">Currently assigned: <strong id="current-size-text">---</strong></p>
+                <div class="size-picker" id="size-picker">
+                    <button class="size-btn" data-size="small" onclick="selectSize('small')">
+                        <span class="size-label">Small</span>
+                        <span class="size-dims">12x8x4"</span>
+                    </button>
+                    <button class="size-btn" data-size="medium" onclick="selectSize('medium')">
+                        <span class="size-label">Medium</span>
+                        <span class="size-dims">16x12x8"</span>
+                    </button>
+                    <button class="size-btn" data-size="large" onclick="selectSize('large')">
+                        <span class="size-label">Large</span>
+                        <span class="size-dims">20x16x12"</span>
+                    </button>
+                    <button class="size-btn" data-size="x-large" onclick="selectSize('x-large')">
+                        <span class="size-label">X-Large</span>
+                        <span class="size-dims">24x20x16"</span>
+                    </button>
+                </div>
+            </div>
+
+            <button class="btn" id="btn-open" onclick="proceedToDropoff()">
+                Open Locker
+            </button>
+
+            <div id="status-msg" class="status-msg hidden"></div>
+        </div>
+
+        <!-- ERROR STATE -->
+        <div id="error-container" class="hidden">
+            <div class="icon">!</div>
+            <h1>Something went wrong</h1>
+            <p class="subtitle" id="error-message">Could not load order info.</p>
+        </div>
+
+        <div class="footer">
+            Powered by <a href="https://lockerdrop.it">LockerDrop.it</a>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const orderNumber = urlParams.get('order');
+
+        let orderData = null;
+        let selectedSize = null;
+        let originalSize = null;
+
+        const sizeMap = { 1: 'small', 2: 'medium', 3: 'large', 4: 'x-large' };
+        const sizeIdMap = { 'small': 1, 'medium': 2, 'large': 3, 'x-large': 4 };
+
+        // Load order info on page load
+        async function loadOrderInfo() {
+            if (!orderNumber) {
+                showError('No order number provided.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/order-dropoff-info/${encodeURIComponent(orderNumber)}`);
+                const result = await response.json();
+
+                if (!result.success) {
+                    showError(result.error || 'Could not load order.');
+                    return;
+                }
+
+                orderData = result;
+
+                document.getElementById('order-number').textContent = '#' + orderNumber;
+
+                // Determine current locker size
+                const currentSizeName = result.lockerSize || 'medium';
+                originalSize = currentSizeName;
+                document.getElementById('current-size-text').textContent =
+                    currentSizeName.charAt(0).toUpperCase() + currentSizeName.slice(1);
+
+                // Pre-select the current size
+                selectSize(currentSizeName);
+
+                // Show the confirm UI
+                document.getElementById('loading-container').classList.add('hidden');
+                document.getElementById('confirm-container').classList.remove('hidden');
+            } catch (error) {
+                console.error('Error loading order info:', error);
+                showError('Connection error. Please try again.');
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('loading-container').classList.add('hidden');
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error-container').classList.remove('hidden');
+        }
+
+        function selectSize(size) {
+            selectedSize = size;
+            document.querySelectorAll('.size-btn').forEach(btn => {
+                btn.classList.toggle('selected', btn.dataset.size === size);
+            });
+            // Update button text based on whether size changed
+            const btn = document.getElementById('btn-open');
+            if (size !== originalSize) {
+                btn.textContent = 'Change Size & Open Locker';
+            } else {
+                btn.textContent = 'Open Locker';
+            }
+        }
+
+        async function proceedToDropoff() {
+            if (!selectedSize || !orderData) return;
+
+            const btn = document.getElementById('btn-open');
+            const statusMsg = document.getElementById('status-msg');
+            btn.disabled = true;
+            btn.classList.add('btn-loading');
+            btn.innerHTML = '<span class="spinner"></span> Preparing locker...';
+
+            // If size changed, we need to get a new dropoff link
+            if (selectedSize !== originalSize) {
+                statusMsg.classList.remove('hidden', 'error');
+                statusMsg.innerHTML = '<span class="spinner spinner-white"></span> Switching to ' +
+                    selectedSize.charAt(0).toUpperCase() + selectedSize.slice(1) + ' locker...';
+
+                try {
+                    const response = await fetch('/api/dropoff-change-size', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            orderNumber: orderNumber,
+                            newSize: selectedSize
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success && result.newDropoffLink) {
+                        statusMsg.textContent = 'New locker assigned! Redirecting...';
+                        // Redirect to Harbor dropoff link
+                        window.location.href = result.newDropoffLink;
+                        return;
+                    } else {
+                        statusMsg.textContent = result.error || 'No lockers available at this size. Try a larger size.';
+                        statusMsg.classList.add('error');
+                        btn.disabled = false;
+                        btn.classList.remove('btn-loading');
+                        btn.textContent = 'Change Size & Open Locker';
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Error changing size:', error);
+                    statusMsg.textContent = 'Connection error. Please try again.';
+                    statusMsg.classList.add('error');
+                    btn.disabled = false;
+                    btn.classList.remove('btn-loading');
+                    btn.textContent = 'Change Size & Open Locker';
+                    return;
+                }
+            }
+
+            // Same size — use existing dropoff link
+            if (orderData.dropoffLink) {
+                window.location.href = orderData.dropoffLink;
+            } else {
+                statusMsg.classList.remove('hidden');
+                statusMsg.textContent = 'No dropoff link found. Please go back to the dashboard and regenerate.';
+                statusMsg.classList.add('error');
+                btn.disabled = false;
+                btn.classList.remove('btn-loading');
+                btn.textContent = 'Open Locker';
+            }
+        }
+
+        // Initialize
+        loadOrderInfo();
+    </script>
+</body>
+</html>

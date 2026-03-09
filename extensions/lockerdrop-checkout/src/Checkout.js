@@ -9,6 +9,8 @@ import {
   Banner,
   Divider,
   Pressable,
+  Icon,
+  Badge,
 } from '@shopify/ui-extensions/checkout';
 
 // Locker selection extension
@@ -17,8 +19,23 @@ extension(
   (root, api) => {
     const { shop, shippingAddress, buyerJourney, settings, deliveryGroups, lines } = api;
 
-    // Get custom title from settings
-    const customTitle = settings?.current?.title || 'LockerDrop Pickup';
+    // Merchant settings with defaults
+    function getSetting(key, defaultValue) {
+      const val = settings?.current?.[key];
+      return val !== undefined && val !== null && val !== '' ? val : defaultValue;
+    }
+
+    const customTitle = getSetting('title', 'LockerDrop Pickup');
+    const badgeText = getSetting('badge_text', 'FREE');
+    const showBadge = getSetting('show_badge', true);
+    const showBenefits = getSetting('show_benefits', true);
+    const benefitsText = getSetting('benefits_text', 'Pick up 24/7 \u00B7 Secure & contactless');
+    const showAvailability = getSetting('show_availability', true);
+    const compactMode = getSetting('compact_mode', false);
+
+    // Spacing helpers based on compact mode
+    const sp = compactMode ? 'tight' : 'base';
+    const spLoose = compactMode ? 'base' : 'loose';
 
     // State
     let lockers = [];
@@ -26,12 +43,12 @@ extension(
     let loading = true;
     let error = null;
     let showAllLockers = false;
-    let pickupDate = null; // From API
+    let pickupDate = null;
     let availableDates = [];
     let selectedDate = null;
 
     // Create container
-    const container = root.createComponent(BlockStack, { spacing: 'base', padding: 'base' });
+    const container = root.createComponent(BlockStack, { spacing: sp, padding: sp });
     root.appendChild(container);
 
     // Check if LockerDrop shipping is selected
@@ -61,39 +78,74 @@ extension(
         container.removeChild(container.children[0]);
       }
 
-      // Header
-      container.appendChild(root.createComponent(Divider));
-      const header = root.createComponent(InlineStack, { spacing: 'tight', blockAlignment: 'center' });
-      container.appendChild(header);
-      header.appendChild(root.createComponent(Heading, { level: 2 }, customTitle));
+      // Only show the widget when LockerDrop shipping is selected
+      if (!isLockerDropShippingSelected()) {
+        return;
+      }
 
-      // Check address
+      // ── Header ──
+      container.appendChild(root.createComponent(Divider));
+
+      const headerBlock = root.createComponent(BlockStack, { spacing: 'extraTight' });
+      container.appendChild(headerBlock);
+
+      const headerRow = root.createComponent(InlineStack, { spacing: 'tight', blockAlignment: 'center' });
+      headerBlock.appendChild(headerRow);
+
+      headerRow.appendChild(root.createComponent(Icon, { source: 'delivery', size: 'base', appearance: 'accent' }));
+      headerRow.appendChild(root.createComponent(Heading, { level: 2 }, customTitle));
+
+      if (showBadge && badgeText) {
+        headerRow.appendChild(root.createComponent(Badge, { tone: 'default' }, badgeText));
+      }
+
+      if (showBenefits) {
+        headerBlock.appendChild(root.createComponent(Text, { size: 'small', appearance: 'subdued' }, benefitsText));
+      }
+
+      // ── Check address ──
       const address = shippingAddress.current;
       const hasAddress = address?.zip || address?.city;
 
       if (!hasAddress) {
-        const placeholder = root.createComponent(View, { padding: 'base', background: 'subdued', borderRadius: 'base' });
+        const placeholder = root.createComponent(BlockStack, {
+          padding: sp,
+          background: 'subdued',
+          borderRadius: 'base',
+          spacing: 'tight',
+          inlineAlignment: 'center'
+        });
         container.appendChild(placeholder);
-        const content = root.createComponent(BlockStack, { spacing: 'none', inlineAlignment: 'center' });
-        placeholder.appendChild(content);
-        content.appendChild(root.createComponent(Text, { appearance: 'subdued' }, 'Enter your shipping address to see pickup locations'));
+        const placeholderRow = root.createComponent(InlineStack, { spacing: 'tight', blockAlignment: 'center', inlineAlignment: 'center' });
+        placeholderRow.appendChild(root.createComponent(Icon, { source: 'marker', size: 'small', appearance: 'subdued' }));
+        placeholderRow.appendChild(root.createComponent(Text, { appearance: 'subdued' }, 'Enter your address to see nearby pickup lockers'));
+        placeholder.appendChild(placeholderRow);
         return;
       }
 
+      // ── Loading ──
       if (loading) {
-        const loadingView = root.createComponent(View, { padding: 'base', background: 'subdued', borderRadius: 'base' });
+        const loadingView = root.createComponent(BlockStack, {
+          padding: sp,
+          background: 'subdued',
+          borderRadius: 'base',
+          spacing: 'tight',
+          inlineAlignment: 'center'
+        });
         container.appendChild(loadingView);
-        const content = root.createComponent(BlockStack, { spacing: 'none', inlineAlignment: 'center' });
-        loadingView.appendChild(content);
-        content.appendChild(root.createComponent(Text, { appearance: 'subdued' }, 'Finding pickup locations...'));
+        const loadingRow = root.createComponent(InlineStack, { spacing: 'tight', blockAlignment: 'center', inlineAlignment: 'center' });
+        loadingRow.appendChild(root.createComponent(Icon, { source: 'delivery', size: 'small', appearance: 'accent' }));
+        loadingRow.appendChild(root.createComponent(Text, { appearance: 'subdued' }, 'Finding pickup locations near you...'));
+        loadingView.appendChild(loadingRow);
         return;
       }
 
+      // ── Error ──
       if (error) {
-        const errorBanner = root.createComponent(BlockStack, { spacing: 'tight' });
-        container.appendChild(errorBanner);
-        errorBanner.appendChild(root.createComponent(Banner, { status: 'warning' }, root.createComponent(Text, null, error)));
-        errorBanner.appendChild(
+        const errorBlock = root.createComponent(BlockStack, { spacing: 'tight' });
+        container.appendChild(errorBlock);
+        errorBlock.appendChild(root.createComponent(Banner, { status: 'warning' }, root.createComponent(Text, null, error)));
+        errorBlock.appendChild(
           root.createComponent(Button, { kind: 'secondary', onPress: () => {
             error = null;
             loading = true;
@@ -104,16 +156,17 @@ extension(
         return;
       }
 
+      // ── No lockers ──
       if (lockers.length === 0) {
-        const noLockers = root.createComponent(View, { padding: 'base', background: 'subdued', borderRadius: 'base' });
-        container.appendChild(noLockers);
-        const content = root.createComponent(BlockStack, { spacing: 'none', inlineAlignment: 'center' });
-        noLockers.appendChild(content);
-        content.appendChild(root.createComponent(Text, { appearance: 'subdued' }, 'No pickup locations available nearby'));
+        container.appendChild(
+          root.createComponent(Banner, { status: 'info' },
+            root.createComponent(Text, null, 'No pickup lockers available near your address')
+          )
+        );
         return;
       }
 
-      // Selected locker view
+      // ── Selected locker view ──
       if (selectedLocker) {
         const lockerDropSelected = isLockerDropShippingSelected();
 
@@ -122,33 +175,56 @@ extension(
             root.createComponent(Text, null, 'Please select "LockerDrop Pickup" as your shipping method above.')));
         }
 
-        const selected = root.createComponent(BlockStack, { spacing: 'extraTight' });
-        container.appendChild(selected);
+        // Selected locker card
+        const selectedCard = root.createComponent(BlockStack, {
+          spacing: 'tight',
+          padding: sp,
+          background: 'subdued',
+          borderRadius: 'base',
+          border: 'base'
+        });
+        container.appendChild(selectedCard);
 
-        selected.appendChild(root.createComponent(Text, { emphasis: 'bold', appearance: 'success' }, `✓ ${selectedLocker.name}`));
-        selected.appendChild(root.createComponent(Text, { size: 'small', appearance: 'subdued' }, selectedLocker.address));
-
+        // Selected header row with checkmark
+        const selectedHeader = root.createComponent(InlineStack, { spacing: 'tight', blockAlignment: 'center' });
+        selectedCard.appendChild(selectedHeader);
+        selectedHeader.appendChild(root.createComponent(Icon, { source: 'checkmark', size: 'base', appearance: 'success' }));
+        selectedHeader.appendChild(root.createComponent(Text, { emphasis: 'bold', appearance: 'success' }, selectedLocker.name));
         if (selectedLocker.distance) {
-          selected.appendChild(root.createComponent(Text, { size: 'small', appearance: 'subdued' }, `${selectedLocker.distance} miles away`));
+          selectedHeader.appendChild(root.createComponent(Text, { size: 'small', appearance: 'subdued' }, `${selectedLocker.distance} mi`));
         }
 
-        // Show pickup date
+        // Address
+        const addressRow = root.createComponent(InlineStack, { spacing: 'tight', blockAlignment: 'center' });
+        selectedCard.appendChild(addressRow);
+        addressRow.appendChild(root.createComponent(Icon, { source: 'marker', size: 'small', appearance: 'subdued' }));
+        addressRow.appendChild(root.createComponent(Text, { size: 'small', appearance: 'subdued' }, selectedLocker.address));
+
+        // Pickup date
         const displayDate = selectedDate?.display || pickupDate;
         if (displayDate) {
-          selected.appendChild(root.createComponent(Text, { size: 'small', appearance: 'success', emphasis: 'bold' }, `📅 Ready ${displayDate}`));
+          const dateRow = root.createComponent(InlineStack, { spacing: 'tight', blockAlignment: 'center' });
+          selectedCard.appendChild(dateRow);
+          dateRow.appendChild(root.createComponent(Icon, { source: 'calendar', size: 'small', appearance: 'success' }));
+          dateRow.appendChild(root.createComponent(Text, { size: 'small', appearance: 'success', emphasis: 'bold' }, `Ready ${displayDate}`));
         }
+
+        // Hold time info
+        const holdRow = root.createComponent(InlineStack, { spacing: 'tight', blockAlignment: 'center' });
+        selectedCard.appendChild(holdRow);
+        holdRow.appendChild(root.createComponent(Icon, { source: 'lock', size: 'small', appearance: 'subdued' }));
+        holdRow.appendChild(root.createComponent(Text, { size: 'extraSmall', appearance: 'subdued' }, 'Held securely for up to 5 days'));
 
         // Date picker (if dates available)
         if (availableDates.length > 1) {
-          container.appendChild(root.createComponent(Divider));
           container.appendChild(root.createComponent(Text, { size: 'small', emphasis: 'bold' }, 'Choose pickup date:'));
 
-          const dateRow = root.createComponent(InlineStack, { spacing: 'tight' });
-          container.appendChild(dateRow);
+          const datePickerRow = root.createComponent(InlineStack, { spacing: 'tight' });
+          container.appendChild(datePickerRow);
 
           availableDates.slice(0, 5).forEach((date) => {
             const isSelected = selectedDate?.date === date.date;
-            dateRow.appendChild(
+            datePickerRow.appendChild(
               root.createComponent(Pressable, {
                 onPress: () => {
                   selectedDate = date;
@@ -162,7 +238,8 @@ extension(
               },
                 root.createComponent(BlockStack, { spacing: 'none', inlineAlignment: 'center' },
                   root.createComponent(Text, { size: 'small', emphasis: isSelected ? 'bold' : undefined }, date.dayName),
-                  root.createComponent(Text, { size: 'extraSmall', appearance: isSelected ? 'accent' : 'subdued' }, date.monthDay)
+                  root.createComponent(Text, { size: 'extraSmall', appearance: isSelected ? 'accent' : 'subdued' }, date.monthDay),
+                  isSelected ? root.createComponent(Icon, { source: 'checkmark', size: 'small', appearance: 'accent' }) : root.createComponent(Text, { size: 'extraSmall' }, ' ')
                 )
               )
             );
@@ -178,44 +255,78 @@ extension(
           }}, 'Change location')
         );
       } else {
-        // Locker list
-        const list = root.createComponent(BlockStack, { spacing: 'base' });
+        // ── Locker list ──
+        const list = root.createComponent(BlockStack, { spacing: 'tight' });
         container.appendChild(list);
 
         const lockersToShow = showAllLockers ? lockers : lockers.slice(0, 3);
 
         lockersToShow.forEach((locker, i) => {
-          const option = root.createComponent(BlockStack, { spacing: 'extraTight' });
-          list.appendChild(option);
+          const isClosest = i === 0;
 
-          const nameRow = root.createComponent(InlineStack, { spacing: 'tight', blockAlignment: 'center' });
-          option.appendChild(nameRow);
-
-          nameRow.appendChild(
-            root.createComponent(Button, { kind: 'secondary', onPress: () => {
+          // Card-style pressable for each locker
+          const card = root.createComponent(Pressable, {
+            onPress: () => {
               selectedLocker = locker;
               if (availableDates.length > 0 && !selectedDate) {
                 selectedDate = availableDates[0];
               }
               updateAttribute();
               render();
-            }}, locker.name)
+            },
+            border: 'base',
+            borderRadius: 'base',
+            padding: sp
+          });
+          list.appendChild(card);
+
+          const cardContent = root.createComponent(InlineStack, { spacing: sp, blockAlignment: 'start' });
+          card.appendChild(cardContent);
+
+          // Radio-style icon
+          cardContent.appendChild(
+            root.createComponent(View, { padding: ['extraTight', 'none', 'none', 'none'] },
+              root.createComponent(Icon, { source: 'hollowCircle', size: 'small', appearance: 'subdued' })
+            )
           );
 
+          // Locker details
+          const details = root.createComponent(BlockStack, { spacing: 'extraTight' });
+          cardContent.appendChild(details);
+
+          // Name row with distance and closest badge
+          const nameRow = root.createComponent(InlineStack, { spacing: 'tight', blockAlignment: 'center' });
+          details.appendChild(nameRow);
+          nameRow.appendChild(root.createComponent(Text, { emphasis: 'bold' }, locker.name));
+
           if (locker.distance) {
-            nameRow.appendChild(root.createComponent(Text, { size: 'small', appearance: 'subdued' }, `${locker.distance} mi`));
+            nameRow.appendChild(root.createComponent(Text, { size: 'small', appearance: 'subdued' }, `(${locker.distance} mi)`));
           }
 
-          if (i === 0) {
-            nameRow.appendChild(root.createComponent(Text, { size: 'extraSmall', appearance: 'success', emphasis: 'bold' }, 'CLOSEST'));
+          if (isClosest) {
+            nameRow.appendChild(root.createComponent(Badge, { tone: 'default' }, 'CLOSEST'));
           }
 
-          option.appendChild(root.createComponent(Text, { size: 'small', appearance: 'subdued' }, locker.address));
+          // Address
+          details.appendChild(root.createComponent(Text, { size: 'small', appearance: 'subdued' }, locker.address));
+
+          // Availability count
+          if (showAvailability && locker.availableCount !== undefined) {
+            const availRow = root.createComponent(InlineStack, { spacing: 'extraTight', blockAlignment: 'center' });
+            details.appendChild(availRow);
+            availRow.appendChild(root.createComponent(Icon, { source: 'success', size: 'extraSmall', appearance: 'success' }));
+            availRow.appendChild(root.createComponent(Text, { size: 'small', appearance: 'success' },
+              `${locker.availableCount} locker${locker.availableCount !== 1 ? 's' : ''} available`
+            ));
+          }
         });
 
-        // Show pickup date info
+        // Pickup date info
         if (pickupDate) {
-          container.appendChild(root.createComponent(Text, { size: 'small', appearance: 'success' }, `📅 Ready ${pickupDate}`));
+          const dateInfoRow = root.createComponent(InlineStack, { spacing: 'tight', blockAlignment: 'center' });
+          container.appendChild(dateInfoRow);
+          dateInfoRow.appendChild(root.createComponent(Icon, { source: 'calendar', size: 'small', appearance: 'success' }));
+          dateInfoRow.appendChild(root.createComponent(Text, { size: 'small', appearance: 'success' }, `Ready ${pickupDate}`));
         }
 
         if (!showAllLockers && lockers.length > 3) {
@@ -262,9 +373,9 @@ extension(
       return { behavior: 'allow' };
     });
 
-    // Subscribe to delivery group changes
+    // Subscribe to delivery group changes - re-render to show/hide widget
     if (deliveryGroups?.subscribe) {
-      deliveryGroups.subscribe(() => { if (selectedLocker) render(); });
+      deliveryGroups.subscribe(() => { render(); });
     }
 
     // Fetch with timeout helper

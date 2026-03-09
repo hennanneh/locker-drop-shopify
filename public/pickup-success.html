@@ -253,47 +253,166 @@
         #custom-styles {
             display: none;
         }
+
+        /* Trouble / Retry UI */
+        .trouble-container {
+            animation: fadeInUp 0.5s ease-out both;
+        }
+
+        .trouble-icon {
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 32px;
+            font-size: 56px;
+            animation: scaleIn 0.5s ease-out;
+        }
+
+        .trouble-tips {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: left;
+            margin: 20px 0;
+        }
+
+        .trouble-tips h3 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            opacity: 0.8;
+        }
+
+        .trouble-tips ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .trouble-tips li {
+            padding: 6px 0;
+            padding-left: 28px;
+            position: relative;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .trouble-tips li::before {
+            content: attr(data-icon);
+            position: absolute;
+            left: 0;
+            font-size: 14px;
+        }
+
+        .btn-retry {
+            display: inline-block;
+            background: white;
+            color: var(--primary-color);
+            padding: 14px 28px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 8px;
+        }
+
+        .btn-retry:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .support-link {
+            display: inline-block;
+            margin-top: 16px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+            text-decoration: underline;
+        }
+
+        .support-link:hover {
+            color: white;
+        }
+
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Brand Logo (Enterprise) -->
-        <img id="brand-logo" class="brand-logo" style="display: none;" alt="Brand Logo">
+        <!-- SUCCESS STATE -->
+        <div id="success-container">
+            <!-- Brand Logo (Enterprise) -->
+            <img id="brand-logo" class="brand-logo" style="display: none;" alt="Brand Logo">
 
-        <div class="success-icon">
-            <svg viewBox="0 0 24 24">
-                <path class="checkmark" d="M4 12l6 6L20 6"/>
-            </svg>
-        </div>
+            <div class="success-icon">
+                <svg viewBox="0 0 24 24">
+                    <path class="checkmark" d="M4 12l6 6L20 6"/>
+                </svg>
+            </div>
 
-        <h1 id="success-title">Pickup Complete! 🎉</h1>
-        <p class="subtitle">You've got your package</p>
+            <h1 id="success-title">Pickup Complete! 🎉</h1>
+            <p class="subtitle">You've got your package</p>
 
-        <div class="order-info">
-            <div class="order-number">Order Number</div>
-            <div class="order-value" id="order-number">#---</div>
-        </div>
+            <div class="order-info">
+                <div class="order-number">Order Number</div>
+                <div class="order-value" id="order-number">#---</div>
+            </div>
 
-        <p class="message" id="success-message">
-            Thank you for using LockerDrop! Your order has been successfully picked up from the locker.
-        </p>
+            <p class="message" id="success-message">
+                Thank you for using LockerDrop! Your order has been successfully picked up from the locker.
+            </p>
 
-        <div class="status-update" id="status-update">
-            <span class="spinner"></span>
-            Notifying seller...
-        </div>
+            <div class="status-update" id="status-update">
+                <span class="spinner"></span>
+                Notifying seller...
+            </div>
 
-        <!-- Upsell Products Section (Enterprise) -->
-        <div class="upsells-section" id="upsells-section" style="display: none;">
-            <h3 id="upsells-heading">You might also like</h3>
-            <div class="upsell-products" id="upsell-products">
-                <!-- Products injected dynamically -->
+            <!-- Upsell Products Section (Enterprise) -->
+            <div class="upsells-section" id="upsells-section" style="display: none;">
+                <h3 id="upsells-heading">You might also like</h3>
+                <div class="upsell-products" id="upsell-products">
+                    <!-- Products injected dynamically -->
+                </div>
+            </div>
+
+            <!-- Rebuy Widget Container (Enterprise) -->
+            <div class="rebuy-container" id="rebuy-container" style="display: none;">
+                <!-- Rebuy widget will be rendered here -->
             </div>
         </div>
 
-        <!-- Rebuy Widget Container (Enterprise) -->
-        <div class="rebuy-container" id="rebuy-container" style="display: none;">
-            <!-- Rebuy widget will be rendered here -->
+        <!-- LOCKER DIDN'T OPEN STATE -->
+        <div id="trouble-container" class="trouble-container hidden">
+            <div class="trouble-icon">🔒</div>
+
+            <h1>Locker Didn't Open?</h1>
+            <p class="subtitle">Don't worry — this usually works on the second try</p>
+
+            <div class="order-info">
+                <div class="order-number">Order Number</div>
+                <div class="order-value" id="trouble-order-number">#---</div>
+            </div>
+
+            <button class="btn-retry" id="btn-retry" onclick="retryLink()">
+                Try Again
+            </button>
+
+            <div class="trouble-tips">
+                <h3>Quick troubleshooting</h3>
+                <ul>
+                    <li data-icon="📍">Make sure you're at the correct locker location</li>
+                    <li data-icon="📶">Check your phone's internet connection (Wi-Fi or cellular)</li>
+                    <li data-icon="📱">Enable Bluetooth if prompted by the locker</li>
+                    <li data-icon="🔄">Try refreshing the page before tapping the link again</li>
+                </ul>
+            </div>
+
+            <a href="mailto:support@lockerdrop.it" class="support-link">Still not working? Contact support@lockerdrop.it</a>
         </div>
 
         <div class="footer">
@@ -312,6 +431,7 @@
         // Display order number
         if (orderNumber) {
             document.getElementById('order-number').textContent = '#' + orderNumber;
+            document.getElementById('trouble-order-number').textContent = '#' + orderNumber;
         }
 
         // Load branding settings (Enterprise)
@@ -447,8 +567,44 @@
             }
         }
 
+        // Retry: fetch the original link and redirect
+        async function retryLink() {
+            var btn = document.getElementById('btn-retry');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner" style="display:inline-block;width:16px;height:16px;border:2px solid rgba(0,0,0,0.2);border-radius:50%;border-top-color:currentColor;animation:spin 1s ease-in-out infinite;margin-right:8px;vertical-align:middle;"></span> Loading...';
+
+            try {
+                var response = await fetch('/api/retry-link/' + orderNumber + '?type=pickup');
+                var result = await response.json();
+
+                if (result.success && result.link) {
+                    window.location.href = result.link;
+                } else {
+                    btn.textContent = 'Try Again';
+                    btn.disabled = false;
+                    alert('Could not load the link. Please check your email for the original pickup link and try again.');
+                }
+            } catch (error) {
+                btn.textContent = 'Try Again';
+                btn.disabled = false;
+                alert('Connection error. Please check your internet and try again.');
+            }
+        }
+
+        // Show trouble/retry UI
+        function showTroubleUI() {
+            document.getElementById('success-container').classList.add('hidden');
+            document.getElementById('trouble-container').classList.remove('hidden');
+        }
+
         // Initialize page
         async function init() {
+            // Check if Harbor returned a non-success status
+            if (orderNumber && status && status !== 'success') {
+                showTroubleUI();
+                return;
+            }
+
             // Load branding first
             await loadBranding();
 

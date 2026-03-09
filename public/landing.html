@@ -984,6 +984,41 @@
             border-radius: 4px;
         }
 
+        .checkout-toggle {
+            display: flex;
+            justify-content: center;
+            gap: 4px;
+            margin-bottom: 16px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            padding: 3px;
+            max-width: 260px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .checkout-toggle-btn {
+            flex: 1;
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            background: transparent;
+            color: #666;
+            transition: all 0.2s;
+        }
+
+        .checkout-toggle-btn.active {
+            background: white;
+            color: #1a1a2e;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .checkout-version { display: none; }
+        .checkout-version.active { display: block; }
+
         /* Email Notification Mock */
         .mock-email { text-align: left; }
 
@@ -1281,44 +1316,84 @@
 
             <!-- Checkout Mockup -->
             <div class="demo-panel" id="demo-checkout">
-                <div class="mockup-phone">
-                    <div class="phone-notch"></div>
-                    <div class="phone-content">
-                        <div class="mock-checkout">
-                            <div class="mock-checkout-header">Checkout</div>
-                            <div class="mock-checkout-section">
-                                <div class="mock-checkout-label">Shipping method</div>
-                                <div class="mock-shipping-option">
-                                    <div class="mock-radio"></div>
-                                    <div><strong>Standard Shipping</strong><br><span class="mock-muted">5-7 business days - $6.99</span></div>
-                                </div>
-                                <div class="mock-shipping-option selected">
-                                    <div class="mock-radio checked"></div>
-                                    <div><strong>LockerDrop Pickup</strong><br><span class="mock-muted">Pick up 24/7 - $3.99</span></div>
-                                </div>
-                            </div>
-                            <div class="mock-checkout-section">
-                                <div class="mock-checkout-label">Choose a locker location</div>
-                                <div class="mock-locker-option selected">
-                                    <div class="mock-locker-icon">📦</div>
-                                    <div>
-                                        <strong>Harbor - Downtown</strong><br>
-                                        <span class="mock-muted">123 Main St - 0.3 mi</span><br>
-                                        <span class="mock-sizes">S M L XL available</span>
+                <div class="checkout-toggle">
+                    <button class="checkout-toggle-btn active" onclick="showCheckoutVersion('standard')">All Stores</button>
+                    <button class="checkout-toggle-btn" onclick="showCheckoutVersion('plus')">Shopify Plus</button>
+                </div>
+
+                <!-- Standard (non-Plus) checkout: locations listed as shipping methods -->
+                <div class="checkout-version active" id="checkout-standard">
+                    <div class="mockup-phone">
+                        <div class="phone-notch"></div>
+                        <div class="phone-content">
+                            <div class="mock-checkout">
+                                <div class="mock-checkout-header">Checkout</div>
+                                <div class="mock-checkout-section">
+                                    <div class="mock-checkout-label">Shipping method</div>
+                                    <div class="mock-shipping-option">
+                                        <div class="mock-radio"></div>
+                                        <div><strong>Standard Shipping</strong><br><span class="mock-muted">5-7 business days - $6.99</span></div>
                                     </div>
-                                </div>
-                                <div class="mock-locker-option">
-                                    <div class="mock-locker-icon">📦</div>
-                                    <div>
-                                        <strong>Harbor - Midtown</strong><br>
-                                        <span class="mock-muted">456 Oak Ave - 1.2 mi</span>
+                                    <div class="mock-shipping-option selected">
+                                        <div class="mock-radio checked"></div>
+                                        <div><strong>LockerDrop - Harbor Downtown</strong><br><span class="mock-muted">123 Main St - Pickup 24/7 - $3.99</span></div>
+                                    </div>
+                                    <div class="mock-shipping-option">
+                                        <div class="mock-radio"></div>
+                                        <div><strong>LockerDrop - Harbor Midtown</strong><br><span class="mock-muted">456 Oak Ave - Pickup 24/7 - $3.99</span></div>
+                                    </div>
+                                    <div class="mock-shipping-option">
+                                        <div class="mock-radio"></div>
+                                        <div><strong>LockerDrop - Harbor East Side</strong><br><span class="mock-muted">789 Elm St - Pickup 24/7 - $3.99</span></div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                    <p class="demo-caption">Locker locations appear directly as pickup options under Shipping method. Works with all Shopify stores.</p>
                 </div>
-                <p class="demo-caption">Customers choose LockerDrop at checkout and select the locker closest to them. Works with Shopify's native checkout.</p>
+
+                <!-- Plus checkout: extension widget with separate locker picker -->
+                <div class="checkout-version" id="checkout-plus">
+                    <div class="mockup-phone">
+                        <div class="phone-notch"></div>
+                        <div class="phone-content">
+                            <div class="mock-checkout">
+                                <div class="mock-checkout-header">Checkout</div>
+                                <div class="mock-checkout-section">
+                                    <div class="mock-checkout-label">Shipping method</div>
+                                    <div class="mock-shipping-option">
+                                        <div class="mock-radio"></div>
+                                        <div><strong>Standard Shipping</strong><br><span class="mock-muted">5-7 business days - $6.99</span></div>
+                                    </div>
+                                    <div class="mock-shipping-option selected">
+                                        <div class="mock-radio checked"></div>
+                                        <div><strong>LockerDrop Pickup</strong><br><span class="mock-muted">Pick up 24/7 - $3.99</span></div>
+                                    </div>
+                                </div>
+                                <div class="mock-checkout-section">
+                                    <div class="mock-checkout-label">Choose a locker location</div>
+                                    <div class="mock-locker-option selected">
+                                        <div class="mock-locker-icon">📦</div>
+                                        <div>
+                                            <strong>Harbor - Downtown</strong><br>
+                                            <span class="mock-muted">123 Main St - 0.3 mi</span><br>
+                                            <span class="mock-sizes">S M L XL available</span>
+                                        </div>
+                                    </div>
+                                    <div class="mock-locker-option">
+                                        <div class="mock-locker-icon">📦</div>
+                                        <div>
+                                            <strong>Harbor - Midtown</strong><br>
+                                            <span class="mock-muted">456 Oak Ave - 1.2 mi</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="demo-caption">Shopify Plus stores get a dedicated checkout extension with an interactive locker picker widget.</p>
+                </div>
             </div>
 
             <!-- Notification Mockup -->
@@ -1623,6 +1698,13 @@
             document.querySelectorAll('.demo-panel').forEach(p => p.classList.remove('active'));
             document.querySelector(`.demo-tab[onclick="showDemo('${tab}')"]`).classList.add('active');
             document.getElementById('demo-' + tab).classList.add('active');
+        }
+
+        function showCheckoutVersion(version) {
+            document.querySelectorAll('.checkout-toggle-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.checkout-version').forEach(v => v.classList.remove('active'));
+            document.querySelector(`.checkout-toggle-btn[onclick="showCheckoutVersion('${version}')"]`).classList.add('active');
+            document.getElementById('checkout-' + version).classList.add('active');
         }
     </script>
 </body>
