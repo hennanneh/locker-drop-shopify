@@ -882,7 +882,10 @@ app.get('/', (req, res) => {
     if (shop) {
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
         res.set('Pragma', 'no-cache');
-        return res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
+        // Inject the public Shopify API key so App Bridge can auto-init.
+        const html = fs.readFileSync(path.join(__dirname, 'public', 'admin-dashboard.html'), 'utf8')
+            .replace('__SHOPIFY_API_KEY__', process.env.SHOPIFY_API_KEY || '');
+        return res.type('html').send(html);
     }
 
     // No shop param on app subdomain - redirect to dashboard selection or show simple page

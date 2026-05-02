@@ -1334,10 +1334,27 @@
     <meta name="shopify-api-key" content="__SHOPIFY_API_KEY__">
     <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
     <script>
-        // App Bridge auto-patches window.fetch to inject session tokens when the meta tag above is set.
-        // __nativeFetch delegates to whatever window.fetch is at call time (the patched version),
-        // not the unpatched one captured at script-load time.
-        window.__nativeFetch = (input, init) => window.fetch(input, init);
+        // __nativeFetch attaches a Shopify session token (JWT) to /api/* requests.
+        // Uses a 5s timeout on idToken() so a stalled App Bridge can't hang the dashboard.
+        window.__nativeFetch = async function(input, init = {}) {
+            const url = typeof input === 'string' ? input : (input && input.url) || '';
+            if (url.startsWith('/api/') && window.shopify && window.shopify.idToken) {
+                try {
+                    const token = await Promise.race([
+                        window.shopify.idToken(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('idToken timeout')), 5000))
+                    ]);
+                    if (token) {
+                        const headers = new Headers(init.headers || {});
+                        headers.set('Authorization', 'Bearer ' + token);
+                        init = { ...init, headers };
+                    }
+                } catch (e) {
+                    console.warn('App Bridge idToken() failed:', e.message);
+                }
+            }
+            return window.fetch(input, init);
+        };
     </script>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
