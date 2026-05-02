@@ -7490,6 +7490,18 @@ async function ensurePickupDateColumn() {
     }
 }
 
+// Ensure location_name column exists on orders table (denormalized from locker_preferences)
+async function ensureOrdersLocationNameColumn() {
+    try {
+        await db.query(`
+            ALTER TABLE orders ADD COLUMN IF NOT EXISTS location_name VARCHAR(255);
+        `);
+        logger.info('📍 Orders location_name column ready');
+    } catch (error) {
+        logger.error('Error adding location_name column:', error);
+    }
+}
+
 // Ensure excluded column exists on product_locker_sizes table
 async function ensureProductExcludedColumn() {
     try {
@@ -8635,6 +8647,9 @@ app.listen(PORT, async () => {
 
     // Ensure preferred_pickup_date column exists
     await ensurePickupDateColumn();
+
+    // Ensure location_name column exists on orders
+    await ensureOrdersLocationNameColumn();
 
     // Ensure excluded column exists on product_locker_sizes
     await ensureProductExcludedColumn();
