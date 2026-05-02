@@ -336,7 +336,10 @@ async function fetchVariantByIdGraphQL(shop, accessToken, variantId) {
 }
 
 // Middleware
-app.use(express.json());
+// Capture raw body alongside parsed JSON so webhook HMAC verification can re-hash the exact bytes Shopify signed.
+app.use(express.json({
+    verify: (req, res, buf) => { req.rawBody = buf; }
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
@@ -374,11 +377,43 @@ app.use((req, res, next) => {
         res.setHeader('Content-Security-Policy', `frame-ancestors https://*.myshopify.com https://admin.shopify.com;`);
     }
 
-    // CORS headers - allow all origins for API endpoints (required for Shopify UI extensions)
-    if (req.path.startsWith('/api/')) {
+    // CORS for /api/* routes:
+    //   - Public/customer-facing endpoints keep `*` (called from any storefront/extension)
+    //   - Admin endpoints accept only Shopify-controlled origins (defense alongside requireApiAuth)
+    const isPublicApi = req.path.startsWith('/api/') && (
+        req.path.startsWith('/api/public/') ||
+        req.path.startsWith('/api/customer/') ||
+        req.path.startsWith('/api/pickup-points') ||
+        req.path.startsWith('/api/checkout/') ||
+        req.path.startsWith('/api/waitlist') ||
+        req.path.startsWith('/api/order-pickup-details/') ||
+        req.path.startsWith('/api/verify-order-email/') ||
+        req.path.startsWith('/api/update-pickup-date/') ||
+        req.path.startsWith('/api/available-pickup-dates/') ||
+        req.path.startsWith('/api/upsell-products/') ||
+        req.path.startsWith('/api/branding/') ||
+        req.path.startsWith('/api/order-locker-data/') ||
+        req.path.startsWith('/api/dropoff-') ||
+        req.path.startsWith('/api/pickup-') ||
+        req.path.startsWith('/api/retry-link/') ||
+        req.path === '/api/errors'
+    );
+    const isShopifyOrigin = origin && /^https:\/\/([a-z0-9][a-z0-9-]*\.myshopify\.com|admin\.shopify\.com)$/.test(origin);
+
+    if (isPublicApi) {
         res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    } else if (req.path.startsWith('/api/')) {
+        // Admin /api/* — only Shopify-controlled origins
+        if (isShopifyOrigin) {
+            res.setHeader('Access-Control-Allow-Origin', origin);
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+            res.setHeader('Vary', 'Origin');
+        }
+        // else: no CORS headers → browser blocks the cross-origin request
     } else if (origin && (origin.includes('myshopify.com') || origin.includes('shopify.com') || origin.includes('lockerdrop.it'))) {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -415,6 +450,18 @@ const webhookLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false
 });
+
+// Baseline limiter for ALL /api/* routes — catches admin endpoints (orders, branding,
+// regenerate-*, emergency-open, locker-preferences, errors, etc.) that the path-specific
+// public/checkout limiters below don't cover. Public paths get this PLUS the stricter limiter.
+const apiLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please try again later.' }
+});
+app.use('/api/', apiLimiter);
 
 // Apply rate limiters to public routes
 app.use('/api/public/', publicApiLimiter);
@@ -576,7 +623,7 @@ app.get('/auth/reconnect', (req, res) => {
 });
 
 // Validate token endpoint - checks if Shopify token is still valid
-app.get('/api/validate-token/:shop', async (req, res) => {
+app.get('/api/validate-token/:shop', requireApiAuth, async (req, res) => {
     const { shop } = req.params;
 
     try {
@@ -620,7 +667,7 @@ app.get('/api/validate-token/:shop', async (req, res) => {
 });
 
 // Check access scopes for a shop - validates if fulfillment permissions are granted
-app.get('/api/check-scopes/:shop', async (req, res) => {
+app.get('/api/check-scopes/:shop', requireApiAuth, async (req, res) => {
     const { shop } = req.params;
 
     try {
@@ -674,7 +721,7 @@ app.get('/api/check-scopes/:shop', async (req, res) => {
 });
 
 // Get store location info for initial locker search
-app.get('/api/store-location/:shop', async (req, res) => {
+app.get('/api/store-location/:shop', requireApiAuth, async (req, res) => {
     const { shop } = req.params;
 
     try {
@@ -1227,44 +1274,71 @@ async function requireAuth(req, res, next) {
     res.redirect(`/auth/install?shop=${shop}`);
 }
 
-// API authentication middleware for sensitive dashboard API calls
+// Strict shop-domain validation — only accept canonical *.myshopify.com hostnames.
+function isValidShopDomain(shop) {
+    return typeof shop === 'string' && /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop);
+}
+
+// Verify a Shopify session token (HS256 JWT signed with the app's API secret).
+// Returns the decoded payload on success, throws on failure.
+function verifyShopifySessionToken(token) {
+    const parts = token.split('.');
+    if (parts.length !== 3) throw new Error('Malformed token');
+    const [headerB64, payloadB64, sigB64] = parts;
+
+    const header = JSON.parse(Buffer.from(headerB64, 'base64url').toString('utf8'));
+    if (header.alg !== 'HS256') throw new Error('Unsupported algorithm');
+
+    const expected = crypto
+        .createHmac('sha256', process.env.SHOPIFY_API_SECRET)
+        .update(`${headerB64}.${payloadB64}`)
+        .digest();
+    const actual = Buffer.from(sigB64, 'base64url');
+    if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) {
+        throw new Error('Invalid signature');
+    }
+
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && now > payload.exp + 5) throw new Error('Token expired');
+    if (payload.nbf && now + 5 < payload.nbf) throw new Error('Token not yet valid');
+    if (payload.aud !== process.env.SHOPIFY_API_KEY) throw new Error('Audience mismatch');
+
+    return payload;
+}
+
+// API authentication middleware: requires a valid Shopify session token (App Bridge JWT).
+// The `:shop` param must match the shop encoded in the token. No DB-based fallback (S1-2).
 async function requireApiAuth(req, res, next) {
     const shop = req.params.shop;
 
-    if (!shop) {
-        return res.status(400).json({ error: 'Missing shop parameter' });
+    if (!isValidShopDomain(shop)) {
+        return res.status(400).json({ error: 'Invalid or missing shop parameter' });
     }
 
-    // Check if session is authenticated for this shop
-    if (req.session && req.session.authenticated && req.session.shop === shop) {
-        return next();
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        logger.info({ shop, path: req.path }, 'API auth: missing bearer token');
+        return res.status(401).json({
+            error: 'Unauthorized',
+            message: 'Missing Authorization header. Reload the app inside Shopify Admin.'
+        });
     }
 
-    // Fallback: verify the shop is installed (has access token in DB)
-    // This handles embedded iframe contexts where third-party cookies are blocked
     try {
-        const result = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop]);
-        if (result.rows.length > 0 && result.rows[0].access_token) {
-            // Shop is installed — create session for subsequent requests
-            if (req.session) {
-                req.session.authenticated = true;
-                req.session.shop = shop;
-                req.session.authenticatedAt = Date.now();
-            }
-            logger.info(`🔐 API auth via DB verification for ${shop}`);
-            return next();
+        const payload = verifyShopifySessionToken(authHeader.slice(7));
+        const dest = payload.dest || payload.iss;
+        const tokenShop = dest ? new URL(dest).hostname : null;
+        if (tokenShop !== shop) {
+            logger.warn({ shop, tokenShop, path: req.path }, 'API auth: token shop mismatch');
+            return res.status(401).json({ error: 'Unauthorized', message: 'Token shop mismatch.' });
         }
-    } catch (dbError) {
-        logger.error('Database error during API auth:', dbError);
+        req.shopifyAuth = payload;
+        return next();
+    } catch (err) {
+        logger.warn({ shop, path: req.path, err: err.message }, 'API auth: invalid session token');
+        return res.status(401).json({ error: 'Unauthorized', message: 'Invalid session token.' });
     }
-
-    // For API calls, return 401 instead of redirecting
-    logger.info(`🔒 Unauthorized API access attempt for ${shop}`);
-    return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Please log in through the Shopify admin to access this resource.',
-        loginUrl: `/auth/install?shop=${shop}`
-    });
 }
 
 app.get('/admin/dashboard', requireAuth, (req, res) => {
@@ -1280,7 +1354,10 @@ app.get('/admin/dashboard', requireAuth, (req, res) => {
 
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.set('Pragma', 'no-cache');
-    res.sendFile(path.join(__dirname, 'public', 'admin-dashboard.html'));
+    // Inject the public Shopify API key so App Bridge can auto-init and fetch session tokens.
+    const html = fs.readFileSync(path.join(__dirname, 'public', 'admin-dashboard.html'), 'utf8')
+        .replace('__SHOPIFY_API_KEY__', process.env.SHOPIFY_API_KEY || '');
+    res.type('html').send(html);
 });
 
 // Get dashboard statistics
@@ -1397,7 +1474,7 @@ app.get('/api/order-locker-data/:shopifyOrderId', async (req, res) => {
 });
 
 // Sync orders from Shopify
-app.get('/api/sync-orders/:shop', async (req, res) => {
+app.get('/api/sync-orders/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
         
@@ -1641,7 +1718,7 @@ async function getLockerLocations() {
     }
 }
 
-app.get('/api/lockers/:shop', async (req, res) => {
+app.get('/api/lockers/:shop', requireApiAuth, async (req, res) => {
     try {
         const { search, sizes, page = 1, limit = 12, includeAvailability, saved_only } = req.query;
         const pageNum = parseInt(page);
@@ -1860,7 +1937,7 @@ app.get('/api/lockers/:shop', async (req, res) => {
 });
 
 // Update order status
-app.post('/api/order/:shop/:orderId/status', async (req, res) => {
+app.post('/api/order/:shop/:orderId/status', requireApiAuth, async (req, res) => {
     try {
         const { shop, orderId } = req.params;
         const { status } = req.body;
@@ -2084,7 +2161,7 @@ app.post('/api/pickup-complete', async (req, res) => {
 });
 
 // Cancel locker request for an order
-app.post('/api/order/:shop/:orderId/cancel-locker', async (req, res) => {
+app.post('/api/order/:shop/:orderId/cancel-locker', requireApiAuth, async (req, res) => {
     try {
         const { shop, orderId } = req.params;
         const orderNumber = orderId.replace(/^#/, '');
@@ -3126,7 +3203,7 @@ async function resetMonthlyOrderCounts() {
 }
 
 // Get subscription status
-app.get('/api/subscription/:shop', async (req, res) => {
+app.get('/api/subscription/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
         const subscription = await getOrCreateSubscription(shop);
@@ -3153,7 +3230,7 @@ app.get('/api/subscription/:shop', async (req, res) => {
 // ============================================
 
 // Get shop settings
-app.get('/api/settings/:shop', async (req, res) => {
+app.get('/api/settings/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
 
@@ -3460,7 +3537,7 @@ app.get('/api/plans', (req, res) => {
 });
 
 // Create or retry usage-based billing subscription
-app.post('/api/subscribe/:shop', async (req, res) => {
+app.post('/api/subscribe/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
 
@@ -3539,7 +3616,7 @@ app.get('/api/subscription/confirm', (req, res) => {
 });
 
 // Cancel subscription
-app.post('/api/subscription/cancel/:shop', async (req, res) => {
+app.post('/api/subscription/cancel/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
 
@@ -3589,7 +3666,7 @@ app.post('/api/subscription/cancel/:shop', async (req, res) => {
 });
 
 // Retry billing for merchants who declined initially
-app.post('/api/billing/retry/:shop', async (req, res) => {
+app.post('/api/billing/retry/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
 
@@ -3621,7 +3698,7 @@ app.post('/api/billing/retry/:shop', async (req, res) => {
 });
 
 // Dev mode: billing actions for test stores
-app.post('/api/subscription/dev-switch/:shop', async (req, res) => {
+app.post('/api/subscription/dev-switch/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
         const { action } = req.body;
@@ -3661,7 +3738,7 @@ app.post('/api/subscription/dev-switch/:shop', async (req, res) => {
 // ============================================
 
 // Get shop plan + carrier service status (re-checks hourly)
-app.get('/api/shop-plan/:shop', async (req, res) => {
+app.get('/api/shop-plan/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
 
@@ -3790,7 +3867,7 @@ app.post('/api/register-carrier/:shop', requireApiAuth, async (req, res) => {
 // ============================================
 
 // Get all products from Shopify for a shop
-app.get('/api/products/:shop', async (req, res) => {
+app.get('/api/products/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
         logger.info(`📦 Loading products for shop: ${shop}`);
@@ -3877,7 +3954,7 @@ app.get('/api/products/:shop', async (req, res) => {
 });
 
 // Save product size settings
-app.post('/api/product-sizes/:shop', async (req, res) => {
+app.post('/api/product-sizes/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
         const { products } = req.body; // Array of { product_id, product_title, variant_id, variant_title, length, width, height, locker_size, excluded }
@@ -3919,7 +3996,7 @@ app.post('/api/product-sizes/:shop', async (req, res) => {
 });
 
 // Get saved product sizes for order calculation
-app.get('/api/product-sizes/:shop', async (req, res) => {
+app.get('/api/product-sizes/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
         const result = await db.query(
@@ -3959,7 +4036,7 @@ app.get('/privacy-policy', (req, res) => {
 });
 
 // Get dashboard stats
-app.get('/api/stats/:shop', async (req, res) => {
+app.get('/api/stats/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
 
@@ -4026,7 +4103,7 @@ app.get('/api/stats/:shop', async (req, res) => {
 });
 
 // Get all orders for shop
-app.get('/api/orders/:shop', auditCustomerDataAccess('view_orders'), async (req, res) => {
+app.get('/api/orders/:shop', requireApiAuth, auditCustomerDataAccess('view_orders'), async (req, res) => {
     try {
         const { shop } = req.params;
 
@@ -4063,7 +4140,7 @@ app.get('/api/orders/:shop', auditCustomerDataAccess('view_orders'), async (req,
 // ============================================
 
 // Save locker preferences
-app.post('/api/locker-preferences/:shop', async (req, res) => {
+app.post('/api/locker-preferences/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
         const { selectedLockers } = req.body;
@@ -4087,7 +4164,7 @@ app.post('/api/locker-preferences/:shop', async (req, res) => {
 });
 
 // Get locker preferences
-app.get('/api/locker-preferences/:shop', async (req, res) => {
+app.get('/api/locker-preferences/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
         const result = await db.query(
@@ -4102,7 +4179,7 @@ app.get('/api/locker-preferences/:shop', async (req, res) => {
 });
 
 // Get real-time locker availability for dashboard
-app.get('/api/locker-availability/:shop', async (req, res) => {
+app.get('/api/locker-availability/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
 
@@ -5056,7 +5133,7 @@ app.post('/api/checkout/select-locker', async (req, res) => {
 });
 
 // Create manual order
-app.post('/api/manual-order/:shop', async (req, res) => {
+app.post('/api/manual-order/:shop', requireApiAuth, async (req, res) => {
     try {
         const shop = req.params.shop;
         const { orderNumber, customerName, customerEmail, lockerId, lockerName, sendEmail, requiredLockerSize, preferredPickupDate } = req.body;
@@ -5184,7 +5261,7 @@ app.post('/api/manual-order/:shop', async (req, res) => {
 });
 
 // Generate dropoff link
-app.post('/api/generate-dropoff-link/:shop', async (req, res) => {
+app.post('/api/generate-dropoff-link/:shop', requireApiAuth, async (req, res) => {
     try {
         const { locationId, lockerTypeId, orderId, orderNumber } = req.body;
         
@@ -5221,7 +5298,7 @@ app.post('/api/generate-dropoff-link/:shop', async (req, res) => {
 });
 
 // Generate pickup link
-app.post('/api/generate-pickup-link/:shop', async (req, res) => {
+app.post('/api/generate-pickup-link/:shop', requireApiAuth, async (req, res) => {
     try {
         const { lockerId, orderId, orderNumber, customerName } = req.body;
         
@@ -5901,8 +5978,37 @@ function extractLockerDropInfo(order) {
     return result;
 }
 
+// Verify Shopify webhook HMAC. Reject 401 on missing/invalid signature.
+function verifyShopifyWebhook(req, res, next) {
+    const sigHeader = req.get('x-shopify-hmac-sha256');
+    const rawBody = req.rawBody;
+    const secret = process.env.SHOPIFY_API_SECRET;
+
+    if (!secret) {
+        logger.error('SHOPIFY_API_SECRET not configured — rejecting webhook');
+        return res.status(401).send('Unauthorized');
+    }
+    if (!sigHeader || !Buffer.isBuffer(rawBody) || rawBody.length === 0) {
+        logger.warn({ path: req.path, hasHeader: !!sigHeader, hasBody: Buffer.isBuffer(rawBody) },
+            'Webhook rejected: missing HMAC header or raw body');
+        return res.status(401).send('Unauthorized');
+    }
+
+    const calculated = crypto.createHmac('sha256', secret).update(rawBody).digest('base64');
+    const sigBuf = Buffer.from(sigHeader, 'utf8');
+    const calcBuf = Buffer.from(calculated, 'utf8');
+
+    if (sigBuf.length !== calcBuf.length || !crypto.timingSafeEqual(sigBuf, calcBuf)) {
+        logger.warn({ path: req.path, shop: req.get('x-shopify-shop-domain') },
+            'Webhook rejected: HMAC mismatch');
+        return res.status(401).send('Unauthorized');
+    }
+
+    next();
+}
+
 // Webhook receiver for new orders
-app.post('/webhooks/orders/create', express.json(), async (req, res) => {
+app.post('/webhooks/orders/create', verifyShopifyWebhook, async (req, res) => {
     try {
         const order = req.body;
         // Get shop domain from Shopify webhook header
@@ -5920,7 +6026,7 @@ app.post('/webhooks/orders/create', express.json(), async (req, res) => {
 });
 
 // Webhook receiver for order updates
-app.post('/webhooks/orders/updated', express.json(), async (req, res) => {
+app.post('/webhooks/orders/updated', verifyShopifyWebhook, async (req, res) => {
     try {
         const order = req.body;
         const shopDomain = req.headers['x-shopify-shop-domain'];
@@ -5936,7 +6042,7 @@ app.post('/webhooks/orders/updated', express.json(), async (req, res) => {
 });
 
 // Webhook receiver for cancelled orders
-app.post('/webhooks/orders/cancelled', express.json(), async (req, res) => {
+app.post('/webhooks/orders/cancelled', verifyShopifyWebhook, async (req, res) => {
     try {
         const order = req.body;
         const shopDomain = req.headers['x-shopify-shop-domain'];
@@ -5952,7 +6058,7 @@ app.post('/webhooks/orders/cancelled', express.json(), async (req, res) => {
 });
 
 // Webhook receiver for app uninstall
-app.post('/webhooks/app/uninstalled', express.json(), async (req, res) => {
+app.post('/webhooks/app/uninstalled', verifyShopifyWebhook, async (req, res) => {
     try {
         const shopDomain = req.headers['x-shopify-shop-domain'];
         logger.info('🗑️ App uninstalled for shop:', shopDomain);
@@ -5967,7 +6073,7 @@ app.post('/webhooks/app/uninstalled', express.json(), async (req, res) => {
 });
 
 // Webhook receiver for subscription status changes
-app.post('/webhooks/app/subscriptions-update', express.json(), async (req, res) => {
+app.post('/webhooks/app/subscriptions-update', verifyShopifyWebhook, async (req, res) => {
     try {
         const shopDomain = req.headers['x-shopify-shop-domain'];
         const subscriptionData = req.body.app_subscription;
@@ -6007,7 +6113,7 @@ app.post('/webhooks/app/subscriptions-update', express.json(), async (req, res) 
 // ==================== GDPR Mandatory Webhooks ====================
 
 // customers/data_request — Customer requests a copy of their data
-app.post('/webhooks/customers/data_request', express.json(), async (req, res) => {
+app.post('/webhooks/customers/data_request', verifyShopifyWebhook, async (req, res) => {
     try {
         const shopDomain = req.headers['x-shopify-shop-domain'];
         const { shop_domain, customer, orders_requested } = req.body;
@@ -6039,7 +6145,7 @@ app.post('/webhooks/customers/data_request', express.json(), async (req, res) =>
 });
 
 // customers/redact — Customer requests deletion of their personal data
-app.post('/webhooks/customers/redact', express.json(), async (req, res) => {
+app.post('/webhooks/customers/redact', verifyShopifyWebhook, async (req, res) => {
     try {
         const shopDomain = req.headers['x-shopify-shop-domain'];
         const { shop_domain, customer, orders_to_redact } = req.body;
@@ -6086,7 +6192,7 @@ app.post('/webhooks/customers/redact', express.json(), async (req, res) => {
 });
 
 // shop/redact — Shop data deletion request (48 hours after app uninstall)
-app.post('/webhooks/shop/redact', express.json(), async (req, res) => {
+app.post('/webhooks/shop/redact', verifyShopifyWebhook, async (req, res) => {
     try {
         const shopDomain = req.headers['x-shopify-shop-domain'];
         const { shop_domain } = req.body;
@@ -7201,7 +7307,7 @@ app.post('/api/branding/:shop/logo', requireApiAuth, uploadLogo.single('logo'), 
 });
 
 // Delete logo endpoint
-app.delete('/api/branding/:shop/logo', async (req, res) => {
+app.delete('/api/branding/:shop/logo', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
 

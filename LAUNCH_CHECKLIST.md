@@ -1,134 +1,123 @@
 # LockerDrop Launch Checklist
 
-> **Last Updated:** 2026-03-09 (Documented Basic Shopify plan auto-assignment behavior and seller location change feature)
-> **Sources:** Project Review | Harbor Checklist | Shopify App Store Requirements
-> **Estimated Total:** 100-160 hours across all phases
+> **Last Updated:** 2026-05-02 (Restructured into sprints with verification column after independent security audit)
+> **Sources:** Project Review | Harbor Checklist | Shopify App Store Requirements | 2026-05-02 Audit
+> **Estimated Total:** 60–90 hours to launch-ready, plus submission cycle
 
 ---
 
 ## Summary
 
-| Priority | Count | Done | Description |
-|----------|-------|------|-------------|
-| 🔴 CRITICAL | 10 | 9 ✅ | Must fix before any real merchant or app store submission |
-| 🟡 HIGH | 13 | 11 ✅ | Should fix before launch |
-| 🟢 MEDIUM | 12 | 4 ✅ | Needed for app store review or best practices |
-| 🔵 LOW | 5 | 0 | Post-launch improvements |
+Launch-readiness is gated by **Sprint 1 (security & auth)**. Several items previously marked ✅ Done were rolled back after the 2026-05-02 audit found gaps that would fail Shopify App Store review — see Verification column for what counts as "done."
+
+| Sprint | Goal | Items | Est. |
+|--------|------|-------|------|
+| **Sprint 1** | Security & auth (App Store reject blockers) | 8 | 20–30 hrs |
+| **Sprint 2** | Code hygiene & Harbor production switch | 10 | 20–30 hrs |
+| **Sprint 3** | App Store submission package | 7 | 15–20 hrs |
+| **Phase 4** | Post-launch | 7 | 50–75 hrs |
 
 ---
 
-## Phase 1: Launch Blockers (Week 1-2)
+## Sprint 1 — Security & Auth (LAUNCH BLOCKERS)
 
-> These must be completed before submitting to Shopify App Store or onboarding a real merchant.
-> Estimated: 20-35 hours
+> Shopify's automated review will reject the app on first submission until S1-1 lands. The other Sprint 1 items are real-world breach risks, not theoretical.
 
-| # | Task | Source | Priority | Status | Time Est. | Notes |
-|---|------|--------|----------|--------|-----------|-------|
-| 1 | Add `app/uninstalled` webhook handler | Shopify 2.3 | 🔴 CRITICAL | ✅ Done | 2-3 hrs | Webhook registered on install. Handler deletes orders, preferences, settings, branding, sessions, releases active lockers in Harbor, and removes store record. |
-| 2 | Switch Harbor API from sandbox to production | Harbor | 🔴 CRITICAL | ⬜ Not Started | 1-2 hrs | **UNBLOCKED.** Harbor confirmed: just change URL + client_id + client_secret to production values. Request production keys from Harbor contact. ~50 hardcoded sandbox URLs in server.js need to use `HARBOR_API_URL` env var + accounts URL needs `HARBOR_ACCOUNTS_URL` env var. |
-| 3 | Remove hardcoded locker ID 329 default | Review | 🔴 CRITICAL | ✅ Done | 1-2 hrs | Removed all 4 instances. Sync orders now extract location from shipping lines/attributes. Regenerate endpoints return errors if no location assigned. Fallback uses seller's first enabled locker preference. |
-| 4 | Replace in-memory sessions with `connect-pg-simple` | Shopify | 🔴 CRITICAL | ✅ Done | 2-3 hrs | Installed `connect-pg-simple`. Sessions now stored in `user_sessions` table (auto-created). Survives server restarts. Uninstall handler also cleans up sessions. |
-| 5 | Migrate REST Admin API calls to GraphQL | Shopify 2.2.4 | 🔴 CRITICAL | ✅ Done | 4-8 hrs | All REST Admin API calls migrated: shop.json → GraphQL `shop` query, orders.json → GraphQL `orders` query, webhooks.json → `webhookSubscriptionCreate`, carrier_services.json → `carrierServiceCreate`, fulfillments.json → `fulfillmentCreateV2`. OAuth endpoints (access_token, access_scopes, authorize) remain REST as required. shopify.service.js also fully migrated. |
-| 6 | Add Shopify App Bridge latest version | Shopify 2.2.3 | 🔴 CRITICAL | ✅ Done | 2-4 hrs | Added `cdn.shopify.com/shopifycloud/app-bridge.js` script tag. App Bridge auto-initializes when loaded via Shopify Admin. Added `isEmbedded` detection and `openExternalUrl` helper. |
-| 7 | Ensure embedded app experience | Shopify 2.2.2 | 🔴 CRITICAL | ✅ Done | 3-5 hrs | Set `embedded = true` in shopify.app.toml. Dashboard route redirects to Shopify Admin embedded URL when accessed directly (no `host` param). OAuth callback redirects to embedded app. Re-auth flow handles iframe breakout. |
-| 8 | Fix SSL `rejectUnauthorized: false` on DB connection | Review | 🔴 CRITICAL | ✅ Done | 1 hr | Updated `db.js` and `setup-database.js`. Now loads CA cert from `DB_CA_CERT` file path or `DB_CA_CERT_BASE64` env var. Falls back to unverified with warning if neither is set. Download CA cert from DigitalOcean dashboard and set the env var to complete. |
-| 9 | Clarify Harbor error handling responsibilities | Harbor | 🔴 CRITICAL | ✅ Done | N/A | **Harbor responded 2026-02-05.** Key answers: (1) No duplicate lockers — reservation exclusive for 5 min. (2) 5-min reservation timeout, then locker returns to available. (3) Locker open handled by Harbor app/app clip, not us. (4) Can't track connection failures, only successes — 99% device issues. (5) Retry same link works, usually 2nd try succeeds. (6) Built-in "doesn't fit" flow for dropoff — user selects it, locker reopens, reservation cancelled, user picks new size. (7) Production keys available on request, just change URL + credentials. |
+| ID | Task | Severity | Status | Verification | Notes / Refs |
+|----|------|----------|--------|--------------|--------------|
+| S1-1 | Webhook HMAC verification on **all** `/webhooks/*` handlers (was #1, #38) | 🔴 CRITICAL | ✅ Done | Verified 2026-05-02: forged POST → 401, signed POST → 200 against `/webhooks/app/uninstalled`. Same middleware applied to all 8 webhook routes. | `verifyShopifyWebhook` middleware at `server.js:5904-5930`. Raw body captured via `express.json({verify})` callback. Constant-time compare via `crypto.timingSafeEqual`. |
+| S1-2 | Replace `requireApiAuth` with strict Shopify session-token (JWT) validation on every `/api/*` route (NEW) | 🔴 CRITICAL | ✅ Done | Verified 2026-05-02: `/api/branding/:shop` returns 401 for missing/bad-signature/wrong-shop tokens, 400 for malformed shop, 200/handler-runs for valid token. | `verifyShopifySessionToken` + new `requireApiAuth` at `server.js:1234-1297`. No new deps — HS256 verified via `crypto.createHmac`. Dashboard frontend reordered to capture App-Bridge-patched `fetch` so existing `__nativeFetch` sites auto-send tokens. Dashboard route injects `SHOPIFY_API_KEY` into meta tag at serve time. Note: existing routes still need `requireApiAuth` *applied* — that's S1-4's job. |
+| S1-3 | Per-order signed token on customer-facing public endpoints (NEW) | 🔴 CRITICAL | ⬜ Not Started | `GET /api/retry-link/:orderNumber` and `POST /api/dropoff-{complete,change-size,doesnt-fit}` and `POST /api/pickup-complete` reject without a valid HMAC-signed `?t=` token. Existing token pattern at `server.js:2447, 2759, 3328` is the model. | Order numbers are guessable/scrapable; today an attacker with an order number can pick up someone's package. |
+| S1-4 | Lock down `GET /api/orders/:shop` (NEW) | 🔴 CRITICAL | ✅ Done | Verified 2026-05-02: `/api/orders/test.myshopify.com` returns 401 with no bearer, 401 with bogus bearer. Same protection added to 25 other admin endpoints (validate-token, check-scopes, store-location, sync-orders, lockers, order/*/status, order/*/cancel-locker, subscription, settings GET, subscribe, billing/retry, shop-plan, products, product-sizes, stats, locker-preferences GET+POST, locker-availability, manual-order, generate-dropoff-link, generate-pickup-link, branding/logo DELETE, etc). | `requireApiAuth` chained before existing `auditCustomerDataAccess` on `/api/orders/:shop`. 35 total routes now protected. Public routes intentionally left open: `/api/branding/:shop` GET (read-only brand assets used by customer pages), `/api/upsell-products/:shop` GET (checkout extension), `/api/available-pickup-dates/:shop`, `/api/update-pickup-date/:shop/:orderNumber` (latter two will be gated by S1-3 signed tokens). |
+| S1-5 | Restrict CORS to Shopify domains for `/api/*` (NEW) | 🟡 HIGH | ✅ Done | Verified 2026-05-02: `OPTIONS /api/orders/:shop` from `https://evil.com` returns no `Access-Control-Allow-Origin`; from `https://test.myshopify.com` returns the same origin. | Updated CORS middleware splits public-API allowlist (kept `*`) from admin-API (only `*.myshopify.com` + `admin.shopify.com`). Public-API list at `server.js:380-396`. |
+| S1-6 | Rotate `SESSION_SECRET` and other live secrets (NEW) | 🔴 CRITICAL | ⬜ Not Started | New `.env` has `SESSION_SECRET` ≥ 32 random bytes (`openssl rand -hex 32`). Twilio, Resend, DB password, Shopify API secret all rotated. Old sessions invalidated. | Current value `lockerdrop-super-secret-key-2024` is trivially guessable and used to sign customer order-link tokens. Treat as already compromised. |
+| S1-7 | Apply rate limiting to remaining sensitive endpoints (was #13) | 🟡 HIGH | ✅ Done | Verified 2026-05-02: 70 parallel hits on `/api/orders/:shop` → 60 × 401 + 10 × 429. Same baseline now covers all `/api/*` paths. | New `apiLimiter` (60/min) applied at `app.use('/api/', apiLimiter)`. Stricter public/checkout limiters still stack on top for those paths. |
+| S1-8 | Strict shop-domain validation everywhere `req.params.shop` is used (NEW) | 🟡 HIGH | ✅ Done | Verified 2026-05-02: `requireApiAuth` returns 400 for shops not matching `^[a-z0-9][a-z0-9-]*\.myshopify\.com$`. | `isValidShopDomain()` helper added at `server.js:1234`. Used inside `requireApiAuth`. Other routes that take `:shop` param will inherit when S1-4 wires `requireApiAuth` to them. |
 
 ---
 
-## Phase 2: Hardening & Edge Cases (Week 2-3)
+## Sprint 2 — Code Hygiene & Harbor Production Switch
 
-> Handle failure scenarios, improve reliability, finalize billing.
-> Estimated: 25-35 hours
+> Real bugs to fix before going live, plus the Harbor sandbox→prod swap. Most of this is mechanical; do it after Sprint 1.
 
-| # | Task | Source | Priority | Status | Time Est. | Notes |
-|---|------|--------|----------|--------|-----------|-------|
-| 10 | Build stuck order detection for failed Harbor callbacks | Harbor | 🟡 HIGH | ✅ Done | 3-4 hrs | Cron runs 3x daily (2 AM, 10 AM, 6 PM). Detects: (a) `pending_dropoff` orders >24 hours old — seller forgot or callback failed, (b) `dropped_off` orders >1 hour old — pickup link generation failed. Emails seller with order table and dashboard link. |
-| 11 | Add locker size change flow for sellers | Harbor | 🟡 HIGH | ✅ Done | 2-3 hrs | **Implemented.** New `POST /api/dropoff-doesnt-fit` public endpoint handles Harbor's "doesn't fit" redirect. `dropoff-success.html` detects non-success status, shows amber UI with size picker, lets seller get new locker link without leaving page. Dashboard order modal shows size picker for orders needing new locker. Regenerate endpoint accepts explicit `lockerSize` param. |
-| 12 | Add retry/troubleshooting on success pages | Harbor | 🟡 HIGH | ✅ Done | 1-2 hrs | **Done.** Both `dropoff-success.html` and `pickup-success.html` now detect non-success status from Harbor and show a "Locker Didn't Open?" UI with: (a) "Try Again" button that fetches the original link via `/api/retry-link/:orderNumber` and redirects, (b) troubleshooting tips (location, internet, Bluetooth, refresh), (c) support@lockerdrop.it contact link. Dropoff page also has "Package didn't fit?" link on the success state for the size-change flow. |
-| 13 | Add `express-rate-limit` to public API endpoints | Review | 🟡 HIGH | ✅ Done | 1-2 hrs | Three rate limiters: `publicApiLimiter` (30/min), `checkoutLimiter` (60/min), `webhookLimiter` (120/min). Applied to all public, checkout, and webhook routes. |
-| 14 | Add `node-cron` job for locker expiry | Review | 🟡 HIGH | ✅ Done | 3-4 hrs | Cron runs every 6 hours. Finds orders past `hold_time_days`, releases lockers via Harbor API, marks orders as `expired`, emails customer + seller. Also sends 1-day warning emails for orders approaching expiry. |
-| 15 | Add `orders/updated` webhook handler | Review | 🟡 HIGH | ✅ Done | 2-3 hrs | `ORDERS_UPDATED` webhook registered on install. Handler syncs customer name/email/phone from Shopify. Detects external fulfillment and marks orders as completed. Skips completed/cancelled/expired orders. |
-| 16 | Add structured logging (pino) | Harbor | 🟡 HIGH | ✅ Done | 3-4 hrs | Replaced all 417 `console.log`/`console.error` calls with `pino` structured logger. JSON output in production, pretty-printed in development. Log level configurable via `LOG_LEVEL` env var. |
-| 17 | Add frontend error tracking to dashboard + extensions | Harbor | 🟡 HIGH | ✅ Done | 2-3 hrs | Added `POST /api/errors` endpoint. Dashboard has `window.onerror` + `unhandledrejection` handlers. Checkout extension and order block extension report errors with `reportError()` helper. All errors logged via pino with source, stack trace, and context. |
-| 18 | Decide and clean up billing model | Review | 🟡 HIGH | ✅ Done | 2-4 hrs | **Implemented:** Per-order fee ($1.50/order, $200/month cap, 7-day trial) via Shopify Billing API `appUsageRecordCreate`. Replaced old tier-based subscription system (trial/basic/pro/enterprise) with single usage-based plan. Auto-creates usage subscription on install via `appSubscriptionCreate` with `appUsagePricingDetails`. Charges per order in webhook. Dashboard billing tab shows usage. |
-| 19 | Ensure billing plan changes work without reinstall | Shopify 1.2.3 | 🟡 HIGH | ✅ Done | 2-3 hrs | Usage-based billing has no plan tiers — single model for all merchants. Billing retry endpoint (`POST /api/billing/retry/:shop`) allows merchants who declined to approve later. `POST /api/subscribe/:shop` creates new subscription without reinstall. Dashboard "Approve Billing" button handles re-approval. |
-
----
-
-## Phase 3: App Store Submission Prep (Week 3-4)
-
-> Everything needed for Shopify App Store review.
-> Estimated: 15-20 hours
-
-| # | Task | Source | Priority | Status | Time Est. | Notes |
-|---|------|--------|----------|--------|-----------|-------|
-| 20 | Create demo screencast video | Shopify 4.5.3 | 🟡 HIGH | ⬜ Not Started | 4-6 hrs | Required for submission. Show onboarding + core features in English. |
-| 21 | Prepare test credentials for Shopify review | Shopify 4.5.4 | 🟡 HIGH | ⬜ Not Started | 1-2 hrs | Functional credentials granting full access to all features. |
-| 22 | Create App Store listing content | Shopify 4.4 | 🟡 HIGH | ⬜ Not Started | 3-4 hrs | Name, subtitle, description, screenshots. No pricing in images, no stats/claims. |
-| 23 | Add geographic requirement to listing | Shopify 4.3.8 | 🟢 MEDIUM | ✅ Done | 30 min | Harbor Lockers are US-only. Indicated in listing. |
-| 24 | Upload app icon to Dev Dashboard | Shopify 4.1.2 | 🟢 MEDIUM | ✅ Done | 30 min | Uploaded 1200x1200 app-icon-1200.png to Dev Dashboard. |
-| 25 | Add emergency developer contact | Shopify 4.5.6 | 🟢 MEDIUM | ✅ Done | 15 min | Added to Partner Dashboard settings. |
-| 26 | Add theme extension setup deep links + instructions | Shopify 5.1.3 | 🟢 MEDIUM | 🔧 Needs Work | 2-3 hrs | Detailed instructions + deep links for installing theme blocks. |
-| 27 | Verify checkout extension displays properly | Shopify 5.6.1 | 🟢 MEDIUM | 🔧 Needs Work | 2-3 hrs | Test locker selection in checkout on desktop and mobile. |
-| 28 | Review scopes — remove any unnecessary ones | Shopify 3.2 | 🟢 MEDIUM | 🔧 Needs Work | 1-2 hrs | Must justify all requested scopes. Consider optional scopes. |
-| 38 | Add GDPR compliance webhooks | Shopify | 🔴 CRITICAL | ✅ Done | 2-3 hrs | Implemented `customers/data_request` (logs + queries customer data for export), `customers/redact` (anonymizes PII in orders table), `shop/redact` (reuses `processAppUninstall` cleanup). URLs declared in `shopify.app.toml` under `[webhooks.privacy_compliance]`. All handlers return 200 to Shopify. |
-| 39 | Complete protected customer data access request | Shopify | 🟡 HIGH | ✅ Done | 1 hr | Completed in Partner Dashboard. Explained access to customer email, name, phone, and address (needed for pickup notifications, locker assignment, and order fulfillment). |
-| 40 | Select app capabilities in Partner Dashboard | Shopify | 🟢 MEDIUM | ✅ Done | 15 min | Selected shipping/fulfillment category in Partner Dashboard. |
+| ID | Task | Severity | Status | Verification | Notes / Refs |
+|----|------|----------|--------|--------------|--------------|
+| S2-1 | Delete dev junk from public surface (NEW) | 🟡 HIGH | ⬜ Not Started | `https://app.lockerdrop.it/hoa_financial_dashboard.html` returns 404. `test-dashboard.html` returns 404. `disabled-extensions/` removed from repo. `services/harbor.services.js` either wired up or deleted. | Files: `public/hoa_*.html`, `public/test-dashboard.html` (has `alert()` on load), repo-root `hoa_*`, `lockerdrop-pricing-strategies.jsx`. Embarrassing if a Shopify reviewer hits these. |
+| S2-2 | Strip frontend `console.log`s from `public/admin-dashboard.html` (was #16) | 🟡 HIGH | 🔧 Needs Work | `grep -c 'console\.log' public/admin-dashboard.html` returns 0 (or only inside a build-stripped dev guard). | Server-side migration to pino is real; frontend wasn't covered. ~30 calls leak shop/order data to browser console. |
+| S2-3 | Remove Google Tag Manager from embedded admin (NEW) | 🟡 HIGH | ⬜ Not Started | `admin-dashboard.html:5` no longer loads `googletagmanager.com`. CSP for embedded apps clean. | Loading GTM inside the Shopify Admin iframe is a CSP and reviewer red flag. |
+| S2-4 | Replace hardcoded `sandbox.harborlockers.com` URLs with `HARBOR_API_URL` / `HARBOR_ACCOUNTS_URL` env vars (was #2 + #32) | 🔴 CRITICAL | ⬜ Not Started | `grep -c 'sandbox.harborlockers.com' server.js routes/ services/` returns 0. App boots and works against sandbox URL set via env var. | ~53 occurrences in `server.js`. Prerequisite for the credential swap. Can be done before prod keys arrive. |
+| S2-5 | Switch to Harbor production credentials (was #2) | 🔴 CRITICAL | 🚫 Blocked | E2E: real test order in a Shopify dev store flows through to a real Harbor production locker reservation. | Blocked on requesting prod keys from Harbor. Owner is "not ready for #2" — defer this row until ready. |
+| S2-6 | Fix `EXTRACT(HOURS FROM ...)` bug in stuck-order alert (was #10) | 🟡 HIGH | 🔧 Needs Work | Manually create a stuck order >24h old; alert email shows correct total hours (e.g. `25h`), not `1h`. | `server.js:6968`. Use `EXTRACT(EPOCH FROM ...) / 3600`. |
+| S2-7 | Migrate `/api/check-scopes/:shop` to GraphQL (was #5) | 🟢 MEDIUM | 🔧 Needs Work | Endpoint returns same shape but uses GraphQL `currentAppInstallation.accessScopes` instead of REST `access_scopes.json`. | `server.js:637`. Last REST holdout outside the OAuth flow. |
+| S2-8 | Wrap `processNewOrder` in a DB transaction (NEW) | 🟡 HIGH | ⬜ Not Started | Killing the server between locker-mark-used and order-insert leaves DB in consistent state (no orphaned reservations). | `server.js:6388-6437`. Use `pool.connect()` + `BEGIN`/`COMMIT`/`ROLLBACK`. |
+| S2-9 | Sanitize logo uploads, disallow SVG (NEW) | 🟡 HIGH | ⬜ Not Started | Uploading a malicious SVG via the branding form is rejected at upload time. Magic-byte check, not just `mimetype`. | `server.js:37-48, 7162`. SVGs can carry XSS payloads served from your domain. |
+| S2-10 | Encrypt Shopify access tokens at rest (was #30) | 🟡 HIGH | ⬜ Not Started | `stores.access_token` column stores ciphertext (e.g. AES-GCM with key from env), and a SQL dump leak doesn't yield usable Shopify tokens. | Promoted from Medium — combined with the SSL-fallback in `db.js:33`, plaintext tokens are too much exposure. |
 
 ---
 
-## Phase 4: Post-Launch Improvements (Month 2+)
+## Sprint 3 — App Store Submission Package
 
-> Technical debt, testing, and future features.
-> Estimated: 50-75 hours
+> Do these once Sprint 1 + 2 are clean. The submission package itself doesn't depend on the code fixes, but submitting before Sprint 1 lands wastes a review cycle.
 
-| # | Task | Source | Priority | Status | Time Est. | Notes |
-|---|------|--------|----------|--------|-----------|-------|
-| 29 | Refactor server.js into modular route files | Review | 🟢 MEDIUM | ⬜ Not Started | 8-12 hrs | 3,500 lines in one file. Not a blocker but improves maintainability. |
-| 30 | Encrypt Shopify access tokens in database | Review | 🟢 MEDIUM | ⬜ Not Started | 2-3 hrs | Currently stored as plaintext TEXT. Encrypt at rest. |
-| 31 | Add CSRF protection to POST endpoints | Review | 🟢 MEDIUM | ⬜ Not Started | 2-3 hrs | Currently relies on session + HMAC but no CSRF tokens. |
-| 32 | Set up Harbor sandbox + production env toggle | Harbor | 🟢 MEDIUM | ⬜ Not Started | 2-3 hrs | **Should be done with item #2.** Replace ~50 hardcoded `api.sandbox.harborlockers.com` URLs with `process.env.HARBOR_API_URL`. Replace ~22 hardcoded `accounts.sandbox.harborlockers.com` URLs with `process.env.HARBOR_ACCOUNTS_URL`. Then switching is just changing `.env` values. |
-| 33 | Add automated tests | Review | 🔵 LOW | ⬜ Not Started | 8-16 hrs | No test framework. Start with critical paths: OAuth, webhooks, callbacks. |
-| 34 | Set up CI/CD pipeline | Review | 🔵 LOW | ⬜ Not Started | 4-6 hrs | No GitHub Actions. Automate deploy to DigitalOcean. |
-| 35 | Add returns via locker support | Review | 🔵 LOW | ⬜ Not Started | 16-24 hrs | Customer FAQ says "not available yet." Future feature. |
-| 36 | Add multi-package order support | Review | 🔵 LOW | ⬜ Not Started | 8-12 hrs | Split orders across multiple lockers. Future feature. |
-| 37 | Evolve pricing to tiered subscription model | Review | 🔵 LOW | ⬜ Not Started | 8-12 hrs | Strategy 2 or 3 from `lockerdrop-pricing-strategies.jsx`. Add Shopify Managed Pricing or hybrid subscription+usage. Gate premium features (branding, analytics, multi-locker) behind paid tiers. Implement after 10+ merchants prove product-market fit. |
+| ID | Task | Severity | Status | Verification | Notes / Refs |
+|----|------|----------|--------|--------------|--------------|
+| S3-1 | Demo screencast video (was #20) | 🟡 HIGH | ⬜ Not Started | Video uploaded to Partner Dashboard, shows install → checkout → dropoff → pickup → uninstall in English. | Shopify req 4.5.3. |
+| S3-2 | Test credentials for Shopify reviewer (was #21) | 🟡 HIGH | ⬜ Not Started | Reviewer can install on a fresh dev store and reach all paid features without contacting you. | Shopify req 4.5.4. |
+| S3-3 | App Store listing content (was #22) | 🟡 HIGH | ⬜ Not Started | Name, subtitle, description, screenshots uploaded; no pricing in screenshots; no unsubstantiated stats. | Shopify req 4.4. |
+| S3-4 | Theme extension deep links + setup instructions (was #26) | 🟢 MEDIUM | 🔧 Needs Work | A merchant clicking the deep link from your dashboard lands on the theme editor with the LockerDrop block ready to add. | Shopify req 5.1.3. |
+| S3-5 | Verify checkout extension on mobile + desktop (was #27) | 🟢 MEDIUM | 🔧 Needs Work | Locker selector renders correctly on iOS Safari, Android Chrome, and desktop. Selection persists into the order. | Shopify req 5.6.1. |
+| S3-6 | Scope review — trim unjustified scopes (was #28) | 🟢 MEDIUM | 🔧 Needs Work | Each scope in `shopify.app.toml` has a written one-line justification. `read_checkouts`/`write_checkouts` justified or removed. | Shopify req 3.2. Note: `.env` `SHOPIFY_SCOPES` and `shopify.app.toml` scopes don't match — pick one source of truth. |
+| S3-7 | Privacy policy lists third-party processors (NEW) | 🟡 HIGH | ⬜ Not Started | `public/privacy-policy.html` names Harbor Lockers, Twilio, Resend, DigitalOcean, Shopify and what data each receives. | Shopify reviewers check this. |
+
+---
+
+## Phase 4 — Post-Launch
+
+| ID | Task | Severity | Notes |
+|----|------|----------|-------|
+| P4-1 | Refactor `server.js` into modular route files (was #29) | 🟢 MEDIUM | 8500 lines. Maintainability, not launch-blocking. |
+| P4-2 | Adopt a real DB migration system (NEW) | 🟢 MEDIUM | Replace the scattered `ensureXColumn()` patterns in `server.js:8520-8543`. Pick `node-pg-migrate` or similar. First post-launch schema change will be scary without this. |
+| P4-3 | Add automated tests (was #33) | 🔵 LOW | Critical paths first: webhook HMAC, OAuth, order lifecycle. |
+| P4-4 | CI/CD via GitHub Actions (was #34) | 🔵 LOW | Auto-deploy to Droplet on `main` push. |
+| P4-5 | Returns via locker (was #35) | 🔵 LOW | Future feature. |
+| P4-6 | Multi-package orders (was #36) | 🔵 LOW | Future feature. |
+| P4-7 | Tiered subscription pricing (was #37) | 🔵 LOW | After 10+ merchants prove PMF. |
+
+**Removed from list:** #31 (CSRF). Once S1-2 lands real JWT auth, the JWT itself is the proof-of-origin and a separate CSRF layer is redundant.
+
+---
+
+## Verified ✅ Done (no rework needed)
+
+These items were spot-checked in the audit and hold up:
+
+| # | Task | Verified |
+|---|------|----------|
+| 3 | Hardcoded locker ID 329 removed | Confirmed — sync extracts from shipping lines/attributes. |
+| 4 | `connect-pg-simple` session store | Sessions in `user_sessions` table, survives restart. |
+| 6 | App Bridge loaded | CDN script tag present, auto-init in admin. |
+| 7 | Embedded experience | `embedded = true`, dashboard redirects when accessed directly. |
+| 8 | DB CA cert loaded | `DB_CA_CERT=./ca-certificate.crt` working in `db.js`. |
+| 9 | Harbor responsibility clarified | Harbor reply on file, scopes Sprint 2 work. |
+| 11 | Locker size change flow | `dropoff-success.html` + dashboard order modal — note: depends on S1-3 token gating to be safe. |
+| 12 | Retry/troubleshooting on success pages | UI present — same caveat as #11. |
+| 14 | Locker expiry cron | Wired and runs; consider wrapping the release loop in a transaction. |
+| 15 | `orders/updated` webhook | Handler logic correct — fix HMAC in S1-1. |
+| 17 | Frontend error tracking | `/api/errors` works — add rate limit (S1-7). |
+| 18 | Usage-based billing | Wired correctly; vulnerability is upstream HMAC gap (S1-1). |
+| 19 | Billing approval without reinstall | `/api/billing/retry/:shop`, `/api/subscribe/:shop` work. |
+| 23 | Geographic requirement | US-only declared. |
+| 24 | App icon | 1200×1200 uploaded. |
+| 25 | Emergency dev contact | In Partner Dashboard. |
+| 39 | Protected customer data access | Approved in Partner Dashboard. |
+| 40 | App capabilities (shipping/fulfillment) | Selected. |
 
 ---
 
 ## Pricing Strategy
 
-> **Launch Model (Strategy 1):** Pure Per-Order Fee — $1-$2 per locker transaction via Shopify usage-based billing.
-> **Future Options:** See `lockerdrop-pricing-strategies.jsx` for 5 strategies with full analysis:
-> 1. Pure Per-Order Fee (launch) — $1-$2/order, zero friction
-> 2. Tiered Subscription — Free / $19 / $49 plans
-> 3. Subscription + Usage Hybrid — $9/mo base + $0.75/order
-> 4. Commission on Shipping Fee — % of customer-facing charge
-> 5. Marketplace Revenue Share — 15-25% of Harbor transaction
-
----
-
-## Key Dependencies & Blockers
-
-- ~~**Harbor Production Credentials:** Items 2, 10-12, 32 are blocked or dependent on Harbor production API access.~~ **RESOLVED.** Harbor responded 2026-02-05. Production keys available on request. Items 10-12 scoped based on Harbor's answers (simpler than expected). Item 2+32 should be done together (replace hardcoded URLs with env vars, then swap credentials).
-- ~~**GraphQL Migration:** Item 5 — RESOLVED. All REST Admin API calls migrated to GraphQL.~~
-- ~~**App Bridge + Embedded Experience:** Items 6-7 — RESOLVED. App Bridge added, embedded = true, dashboard redirects to Shopify Admin.~~
-- ~~**Billing Decision:** Item 18 blocks item 19.~~ **RESOLVED.** Per-order fee ($1.50/order) implemented via Shopify `appUsageRecordCreate`. Old tier subscription system replaced. Dashboard billing tab updated.
-- ~~**SSL CA Certificate:** Item 8 — RESOLVED. CA cert loaded from `DB_CA_CERT=./ca-certificate.crt` in `.env`.~~
-
----
-
-## Recommended Execution Order
-
-1. ~~**TODAY:** Send the Harbor email (item 9).~~ **DONE** — Email sent 2026-02-05.
-2. ~~**This week:** Items 1, 3, 4, 8 (quick critical fixes).~~ **DONE** — All 4 completed by Claude Code.
-3. ~~**Next up:** Items 5-7 (GraphQL migration + App Bridge + embedded experience).~~ **DONE** — All 3 completed by Claude Code.
-4. ~~**Then:** Items 13-17 (rate limiting, cron jobs, logging, error tracking).~~ **DONE** — All 5 completed by Claude Code.
-5. ~~**Next:** Billing cleanup (18-19).~~ **DONE** — Usage-based billing implemented by Claude Code.
-5b. **Next:** Item 2+32 together (replace hardcoded Harbor URLs with env vars — prerequisite for production switch). Items 11-12 (Harbor edge cases — scoped simpler after Harbor's response).
-6. **Then:** Request production keys from Harbor, swap `.env` values, test end-to-end.
-7. **Week 3-4:** Begin submission prep (20-28). Submit to Shopify App Store. Start Phase 4 while waiting for review.
+> **Launch Model (Strategy 1):** Pure Per-Order Fee — $1.50/order via Shopify usage-based billing. $200/mo cap, 7-day trial.
+> **Future Options:** See `lockerdrop-pricing-strategies.jsx` for full analysis of 5 strategies.
 
 ---
 
@@ -137,11 +126,22 @@
 | Icon | Meaning |
 |------|---------|
 | ⬜ Not Started | Work has not begun |
-| 🔧 Needs Work | Partially implemented or needs changes |
+| 🔧 Needs Work | Partially implemented or rolled back from ✅ Done after audit |
 | 🚫 Blocked | Waiting on external dependency |
 | ⏳ Waiting | Action taken, awaiting response |
-| ✅ Done | Completed and verified |
+| ✅ Done | Completed AND verified per Verification column |
 
 ---
 
-*This checklist is maintained by Claude Code. To update, change the status field and add completion dates.*
+## Recommended Execution Order
+
+1. **Now:** S1-1 (webhook HMAC). Single biggest unlock — fixes the App Store reject blocker and gives you the raw-body capture pattern for everything else.
+2. **Next:** S1-2 (real JWT auth) and S1-4 (lock down `/api/orders`) together — same change set.
+3. **Then:** S1-3 (per-order tokens), S1-5/7/8 (CORS, rate limits, shop validation), S1-6 (rotate secrets).
+4. **Sprint 2:** S2-1 (delete junk) is fast — do it early. S2-4 (Harbor URLs to env vars) when ready. Other S2 items can interleave.
+5. **Sprint 3:** Submission package once code is clean.
+6. **Phase 4:** While Shopify reviews.
+
+---
+
+*Maintained by Claude Code. Update Status + Verification when items land. The Verification column is the contract — don't mark ✅ Done without meeting it.*

@@ -1330,10 +1330,11 @@
             margin-bottom: 4px;
         }
     </style>
-    <!-- Save native fetch before App Bridge patches it -->
-    <script>window.__nativeFetch = window.fetch.bind(window);</script>
-    <!-- Shopify App Bridge -->
+    <!-- Shopify App Bridge — meta tag enables auto-init and patches window.fetch to inject session tokens. -->
+    <meta name="shopify-api-key" content="__SHOPIFY_API_KEY__">
     <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+    <!-- Capture fetch AFTER App Bridge has patched it, so __nativeFetch carries session-token auth. -->
+    <script>window.__nativeFetch = window.fetch.bind(window);</script>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <!-- Leaflet JS -->
