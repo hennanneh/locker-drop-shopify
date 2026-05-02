@@ -1334,6 +1334,21 @@
     <meta name="shopify-api-key" content="__SHOPIFY_API_KEY__">
     <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
     <script>
+        // notify() uses Shopify's native Polaris toast (App Bridge) for branded notifications.
+        // Falls back to the raw window.alert outside the embedded admin (e.g. local browsing).
+        window.__rawAlert = window.alert.bind(window);
+        window.notify = function(message, opts = {}) {
+            const text = String(message == null ? '' : message).replace(/\n+/g, ' ').trim();
+            if (window.shopify && window.shopify.toast && typeof window.shopify.toast.show === 'function') {
+                try {
+                    window.shopify.toast.show(text, { duration: 5000, ...opts });
+                    return;
+                } catch (e) { /* fall through */ }
+            }
+            window.__rawAlert(message);
+        };
+    </script>
+    <script>
         // __nativeFetch attaches a Shopify session token (JWT) to /api/* requests.
         // Uses a 5s timeout on idToken() so a stalled App Bridge can't hang the dashboard.
         window.__nativeFetch = async function(input, init = {}) {
@@ -2621,7 +2636,7 @@
         }
 
         if (!shop) {
-            alert('Shop parameter missing! Please access this page from Shopify.');
+            notify('Shop parameter missing! Please access this page from Shopify.');
         } else {
             var shopDisplayName = shop.replace('.myshopify.com', '');
             document.getElementById('store-name').textContent = shopDisplayName;
@@ -2863,7 +2878,7 @@
                 });
                 const result = await response.json();
                 if (result.success) {
-                    alert('Carrier service registered! Now add LockerDrop to your shipping zones in Settings → Shipping and delivery.');
+                    notify('Carrier service registered! Now add LockerDrop to your shipping zones in Settings → Shipping and delivery.');
                     // Refresh plan data
                     const planInfo = await fetchShopPlan();
                     if (planInfo) {
@@ -2871,11 +2886,11 @@
                         updateOnboardingShippingStep(planInfo);
                     }
                 } else {
-                    alert(result.message || 'Could not register carrier service. Your plan may not support it.');
+                    notify(result.message || 'Could not register carrier service. Your plan may not support it.');
                 }
             } catch (error) {
                 console.error('Error registering carrier:', error);
-                alert('Failed to register carrier service. Please try again later.');
+                notify('Failed to register carrier service. Please try again later.');
             } finally {
                 if (btn) {
                     btn.disabled = false;
@@ -3407,7 +3422,7 @@
                 const order = orders.find(o => o.orderNumber === orderNumber);
 
                 if (!order) {
-                    alert('Order not found');
+                    notify('Order not found');
                     return;
                 }
 
@@ -3502,7 +3517,7 @@
                 document.getElementById('orderModal').style.display = 'block';
             } catch (error) {
                 console.error('Error loading order:', error);
-                alert('Failed to load order details');
+                notify('Failed to load order details');
             }
         }
 
@@ -3563,18 +3578,18 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert(`Order moved to ${locationName}!`);
+                    notify(`Order moved to ${locationName}!`);
                     document.getElementById('location-picker-row').style.display = 'none';
                     await loadOrders();
                     viewOrder(currentModalOrderNumber);
                 } else {
-                    alert('Failed: ' + (result.error || 'Unknown error'));
+                    notify('Failed: ' + (result.error || 'Unknown error'));
                     btn.disabled = false;
                     btn.textContent = 'Move Order';
                 }
             } catch (error) {
                 console.error('Error changing location:', error);
-                alert('Error changing location. Please try again.');
+                notify('Error changing location. Please try again.');
                 btn.disabled = false;
                 btn.textContent = 'Move Order';
             }
@@ -3603,13 +3618,13 @@
                     } else if (result.smsSent) {
                         message = 'SMS sent successfully!';
                     }
-                    alert(message);
+                    notify(message);
                 } else {
-                    alert('Failed: ' + (result.error || 'Unknown error'));
+                    notify('Failed: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error resending notification:', error);
-                alert('Error sending notification');
+                notify('Error sending notification');
             }
         }
 
@@ -3631,15 +3646,15 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert(`✅ New pickup link generated for order #${orderNumber}!\n\nThe page will refresh to show the new link.`);
+                    notify(`✅ New pickup link generated for order #${orderNumber}!\n\nThe page will refresh to show the new link.`);
                     closeModal();
                     loadOrders();
                 } else {
-                    alert(`Failed to regenerate link:\n\n${result.error || 'Unknown error'}`);
+                    notify(`Failed to regenerate link:\n\n${result.error || 'Unknown error'}`);
                 }
             } catch (error) {
                 console.error('Error regenerating pickup link:', error);
-                alert('Error: Failed to regenerate link. Please try again.');
+                notify('Error: Failed to regenerate link. Please try again.');
             }
         }
 
@@ -3661,18 +3676,18 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert(`New dropoff link generated for order #${orderNumber}!\n\nThe page will refresh to show the new link.`);
+                    notify(`New dropoff link generated for order #${orderNumber}!\n\nThe page will refresh to show the new link.`);
                     // Refresh the orders and reopen the modal
                     await loadOrders();
                     viewOrder(orderNumber);
                 } else {
-                    alert('Failed to regenerate link: ' + (result.details || result.error || 'Unknown error'));
+                    notify('Failed to regenerate link: ' + (result.details || result.error || 'Unknown error'));
                     btn.innerHTML = originalText;
                     btn.disabled = false;
                 }
             } catch (error) {
                 console.error('Error regenerating dropoff link:', error);
-                alert('Error regenerating link. Please try again.');
+                notify('Error regenerating link. Please try again.');
             }
         }
 
@@ -3697,17 +3712,17 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert(`New ${result.lockerSize} locker assigned for order #${orderNumber}!`);
+                    notify(`New ${result.lockerSize} locker assigned for order #${orderNumber}!`);
                     await loadOrders();
                     viewOrder(orderNumber);
                 } else {
-                    alert('Failed: ' + (result.details || result.error || 'Unknown error'));
+                    notify('Failed: ' + (result.details || result.error || 'Unknown error'));
                     btn.innerHTML = originalText;
                     btn.disabled = false;
                 }
             } catch (error) {
                 console.error('Error generating dropoff link with size:', error);
-                alert('Error generating link. Please try again.');
+                notify('Error generating link. Please try again.');
             }
         }
 
@@ -3720,15 +3735,15 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert(`Synced ${result.synced} new orders!`);
+                    notify(`Synced ${result.synced} new orders!`);
                     loadOrders();
                     loadStats();
                 } else {
-                    alert('Failed to sync: ' + (result.error || 'Unknown error'));
+                    notify('Failed to sync: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error syncing:', error);
-                alert('Error syncing orders');
+                notify('Error syncing orders');
             }
         }
 
@@ -3747,16 +3762,16 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert('Order marked as dropped off! Customer will be notified.');
+                    notify('Order marked as dropped off! Customer will be notified.');
                     closeModal();
                     loadStats();
                     loadOrders();
                 } else {
-                    alert('Failed to update order: ' + (result.error || 'Unknown error'));
+                    notify('Failed to update order: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error updating order:', error);
-                alert('Failed to update order status: ' + error.message);
+                notify('Failed to update order status: ' + error.message);
             }
         }
 
@@ -3773,13 +3788,13 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert('Pickup email resent to customer!');
+                    notify('Pickup email resent to customer!');
                 } else {
-                    alert('Failed to resend: ' + (result.error || 'Unknown error'));
+                    notify('Failed to resend: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error resending email:', error);
-                alert('Failed to resend email');
+                notify('Failed to resend email');
             }
         }
 
@@ -3800,15 +3815,15 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert('Locker request cancelled successfully');
+                    notify('Locker request cancelled successfully');
                     closeModal();
                     loadOrders(); // Refresh the orders list
                 } else {
-                    alert('Failed to cancel: ' + (result.error || 'Unknown error'));
+                    notify('Failed to cancel: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error cancelling locker:', error);
-                alert('Failed to cancel locker request');
+                notify('Failed to cancel locker request');
             }
         }
 
@@ -4248,13 +4263,13 @@
                     // Also hide reminder banner if it was showing
                     hideSetupReminderBanner();
                 } else {
-                    alert('Failed to save preferences');
+                    notify('Failed to save preferences');
                     btn.textContent = originalText;
                 }
                 loadStats();
             } catch (error) {
                 console.error('Error:', error);
-                alert('Error saving preferences');
+                notify('Error saving preferences');
                 btn.textContent = originalText;
             } finally {
                 btn.classList.remove('btn-loading');
@@ -4340,7 +4355,7 @@
                     .map(cb => cb.value);
 
                 if (fulfillmentDays.length === 0) {
-                    alert('Please select at least one fulfillment day');
+                    notify('Please select at least one fulfillment day');
                     return;
                 }
 
@@ -4368,11 +4383,11 @@
                         }, 3000);
                     }
                 } else {
-                    alert('Failed to save settings');
+                    notify('Failed to save settings');
                 }
             } catch (error) {
                 console.error('Error saving settings:', error);
-                alert('Error saving settings');
+                notify('Error saving settings');
             }
         }
 
@@ -4440,7 +4455,7 @@
 
             // At least start date required
             if (!startDate) {
-                alert('Please select a date');
+                notify('Please select a date');
                 return;
             }
 
@@ -4449,14 +4464,14 @@
             today.setHours(0, 0, 0, 0);
 
             if (start < today) {
-                alert('Cannot add past dates');
+                notify('Cannot add past dates');
                 return;
             }
 
             // If no end date or same as start, add single day
             if (!endDate || endDate === startDate) {
                 if (vacationDays.includes(startDate)) {
-                    alert('This date is already added');
+                    notify('This date is already added');
                     return;
                 }
                 vacationDays.push(startDate);
@@ -4465,14 +4480,14 @@
                 const end = new Date(endDate);
 
                 if (end < start) {
-                    alert('End date must be after start date');
+                    notify('End date must be after start date');
                     return;
                 }
 
                 // Limit range to 60 days
                 const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
                 if (daysDiff > 60) {
-                    alert('Date range cannot exceed 60 days');
+                    notify('Date range cannot exceed 60 days');
                     return;
                 }
 
@@ -4488,7 +4503,7 @@
                 }
 
                 if (addedCount === 0) {
-                    alert('All dates in this range are already added');
+                    notify('All dates in this range are already added');
                     return;
                 }
             }
@@ -4877,7 +4892,7 @@
             const preferredPickupDate = document.getElementById('manual-pickup-date').value || null;
 
             if (!orderNumber || !customerName || !customerEmail || !lockerId) {
-                alert('Please fill in all required fields');
+                notify('Please fill in all required fields');
                 return;
             }
 
@@ -4900,16 +4915,16 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert('Manual order created successfully!');
+                    notify('Manual order created successfully!');
                     closeManualOrderModal();
                     loadOrders();
                     loadStats();
                 } else {
-                    alert('Failed to create order: ' + (result.error || 'Unknown error'));
+                    notify('Failed to create order: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error creating manual order:', error);
-                alert('Error creating order: ' + error.message);
+                notify('Error creating order: ' + error.message);
             }
         }
 
@@ -5076,7 +5091,7 @@
             });
 
             if (products.length === 0) {
-                alert('No product sizes to save. Enter dimensions, select a locker size, or mark products as excluded.');
+                notify('No product sizes to save. Enter dimensions, select a locker size, or mark products as excluded.');
                 return;
             }
 
@@ -5116,12 +5131,12 @@
                         btn.style.background = '';
                     }, 2500);
                 } else {
-                    alert('Failed to save: ' + (result.error || 'Unknown error'));
+                    notify('Failed to save: ' + (result.error || 'Unknown error'));
                     btn.textContent = originalText;
                 }
             } catch (error) {
                 console.error('Error saving product sizes:', error);
-                alert('Error saving: ' + error.message);
+                notify('Error saving: ' + error.message);
                 btn.textContent = originalText;
             } finally {
                 btn.classList.remove('btn-loading');
@@ -5148,7 +5163,7 @@
         // Export product sizes to CSV
         function exportProductSizesCSV() {
             if (!productsData || productsData.length === 0) {
-                alert('No products to export. Please wait for products to load.');
+                notify('No products to export. Please wait for products to load.');
                 return;
             }
 
@@ -5194,7 +5209,7 @@
                     const lines = csvText.split(/\r?\n/).filter(line => line.trim());
 
                     if (lines.length < 2) {
-                        alert('CSV file is empty or has no data rows.');
+                        notify('CSV file is empty or has no data rows.');
                         input.value = '';
                         return;
                     }
@@ -5217,7 +5232,7 @@
 
                     // Must have product ID or SKU
                     if (colIndex.productId === -1 && colIndex.sku === -1) {
-                        alert('CSV must have a "Product ID" or "SKU" column to match products.');
+                        notify('CSV must have a "Product ID" or "SKU" column to match products.');
                         input.value = '';
                         return;
                     }
@@ -5313,11 +5328,11 @@
                         }
                     }
                     msg += `\n\nClick "Save All Changes" to save the imported sizes.`;
-                    alert(msg);
+                    notify(msg);
 
                 } catch (error) {
                     console.error('CSV import error:', error);
-                    alert('Error parsing CSV: ' + error.message);
+                    notify('Error parsing CSV: ' + error.message);
                 }
 
                 input.value = ''; // Reset file input
@@ -5413,7 +5428,7 @@
 
         async function devBillingAction(action) {
             if (!DEV_STORES.includes(shop)) {
-                alert('Dev mode not available for this store');
+                notify('Dev mode not available for this store');
                 return;
             }
 
@@ -5427,14 +5442,14 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert(result.message);
+                    notify(result.message);
                     loadSubscription();
                 } else {
-                    alert('Error: ' + (result.error || 'Action failed'));
+                    notify('Error: ' + (result.error || 'Action failed'));
                 }
             } catch (error) {
                 console.error('Error:', error);
-                alert('Error: ' + error.message);
+                notify('Error: ' + error.message);
             }
         }
 
@@ -5526,7 +5541,7 @@
 
             // Validate file size
             if (file.size > 2 * 1024 * 1024) {
-                alert('File is too large. Maximum size is 2MB.');
+                notify('File is too large. Maximum size is 2MB.');
                 event.target.value = '';
                 return;
             }
@@ -5560,11 +5575,11 @@
                     // Auto-save branding settings
                     autoSaveBranding();
                 } else {
-                    alert('Error uploading logo: ' + (result.error || 'Unknown error'));
+                    notify('Error uploading logo: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error uploading logo:', error);
-                alert('Error uploading logo. Please try again.');
+                notify('Error uploading logo. Please try again.');
             } finally {
                 uploadBtn.innerHTML = originalText;
                 uploadBtn.disabled = false;
@@ -5592,11 +5607,11 @@
                     // Auto-save branding settings
                     autoSaveBranding();
                 } else {
-                    alert('Error removing logo: ' + (result.error || 'Unknown error'));
+                    notify('Error removing logo: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error removing logo:', error);
-                alert('Error removing logo. Please try again.');
+                notify('Error removing logo. Please try again.');
             }
         }
 
@@ -5700,7 +5715,7 @@
         // Add product to upsell list
         function addUpsellProduct(id, title, image) {
             if (selectedUpsellProducts.length >= 4) {
-                alert('Maximum 4 products allowed');
+                notify('Maximum 4 products allowed');
                 return;
             }
 
@@ -5820,9 +5835,9 @@
                         }, 3000);
                     }
                 } else if (result.upgrade) {
-                    alert('Custom branding requires the Enterprise plan. Please upgrade to access this feature.');
+                    notify('Custom branding requires the Enterprise plan. Please upgrade to access this feature.');
                 } else {
-                    alert('Error: ' + (result.error || 'Could not save settings'));
+                    notify('Error: ' + (result.error || 'Could not save settings'));
                 }
             } catch (error) {
                 console.error('Error saving branding:', error);
