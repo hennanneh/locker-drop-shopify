@@ -4142,23 +4142,62 @@ app.get('/api/orders/:shop', requireApiAuth, auditCustomerDataAccess('view_order
 // DATABASE ROUTES
 // ============================================
 
-// Save locker preferences
+// Fetch a map of {locationId -> name} from Harbor. Returns null if Harbor is unreachable.
+async function fetchHarborLocationNames() {
+    try {
+        const tokenResponse = await axios.post(
+            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+        );
+        const accessToken = tokenResponse.data.access_token;
+        const locationsResponse = await axios.get(
+            'https://api.sandbox.harborlockers.com/api/v1/locations/',
+            { headers: { 'Authorization': `Bearer ${accessToken}` }, params: { limit: 500 } }
+        );
+        const locations = locationsResponse.data || [];
+        const map = new Map();
+        for (const loc of locations) {
+            const name = loc.name || loc.location_name;
+            if (loc.id != null && name) map.set(Number(loc.id), name);
+        }
+        return map;
+    } catch (e) {
+        logger.warn({ err: e.message }, 'Failed to fetch Harbor location names');
+        return null;
+    }
+}
+
+// Save locker preferences. If client sends a locker without a name (e.g. it was saved
+// from a paginated list and the page didn't have its name in scope), look the name up
+// from Harbor before persisting.
 app.post('/api/locker-preferences/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
         const { selectedLockers } = req.body;
-        
+
+        // Resolve missing names from Harbor before inserting.
+        const needsLookup = (selectedLockers || []).some(l => !l.name || String(l.name).trim() === '');
+        let harborMap = null;
+        if (needsLookup) {
+            harborMap = await fetchHarborLocationNames();
+        }
+
         // Delete existing preferences
         await db.query('DELETE FROM locker_preferences WHERE shop = $1', [shop]);
-        
+
         // Insert new preferences
         for (const locker of selectedLockers) {
+            let name = locker.name && String(locker.name).trim();
+            if (!name && harborMap) {
+                name = harborMap.get(Number(locker.id)) || null;
+            }
             await db.query(
                 'INSERT INTO locker_preferences (shop, location_id, location_name) VALUES ($1, $2, $3)',
-                [shop, locker.id, locker.name]
+                [shop, locker.id, name]
             );
         }
-        
+
         res.json({ success: true, message: 'Preferences saved' });
     } catch (error) {
         logger.error('Error saving preferences:', error);
@@ -4166,7 +4205,8 @@ app.post('/api/locker-preferences/:shop', requireApiAuth, async (req, res) => {
     }
 });
 
-// Get locker preferences
+// Get locker preferences. Backfills any rows with empty location_name by looking up
+// the canonical name from Harbor and persisting it, so dropdowns always render labels.
 app.get('/api/locker-preferences/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
@@ -4174,7 +4214,27 @@ app.get('/api/locker-preferences/:shop', requireApiAuth, async (req, res) => {
             'SELECT * FROM locker_preferences WHERE shop = $1',
             [shop]
         );
-        res.json(result.rows);
+        const rows = result.rows;
+
+        const missing = rows.filter(r => !r.location_name || String(r.location_name).trim() === '');
+        if (missing.length > 0) {
+            const harborMap = await fetchHarborLocationNames();
+            if (harborMap) {
+                for (const row of missing) {
+                    const name = harborMap.get(Number(row.location_id));
+                    if (name) {
+                        row.location_name = name;
+                        // Persist for future requests; don't block the response on this.
+                        db.query(
+                            'UPDATE locker_preferences SET location_name = $1 WHERE shop = $2 AND location_id = $3',
+                            [name, shop, row.location_id]
+                        ).catch(err => logger.warn({ err: err.message }, 'Failed to backfill location_name'));
+                    }
+                }
+            }
+        }
+
+        res.json(rows);
     } catch (error) {
         logger.error('Error fetching preferences:', error);
         res.status(500).json({ error: 'Failed to fetch preferences' });
