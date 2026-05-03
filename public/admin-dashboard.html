@@ -4383,8 +4383,7 @@
                 // Update pagination UI. When the merchant has "My lockers only" checked
                 // AND a search filter is also active, the visible count can be smaller
                 // than the count they have saved — surface that explicitly so they don't
-                // think they've lost selections.
-                const totalSaved = savedPreferenceIds.length;
+                // think they've lost selections. (totalSaved is already in scope from above.)
                 const subsetSuffix = (myLockersOnly && searchValue && lockerTotalCount < totalSaved)
                     ? ` of ${totalSaved} selected`
                     : '';
