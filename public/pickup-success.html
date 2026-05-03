@@ -427,6 +427,7 @@
         const requestId = urlParams.get('open_locker_request');
         const status = urlParams.get('status');
         const shop = urlParams.get('shop');
+        const orderToken = urlParams.get('t');
 
         // Display order number
         if (orderNumber) {
@@ -547,7 +548,8 @@
                     body: JSON.stringify({
                         orderNumber: orderNumber,
                         requestId: requestId,
-                        status: status
+                        status: status,
+                        t: orderToken
                     })
                 });
 
@@ -574,7 +576,7 @@
             btn.innerHTML = '<span class="spinner" style="display:inline-block;width:16px;height:16px;border:2px solid rgba(0,0,0,0.2);border-radius:50%;border-top-color:currentColor;animation:spin 1s ease-in-out infinite;margin-right:8px;vertical-align:middle;"></span> Loading...';
 
             try {
-                var response = await fetch('/api/retry-link/' + orderNumber + '?type=pickup');
+                var response = await fetch('/api/retry-link/' + encodeURIComponent(orderNumber) + '?type=pickup&t=' + encodeURIComponent(orderToken || ''));
                 var result = await response.json();
 
                 if (result.success && result.link) {

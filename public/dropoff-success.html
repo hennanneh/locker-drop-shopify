@@ -532,6 +532,7 @@
         const status = urlParams.get('status');
         const lockerId = urlParams.get('locker_id') || urlParams.get('lockerId');
         const towerId = urlParams.get('tower_id') || urlParams.get('towerId');
+        const orderToken = urlParams.get('t');
 
         let selectedSize = null;
 
@@ -556,7 +557,8 @@
                         requestId: requestId,
                         status: status,
                         lockerId: lockerId,
-                        towerId: towerId
+                        towerId: towerId,
+                        t: orderToken
                     })
                 });
 
@@ -589,7 +591,7 @@
             fetch('/api/dropoff-doesnt-fit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ orderNumber: orderNumber })
+                body: JSON.stringify({ orderNumber: orderNumber, t: orderToken })
             })
             .then(r => r.json())
             .then(result => {
@@ -633,7 +635,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         orderNumber: orderNumber,
-                        newSize: selectedSize
+                        newSize: selectedSize,
+                        t: orderToken
                     })
                 });
 
@@ -668,7 +671,7 @@
             btn.innerHTML = '<span class="spinner"></span> Loading...';
 
             try {
-                var response = await fetch('/api/retry-link/' + orderNumber + '?type=' + type);
+                var response = await fetch('/api/retry-link/' + encodeURIComponent(orderNumber) + '?type=' + encodeURIComponent(type) + '&t=' + encodeURIComponent(orderToken || ''));
                 var result = await response.json();
 
                 if (result.success && result.link) {

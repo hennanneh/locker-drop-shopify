@@ -1307,6 +1307,42 @@ async function requireAuth(req, res, next) {
     res.redirect(`/auth/install?shop=${shop}`);
 }
 
+// HMAC-signed token bound to an orderNumber. Used on customer-facing public
+// endpoints (dropoff/pickup completion) so that knowledge of an order number
+// alone is not enough to call them — the holder must also possess the signed
+// token from the original outbound link/email/SMS.
+function signOrderToken(orderNumber) {
+    return crypto.createHmac('sha256', process.env.SESSION_SECRET || 'lockerdrop-fallback')
+        .update(`order:${String(orderNumber)}`)
+        .digest('base64url')
+        .substring(0, 24);
+}
+
+function verifyOrderToken(orderNumber, token) {
+    if (!orderNumber || !token) return false;
+    const expected = signOrderToken(orderNumber);
+    const a = Buffer.from(String(token));
+    const b = Buffer.from(expected);
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+}
+
+// Middleware: require a valid order token on the request.
+// Looks for orderNumber in body, params, or query (under 'order' or 'orderNumber'),
+// and the token under body.t / query.t.
+function requireOrderToken(req, res, next) {
+    const orderNumber = req.body?.orderNumber
+        || req.params?.orderNumber
+        || req.query?.orderNumber
+        || req.query?.order;
+    const token = req.body?.t || req.query?.t;
+    if (!verifyOrderToken(String(orderNumber || ''), String(token || ''))) {
+        logger.warn({ orderNumber, hasToken: !!token, path: req.path }, 'Order token invalid or missing');
+        return res.status(401).json({ error: 'Invalid or missing order token' });
+    }
+    next();
+}
+
 // Strict shop-domain validation — only accept canonical *.myshopify.com hostnames.
 function isValidShopDomain(shop) {
     return typeof shop === 'string' && /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop);
@@ -2036,7 +2072,7 @@ app.post('/api/order/:shop/:orderId/status', requireApiAuth, async (req, res) =>
                                 lockerId: order.locker_id,
                                 keypadIntent: 'pickup',
                                 persistKeypadCode: false,
-                                returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${order.shop}`,
+                                returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${order.shop}&t=${signOrderToken(orderNumber)}`,
                                 clientInfo: `customer-${orderNumber}`,
                                 payload: { order_id: order.shopify_order_id, order_number: orderNumber, customer_name: order.customer_name }
                             },
@@ -2109,7 +2145,7 @@ app.post('/api/order/:shop/:orderId/status', requireApiAuth, async (req, res) =>
 });
 
 // Pickup complete callback - called from the success page when customer picks up
-app.post('/api/pickup-complete', async (req, res) => {
+app.post('/api/pickup-complete', requireOrderToken, async (req, res) => {
     try {
         const { orderNumber, requestId, status } = req.body;
 
@@ -2265,7 +2301,7 @@ app.post('/api/order/:shop/:orderId/cancel-locker', requireApiAuth, async (req, 
 });
 
 // Retry link - returns the dropoff or pickup link for an order (public, called from success pages)
-app.get('/api/retry-link/:orderNumber', async (req, res) => {
+app.get('/api/retry-link/:orderNumber', requireOrderToken, async (req, res) => {
     try {
         const { orderNumber } = req.params;
         const type = req.query.type || 'dropoff'; // 'dropoff' or 'pickup'
@@ -2352,7 +2388,7 @@ app.get('/api/order-dropoff-info/:orderNumber', async (req, res) => {
 });
 
 // Change locker size before dropoff (called from dropoff-confirm page)
-app.post('/api/dropoff-change-size', async (req, res) => {
+app.post('/api/dropoff-change-size', requireOrderToken, async (req, res) => {
     try {
         const { orderNumber, newSize } = req.body;
 
@@ -2451,7 +2487,7 @@ app.post('/api/dropoff-change-size', async (req, res) => {
 });
 
 // Dropoff complete callback - called from the success page when seller drops off
-app.post('/api/dropoff-complete', async (req, res) => {
+app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
     try {
         const { orderNumber, requestId, status, lockerId, towerId } = req.body;
 
@@ -2526,7 +2562,7 @@ app.post('/api/dropoff-complete', async (req, res) => {
                         lockerId: parseInt(finalLockerId),
                         keypadIntent: 'pickup',
                         persistKeypadCode: false,
-                        returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${order.shop}`,
+                        returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${order.shop}&t=${signOrderToken(orderNumber)}`,
                         clientInfo: `customer-${orderNumber}`,
                         payload: { order_id: order.shopify_order_id, order_number: orderNumber }
                     },
@@ -2618,7 +2654,7 @@ app.post('/api/dropoff-complete', async (req, res) => {
 
 // Dropoff "doesn't fit" handler - called from success page when Harbor returns non-success status
 // Public endpoint (no auth) - same pattern as /api/dropoff-complete
-app.post('/api/dropoff-doesnt-fit', async (req, res) => {
+app.post('/api/dropoff-doesnt-fit', requireOrderToken, async (req, res) => {
     try {
         const { orderNumber, newSize } = req.body;
 
@@ -5310,7 +5346,7 @@ app.post('/api/manual-order/:shop', requireApiAuth, async (req, res) => {
                 keypadIntent: 'pickup',
                 persistKeypadCode: false,
                 requireLowLocker: false,  // Don't require low locker - use any available
-                returnUrl: `https://app.lockerdrop.it/dropoff-success?order=${orderNumber}`,
+                returnUrl: `https://app.lockerdrop.it/dropoff-success?order=${orderNumber}&t=${signOrderToken(orderNumber)}`,
                 clientInfo: `manual-order-${orderNumber}`,
                 payload: { order_number: orderNumber, customer_name: customerName, manual: true }
             },
@@ -5376,7 +5412,7 @@ app.post('/api/generate-dropoff-link/:shop', requireApiAuth, async (req, res) =>
                 keypadIntent: 'pickup',
                 persistKeypadCode: false,
                 requireLowLocker: true,
-                returnUrl: `https://app.lockerdrop.it/dropoff-success`,
+                returnUrl: `https://app.lockerdrop.it/dropoff-success?order=${orderNumber}&t=${signOrderToken(orderNumber)}`,
                 clientInfo: `order-${orderNumber}`,
                 payload: { order_id: orderId, order_number: orderNumber }
             },
@@ -5411,7 +5447,7 @@ app.post('/api/generate-pickup-link/:shop', requireApiAuth, async (req, res) => 
                 lockerId,
                 keypadIntent: 'pickup',
                 persistKeypadCode: false,
-                returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${req.params.shop}`,
+                returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${req.params.shop}&t=${signOrderToken(orderNumber)}`,
                 clientInfo: `customer-${orderNumber}`,
                 payload: { order_id: orderId, order_number: orderNumber, customer_name: customerName }
             },
@@ -5571,7 +5607,7 @@ app.post('/api/emergency-open/:shop', requireApiAuth, async (req, res) => {
                     lockerId: parseInt(order.locker_id),
                     keypadIntent: 'pickup',
                     persistKeypadCode: false,
-                    returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${shop}`,
+                    returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${shop}&t=${signOrderToken(orderNumber)}`,
                     clientInfo: `emergency-${orderNumber}-${Date.now()}`,
                     payload: { order_id: order.shopify_order_id, order_number: orderNumber, emergency: true }
                 },
@@ -6868,7 +6904,7 @@ async function generateDropoffLink(locationId, lockerTypeId, orderId, orderNumbe
             lockerTypeId,
             keypadIntent: 'pickup',
             persistKeypadCode: false,
-            returnUrl: `https://app.lockerdrop.it/dropoff-success?order=${orderNumber}`,
+            returnUrl: `https://app.lockerdrop.it/dropoff-success?order=${orderNumber}&t=${signOrderToken(orderNumber)}`,
             clientInfo: `order-${orderNumber}`,
             payload: { order_id: orderId, order_number: orderNumber }
         },
