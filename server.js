@@ -514,7 +514,7 @@ const accessTokens = new Map();
 app.get('/auth/install', (req, res) => {
     const shop = req.query.shop;
     const redirectUri = `https://app.lockerdrop.it/auth/callback`;
-    const scopes = 'write_shipping,read_orders,write_orders,read_products,write_products,read_shipping,read_fulfillments,write_fulfillments';
+    const scopes = process.env.SHOPIFY_SCOPES || 'write_shipping,read_orders,write_orders,read_products,read_fulfillments,write_fulfillments';
     const nonce = crypto.randomBytes(16).toString('hex');
     
     const installUrl = 
@@ -636,7 +636,7 @@ app.get('/auth/reconnect', (req, res) => {
     logger.info(`🔄 Reconnect requested for ${shop}`);
 
     const redirectUri = `https://app.lockerdrop.it/auth/callback`;
-    const scopes = 'write_shipping,read_orders,write_orders,read_products,write_products,read_shipping,read_fulfillments,write_fulfillments';
+    const scopes = process.env.SHOPIFY_SCOPES || 'write_shipping,read_orders,write_orders,read_products,read_fulfillments,write_fulfillments';
     const nonce = crypto.randomBytes(16).toString('hex');
 
     const installUrl =

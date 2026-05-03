@@ -6,8 +6,21 @@ client_id = "d0123a17d1e004675deaca3a4a154239"
 application_url = "https://app.lockerdrop.it"
 embedded = true
 
+# Justifications (Shopify App Store req 3.2):
+#   write_shipping     — Register a CarrierService so "LockerDrop @ <Locker>" appears as a
+#                        shipping option at checkout. Implies read.
+#   read_orders        — orders/create + orders/updated webhooks read order line items,
+#                        customer, attributes to size and route the locker reservation.
+#   write_orders       — Update order metadata (notes, tags) when locker state changes
+#                        and to support order-cancellation cleanup.
+#   read_products      — Fetch product weight + measurements via GraphQL inventoryItem
+#                        to calculate the smallest locker size that fits the package.
+#   read_fulfillments  — Read existing fulfillment status before posting a new one
+#                        (avoids duplicates on retry).
+#   write_fulfillments — Create fulfillments via fulfillmentCreateV2 once the customer
+#                        picks up the package.
 [access_scopes]
-scopes = "write_shipping,read_orders,write_orders,read_products,write_products,read_shipping,read_checkouts,write_checkouts,read_fulfillments,write_fulfillments"
+scopes = "write_shipping,read_orders,write_orders,read_products,read_fulfillments,write_fulfillments"
 
 [auth]
 redirect_urls = ["https://app.lockerdrop.it/auth/callback"]
