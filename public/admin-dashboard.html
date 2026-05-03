@@ -2544,25 +2544,25 @@
                 <div style="margin-bottom: 16px;">
                     <label style="display: block; font-weight: 500; margin-bottom: 8px;">Order Number / Reference *</label>
                     <input type="text" id="manual-order-number" required placeholder="e.g., 1031 or MANUAL-001"
-                           style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;">
+                           class="form-input">
                 </div>
 
                 <div style="margin-bottom: 16px;">
                     <label style="display: block; font-weight: 500; margin-bottom: 8px;">Customer Name *</label>
                     <input type="text" id="manual-customer-name" required placeholder="John Smith"
-                           style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;">
+                           class="form-input">
                 </div>
 
                 <div style="margin-bottom: 16px;">
                     <label style="display: block; font-weight: 500; margin-bottom: 8px;">Customer Email *</label>
                     <input type="email" id="manual-customer-email" required placeholder="customer@example.com"
-                           style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;">
+                           class="form-input">
                 </div>
 
                 <div style="margin-bottom: 16px;">
                     <label style="display: block; font-weight: 500; margin-bottom: 8px;">Required Locker Size *</label>
                     <select id="manual-locker-size" required
-                            style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;"
+                            class="form-input"
                             onchange="updateLockerAvailabilityDisplay()">
                         <option value="1">Small (up to 12" × 8" × 4")</option>
                         <option value="2" selected>Medium (up to 16" × 12" × 8")</option>
@@ -2575,7 +2575,7 @@
                 <div style="margin-bottom: 16px;">
                     <label style="display: block; font-weight: 500; margin-bottom: 8px;">Locker Location *</label>
                     <select id="manual-locker-select" required
-                            style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;"
+                            class="form-input"
                             onchange="updateLockerAvailabilityDisplay()">
                         <option value="">Select a locker...</option>
                     </select>
@@ -2585,7 +2585,7 @@
                 <div style="margin-bottom: 16px;">
                     <label style="display: block; font-weight: 500; margin-bottom: 8px;">Preferred Pickup Date</label>
                     <input type="date" id="manual-pickup-date"
-                           style="width: 100%; padding: 10px; border: 1px solid #c4cdd5; border-radius: 6px;"
+                           class="form-input"
                            min="">
                     <p style="color: #6d7175; font-size: 12px; margin-top: 4px;">Optional - when customer should pick up (leave blank for ASAP)</p>
                 </div>
