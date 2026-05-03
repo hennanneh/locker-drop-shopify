@@ -394,7 +394,7 @@
   }
 {% endstyle %}
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="{{ 'leaflet.css' | asset_url }}" />
 
 <div class="ld-page">
   <!-- Hero -->
@@ -496,7 +496,7 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ 'leaflet.js' | asset_url }}" defer></script>
 <script>
   const LD_PAGE_API = 'https://app.lockerdrop.it';
   let ldPageMap = null;

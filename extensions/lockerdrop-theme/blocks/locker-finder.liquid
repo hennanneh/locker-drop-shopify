@@ -185,7 +185,7 @@
   }
 {% endstyle %}
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="{{ 'leaflet.css' | asset_url }}" />
 
 <div class="lockerdrop-finder">
   <div class="lockerdrop-finder__container">
@@ -208,7 +208,7 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ 'leaflet.js' | asset_url }}" defer></script>
 <script>
   const LOCKERDROP_API = 'https://app.lockerdrop.it';
   let ldMap = null;
