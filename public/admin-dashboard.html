@@ -4380,18 +4380,25 @@
                     </div>
                 `}).join('');
 
-                // Update pagination UI
+                // Update pagination UI. When the merchant has "My lockers only" checked
+                // AND a search filter is also active, the visible count can be smaller
+                // than the count they have saved — surface that explicitly so they don't
+                // think they've lost selections.
+                const totalSaved = savedPreferenceIds.length;
+                const subsetSuffix = (myLockersOnly && searchValue && lockerTotalCount < totalSaved)
+                    ? ` of ${totalSaved} selected`
+                    : '';
                 if (lockerTotalPages > 1) {
                     paginationEl.style.display = 'block';
                     const start = (lockerCurrentPage - 1) * 20 + 1;
                     const end = Math.min(lockerCurrentPage * 20, lockerTotalCount);
-                    document.getElementById('locker-page-info').textContent = `Showing ${start}-${end} of ${lockerTotalCount} lockers`;
+                    document.getElementById('locker-page-info').textContent = `Showing ${start}-${end} of ${lockerTotalCount} lockers${subsetSuffix}`;
                     document.getElementById('prev-page-btn').disabled = lockerCurrentPage <= 1;
                     document.getElementById('next-page-btn').disabled = lockerCurrentPage >= lockerTotalPages;
                 } else {
                     paginationEl.style.display = lockerTotalCount > 0 ? 'block' : 'none';
                     if (lockerTotalCount > 0) {
-                        document.getElementById('locker-page-info').textContent = `Showing ${lockerTotalCount} locker${lockerTotalCount !== 1 ? 's' : ''}`;
+                        document.getElementById('locker-page-info').textContent = `Showing ${lockerTotalCount} locker${lockerTotalCount !== 1 ? 's' : ''}${subsetSuffix}`;
                         document.getElementById('prev-page-btn').disabled = true;
                         document.getElementById('next-page-btn').disabled = true;
                     }
