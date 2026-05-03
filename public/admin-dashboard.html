@@ -4684,10 +4684,20 @@
         // with hardcoded HTML defaults" data-loss path called out in the UX audit.
         let settingsLoaded = false;
 
-        async function loadSettings() {
+        async function loadSettings(_attempt = 0) {
             try {
                 const response = await window.__nativeFetch(`/api/settings/${shop}`);
-                if (!response.ok) throw new Error('HTTP ' + response.status);
+                if (!response.ok) {
+                    // App Bridge sometimes hasn't supplied a session token yet on the first
+                    // call after a fresh embed load → 401. Retry once after a short delay
+                    // before surfacing the data-loss banner. Other load* calls re-fetch via
+                    // the 30-sec auto-refresh, so they self-heal; loadSettings only runs once.
+                    if ((response.status === 401 || response.status === 400) && _attempt < 1) {
+                        await new Promise(r => setTimeout(r, 1500));
+                        return loadSettings(_attempt + 1);
+                    }
+                    throw new Error('HTTP ' + response.status);
+                }
                 const data = await response.json();
 
                 // Checkout extension
