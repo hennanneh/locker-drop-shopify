@@ -1662,7 +1662,7 @@
                     </span>
                     <button class="btn btn-primary" onclick="openManualOrderModal()">+ Add Manual Order</button>
                 </div>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center;">
                     <button class="filter-btn active" data-status="active" onclick="filterOrders('active')">Active</button>
                     <button class="filter-btn" data-status="pending_dropoff" onclick="filterOrders('pending_dropoff')">Pending Drop-off</button>
                     <button class="filter-btn" data-status="future_dropoff" onclick="filterOrders('future_dropoff')">Future Drop-off</button>
@@ -1670,6 +1670,7 @@
                     <button class="filter-btn" data-status="completed" onclick="filterOrders('completed')">Completed</button>
                     <button class="filter-btn" data-status="cancelled" onclick="filterOrders('cancelled')">Cancelled</button>
                     <button class="filter-btn" data-status="all" onclick="filterOrders('all')">All</button>
+                    <input type="search" id="orders-search" placeholder="Search order # or customer…" oninput="searchOrders()" style="margin-left: auto; padding: 8px 12px; border: 1px solid #c4cdd5; border-radius: 6px; font-size: 13px; min-width: 240px;">
                 </div>
                 <table class="orders-table">
                     <thead>
@@ -1800,6 +1801,9 @@
                         For multi-item orders, dimensions are combined (stacked) to calculate total package size.
                     </p>
 
+                    <!-- CSV import results banner (filled by importProductSizesCSV) -->
+                    <div id="csv-import-banner" style="display: none; margin-bottom: 16px;"></div>
+
                     <div class="info-box tip" style="margin-bottom: 16px;">
                         <strong>Tip:</strong> Entering exact dimensions (L x W x H) allows multiple smaller items to share a locker.
                         Using only the dropdown assumes a default size.
@@ -1874,11 +1878,11 @@
                         <h4 style="margin: 0 0 12px; color: #5c6ac4; font-size: 15px;">Order Lifecycle</h4>
                         <div style="font-size: 14px;">
                             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-                                <span class="status-badge status-pending_dropoff">⏳ Waiting for drop-off</span>
+                                <span class="status-badge status-pending_dropoff">⏳ Pending drop-off</span>
                                 <span style="color: #6d7175;">Your action needed</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-                                <span class="status-badge status-ready_for_pickup">📦 In locker - notified</span>
+                                <span class="status-badge status-ready_for_pickup">📦 Ready for pickup</span>
                                 <span style="color: #6d7175;">Customer got pickup email</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
@@ -3420,6 +3424,14 @@
         let allOrders = [];
         let currentFilter = 'active'; // Default filter
         let currentSort = { column: 'date', direction: 'desc' }; // Default sort by date descending
+        let currentSearch = ''; // Free-text filter on order_number / customer_name / customer_email
+
+        // Search input handler — re-renders with current filter + new search
+        function searchOrders() {
+            const input = document.getElementById('orders-search');
+            currentSearch = (input ? input.value : '').trim().toLowerCase();
+            renderOrders();
+        }
 
         // Sort orders
         function sortOrders(column) {
@@ -3494,6 +3506,18 @@
                 });
             } else if (currentFilter !== 'all') {
                 filteredOrders = allOrders.filter(o => o.status === currentFilter);
+            }
+
+            // Apply free-text search across order number / customer name / email
+            if (currentSearch) {
+                filteredOrders = filteredOrders.filter(o => {
+                    const haystack = [
+                        o.order_number, o.orderNumber,
+                        o.customer_name, o.customerName,
+                        o.customer_email, o.customerEmail
+                    ].filter(Boolean).join(' ').toLowerCase();
+                    return haystack.includes(currentSearch);
+                });
             }
 
             // Apply sorting
@@ -3578,18 +3602,21 @@
             `).join('');
         }
 
+        // Single source of truth for status labels — reused across order badges,
+        // filter buttons, stat cards. Per UX_AUDIT.md heuristic 2 / finding 2-1.
         function formatStatus(status, completedAt = null) {
             if (status === 'completed' && completedAt) {
                 const date = new Date(completedAt);
                 const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                return `✓ Picked up ${formatted}`;
+                return `✓ Completed ${formatted}`;
             }
             const statusMap = {
-                'pending_dropoff': '⏳ Waiting for drop-off',
+                'pending_dropoff': '⏳ Pending drop-off',
                 'future_dropoff': '📅 Future drop-off',
-                'ready_for_pickup': '📦 In locker - notified',
-                'completed': '✓ Picked up',
-                'cancelled': '✗ Cancelled'
+                'ready_for_pickup': '📦 Ready for pickup',
+                'completed': '✓ Completed',
+                'cancelled': '✗ Cancelled',
+                'expired': '⌛ Expired'
             };
             return statusMap[status] || status;
         }
@@ -4740,19 +4767,27 @@
                 }
 
                 let addedCount = 0;
+                let skippedCount = 0;
                 const current = new Date(start);
                 while (current <= end) {
                     const dateStr = current.toISOString().split('T')[0];
                     if (!vacationDays.includes(dateStr)) {
                         vacationDays.push(dateStr);
                         addedCount++;
+                    } else {
+                        skippedCount++;
                     }
                     current.setDate(current.getDate() + 1);
                 }
 
                 if (addedCount === 0) {
-                    notify('All dates in this range are already added');
+                    notify('All dates in this range are already on your schedule.');
                     return;
+                }
+                // Surface partial overlap so the merchant knows the count they got isn't
+                // the count they typed (audit finding 5-3).
+                if (skippedCount > 0) {
+                    notify(`Added ${addedCount} day${addedCount !== 1 ? 's' : ''} (${skippedCount} already on your schedule were skipped).`);
                 }
             }
 
@@ -5011,20 +5046,34 @@
             }
         };
 
-        // Close any open dashboard modal on Escape (matches the confirm-modal behavior).
-        // Skip when a confirm-modal is already open — that one handles Esc itself and
-        // we don't want a single Esc to dismiss both.
+        // Keyboard shortcuts:
+        //   Esc — close any open dashboard modal (matches the confirm-modal behavior;
+        //         skipped when a confirm-modal is already open so a single Esc doesn't
+        //         dismiss two layers).
+        //   /   — focus the Orders search box, when not already typing.
         document.addEventListener('keydown', function(event) {
-            if (event.key !== 'Escape') return;
-            if (document.querySelector('.confirm-modal-overlay')) return;
-            const orderModal = document.getElementById('orderModal');
-            const manualModal = document.getElementById('manualOrderModal');
-            const onboardingModal = document.getElementById('onboardingModal');
-            const visible = (el) => el && getComputedStyle(el).display !== 'none';
-            if (visible(orderModal)) { orderModal.style.display = 'none'; return; }
-            if (visible(manualModal)) { manualModal.style.display = 'none'; return; }
-            // Onboarding modal intentionally NOT dismissable via Esc — it's the first-run
-            // walkthrough; merchants should use the explicit Skip button.
+            const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)
+                || document.activeElement?.isContentEditable;
+
+            if (event.key === 'Escape') {
+                if (document.querySelector('.confirm-modal-overlay')) return;
+                const orderModal = document.getElementById('orderModal');
+                const manualModal = document.getElementById('manualOrderModal');
+                const visible = (el) => el && getComputedStyle(el).display !== 'none';
+                if (visible(orderModal)) { orderModal.style.display = 'none'; return; }
+                if (visible(manualModal)) { manualModal.style.display = 'none'; return; }
+                // Onboarding modal intentionally NOT dismissable via Esc — it's the first-run
+                // walkthrough; merchants should use the explicit Skip button.
+                return;
+            }
+            if (event.key === '/' && !isTyping) {
+                const search = document.getElementById('orders-search');
+                if (search) {
+                    event.preventDefault();
+                    showTab('orders');
+                    setTimeout(() => search.focus(), 0);
+                }
+            }
         });
 
         // Manual Order Functions
@@ -5602,34 +5651,41 @@
 
                         if (!found) {
                             skipped++;
-                            if (skippedRows.length < 5) { // Only track first 5 for the alert
-                                skippedRows.push(`Row ${i + 1}: PID=${productId}, VID=${variantId}, SKU=${sku}`);
-                            }
+                            // Track ALL skipped rows so the merchant can see them inline.
+                            skippedRows.push(`Row ${i + 1}: PID=${productId || '—'}, VID=${variantId || '—'}, SKU=${sku || '—'}`);
                         }
                     }
-
-                    // console.log('CSV Import complete:', { matched, skipped, skippedRows });
 
                     // Re-render the products list with updated data
                     renderProducts();
 
-                    // Show result
-                    let msg = `CSV Import Complete:\n\n✓ ${matched} product${matched !== 1 ? 's' : ''} matched and updated`;
-                    if (skipped > 0) {
-                        msg += `\n\n⚠ ${skipped} row${skipped !== 1 ? 's' : ''} skipped (no matching product found)`;
-                        if (skippedRows.length > 0) {
-                            msg += `\n\nSkipped rows:\n${skippedRows.join('\n')}`;
-                            if (skipped > 5) {
-                                msg += `\n... and ${skipped - 5} more`;
-                            }
-                        }
+                    // Render an inline banner above the table instead of a fleeting toast.
+                    const banner = document.getElementById('csv-import-banner');
+                    if (banner) {
+                        const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c =>
+                            ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+                        const skippedDetails = skippedRows.length > 0
+                            ? `<details style="margin-top: 8px;"><summary style="cursor: pointer; font-weight: 500;">View ${skipped} skipped row${skipped !== 1 ? 's' : ''}</summary>`
+                              + `<pre style="white-space: pre-wrap; background: #fff; padding: 8px; border-radius: 4px; margin-top: 8px; font-size: 12px; max-height: 240px; overflow-y: auto;">${escapeHtml(skippedRows.join('\n'))}</pre>`
+                              + `</details>`
+                            : '';
+                        banner.style.display = 'block';
+                        banner.style.padding = '12px 16px';
+                        banner.style.borderRadius = '8px';
+                        banner.style.background = skipped > 0 ? '#fff8e6' : '#e3f5ef';
+                        banner.style.color = skipped > 0 ? '#8a6116' : '#008060';
+                        banner.style.border = '1px solid ' + (skipped > 0 ? '#fde68a' : '#a7d8c1');
+                        banner.innerHTML =
+                            `<strong>CSV import complete:</strong> ${matched} product${matched !== 1 ? 's' : ''} matched`
+                            + (skipped > 0 ? `, ${skipped} row${skipped !== 1 ? 's' : ''} skipped (no matching product).` : '.')
+                            + ` Click <strong>Save All Changes</strong> to persist.`
+                            + skippedDetails
+                            + ` <a href="#" onclick="document.getElementById('csv-import-banner').style.display='none'; return false;" style="float: right; color: inherit;">Dismiss</a>`;
                     }
-                    msg += `\n\nClick "Save All Changes" to save the imported sizes.`;
-                    notify(msg);
 
                 } catch (error) {
                     console.error('CSV import error:', error);
-                    notify('Error parsing CSV: ' + error.message);
+                    notify(friendlyError({ error: error.message }, 'CSV import'));
                 }
 
                 input.value = ''; // Reset file input
