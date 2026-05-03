@@ -534,13 +534,13 @@ app.get('/auth/callback', async (req, res) => {
 
     try {
         const accessToken = await getAccessToken(shop, code);
-        accessTokens.set(shop, accessToken);
+        accessTokens.set(shop, accessToken); // in-memory cache stays plaintext
 
-        // Save to database
+        // Save to database (encrypted at rest if TOKEN_ENCRYPTION_KEY is set; see db.js)
         try {
             await db.query(
                 'INSERT INTO stores (shop, access_token) VALUES ($1, $2) ON CONFLICT (shop) DO UPDATE SET access_token = $2',
-                [shop, accessToken]
+                [shop, db.encryptToken(accessToken)]
             );
             logger.info('✅ Token saved to database for', shop);
         } catch (dbError) {
@@ -8759,6 +8759,9 @@ app.listen(PORT, async () => {
 
     // Ensure location_name column exists on orders
     await ensureOrdersLocationNameColumn();
+
+    // Encrypt any legacy plaintext access tokens at rest (S2-10)
+    await db.migrateAccessTokensToEncrypted();
 
     // Ensure excluded column exists on product_locker_sizes
     await ensureProductExcludedColumn();
