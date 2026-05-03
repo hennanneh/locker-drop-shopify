@@ -38,14 +38,41 @@ const uploadLogo = multer({
     storage: logoStorage,
     limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
     fileFilter: (req, file, cb) => {
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
-        if (allowedTypes.includes(file.mimetype)) {
+        // Disallow SVG — SVGs can carry inline <script> and onload= XSS payloads
+        // and are served from our domain. Stick to raster formats only.
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+        const ext = path.extname(file.originalname || '').toLowerCase();
+        if (allowedTypes.includes(file.mimetype) && allowedExts.includes(ext)) {
             cb(null, true);
         } else {
-            cb(new Error('Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG are allowed.'));
+            cb(new Error('Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.'));
         }
     }
 });
+
+// After multer writes the file, verify the actual magic bytes match the declared
+// extension. mimetype/extension are client-controllable; signatures are not.
+async function verifyImageMagicBytes(filePath) {
+    const fs = require('fs');
+    const fh = await fs.promises.open(filePath, 'r');
+    try {
+        const buf = Buffer.alloc(12);
+        await fh.read(buf, 0, 12, 0);
+        // JPEG: FF D8 FF
+        if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return true;
+        // PNG: 89 50 4E 47 0D 0A 1A 0A
+        if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return true;
+        // GIF: GIF87a / GIF89a
+        if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return true;
+        // WebP: RIFF....WEBP
+        if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46
+            && buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return true;
+        return false;
+    } finally {
+        await fh.close();
+    }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -680,13 +707,16 @@ app.get('/api/check-scopes/:shop', requireApiAuth, async (req, res) => {
 
         const accessToken = result.rows[0].access_token;
 
-        // Check access scopes via Shopify API
-        const scopesResponse = await axios.get(
-            `https://${shop}/admin/oauth/access_scopes.json`,
-            { headers: { 'X-Shopify-Access-Token': accessToken } }
-        );
-
-        const grantedScopes = scopesResponse.data.access_scopes.map(s => s.handle);
+        // Check access scopes via Shopify GraphQL Admin API. The previous REST endpoint
+        // /admin/oauth/access_scopes.json is deprecated in favor of currentAppInstallation.
+        const data = await shopifyGraphQL(shop, accessToken, `
+            query {
+                currentAppInstallation {
+                    accessScopes { handle }
+                }
+            }
+        `);
+        const grantedScopes = (data?.currentAppInstallation?.accessScopes || []).map(s => s.handle);
 
         // Required scopes for full functionality
         const requiredScopes = ['write_fulfillments', 'read_fulfillments'];
@@ -7344,6 +7374,15 @@ app.post('/api/branding/:shop/logo', requireApiAuth, uploadLogo.single('logo'), 
 
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        // Verify the file is actually a raster image (mimetype/ext are client-controllable).
+        const filePath = req.file.path;
+        const ok = await verifyImageMagicBytes(filePath);
+        if (!ok) {
+            const fs = require('fs');
+            fs.unlink(filePath, () => {});
+            return res.status(400).json({ error: 'Uploaded file is not a valid JPEG/PNG/GIF/WebP image.' });
         }
 
         // Build the public URL for the uploaded file
