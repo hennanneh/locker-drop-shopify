@@ -21,6 +21,12 @@ const logger = pino({
     } : undefined
 });
 
+// Harbor API endpoints. Default to sandbox. To switch to production, set
+// HARBOR_API_URL=https://api.harborlockers.com and
+// HARBOR_ACCOUNTS_URL=https://accounts.harborlockers.com in .env (S2-4 / S2-5).
+const HARBOR_ACCOUNTS_URL = process.env.HARBOR_ACCOUNTS_URL || 'https://accounts.sandbox.harborlockers.com';
+const HARBOR_API_URL = process.env.HARBOR_API_URL || 'https://api.sandbox.harborlockers.com';
+
 // Configure multer for logo uploads
 const logoStorage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -1103,7 +1109,7 @@ app.post('/carrier/rates', async (req, res) => {
 
         // Get Harbor token
         const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
             `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
         );
@@ -1111,7 +1117,7 @@ app.post('/carrier/rates', async (req, res) => {
         const accessToken = tokenResponse.data.access_token;
 
         const locationsResponse = await axios.get(
-            'https://api.sandbox.harborlockers.com/api/v1/locations/',
+            `${HARBOR_API_URL}/api/v1/locations/`,
             {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 params: { limit: 100 }
@@ -1150,7 +1156,7 @@ app.post('/carrier/rates', async (req, res) => {
         for (const location of nearestLocations) {
             try {
                 const availabilityResponse = await axios.get(
-                    `https://api.sandbox.harborlockers.com/api/v1/locations/${location.id}/availability`,
+                    `${HARBOR_API_URL}/api/v1/locations/${location.id}/availability`,
                     { headers: { 'Authorization': `Bearer ${accessToken}` }}
                 );
 
@@ -1818,13 +1824,13 @@ app.get('/api/lockers/:shop', requireApiAuth, async (req, res) => {
         // Fallback to Harbor API if static file unavailable
         if (!lockers) {
             const tokenResponse = await axios.post(
-                'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
                 'grant_type=client_credentials&scope=service_provider&client_id=' + process.env.HARBOR_CLIENT_ID + '&client_secret=' + process.env.HARBOR_CLIENT_SECRET,
                 { headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'accept': 'application/json' }}
             );
             const accessToken = tokenResponse.data.access_token;
 
-            const lockersResponse = await axios.get('https://api.sandbox.harborlockers.com/api/v1/locations/', {
+            const lockersResponse = await axios.get(`${HARBOR_API_URL}/api/v1/locations/`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 params: { limit: 500 }
             });
@@ -1927,7 +1933,7 @@ app.get('/api/lockers/:shop', requireApiAuth, async (req, res) => {
             logger.info(`📦 Fetching availability for ${paginatedLockers.length} lockers...`);
             // Get Harbor token once
             const tokenResponse = await axios.post(
-                'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
                 'grant_type=client_credentials&scope=service_provider&client_id=' + process.env.HARBOR_CLIENT_ID + '&client_secret=' + process.env.HARBOR_CLIENT_SECRET,
                 { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
             );
@@ -1937,7 +1943,7 @@ app.get('/api/lockers/:shop', requireApiAuth, async (req, res) => {
             const availabilityPromises = paginatedLockers.map(async (locker) => {
                 try {
                     const availabilityResponse = await axios.get(
-                        `https://api.sandbox.harborlockers.com/api/v1/locations/${locker.id}/availability`,
+                        `${HARBOR_API_URL}/api/v1/locations/${locker.id}/availability`,
                         { headers: { 'Authorization': `Bearer ${accessToken}` }, timeout: 5000 }
                     );
 
@@ -2058,7 +2064,7 @@ app.post('/api/order/:shop/:orderId/status', requireApiAuth, async (req, res) =>
 
                         // Get Harbor token
                         const tokenResponse = await axios.post(
-                            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
                             `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
                             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
                         );
@@ -2067,7 +2073,7 @@ app.post('/api/order/:shop/:orderId/status', requireApiAuth, async (req, res) =>
 
                         // Create pickup request using the locker_id from when the item was dropped off
                         const pickupResponse = await axios.post(
-                            'https://api.sandbox.harborlockers.com/api/v1/locker-open-requests/pickup-locker-request',
+                            `${HARBOR_API_URL}/api/v1/locker-open-requests/pickup-locker-request`,
                             {
                                 lockerId: order.locker_id,
                                 keypadIntent: 'pickup',
@@ -2174,14 +2180,14 @@ app.post('/api/pickup-complete', requireOrderToken, async (req, res) => {
             try {
                 logger.info(`🔓 Releasing locker ${order.locker_id} in tower ${order.tower_id}...`);
                 const tokenResponse = await axios.post(
-                    'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                    `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
                     `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
                     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
                 );
                 const accessToken = tokenResponse.data.access_token;
 
                 const releaseResponse = await axios.post(
-                    `https://api.sandbox.harborlockers.com/api/v1/towers/${order.tower_id}/lockers/${order.locker_id}/release-locker`,
+                    `${HARBOR_API_URL}/api/v1/towers/${order.tower_id}/lockers/${order.locker_id}/release-locker`,
                     {},
                     { headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }}
                 );
@@ -2258,7 +2264,7 @@ app.post('/api/order/:shop/:orderId/cancel-locker', requireApiAuth, async (req, 
         if (order.tower_id && order.locker_id) {
             try {
                 const tokenResponse = await axios.post(
-                    'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                    `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
                     `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
                     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
                 );
@@ -2267,7 +2273,7 @@ app.post('/api/order/:shop/:orderId/cancel-locker', requireApiAuth, async (req, 
                 // Release the locker in Harbor
                 logger.info(`   🔓 Releasing locker ${order.locker_id} in tower ${order.tower_id}...`);
                 const releaseResponse = await axios.post(
-                    `https://api.sandbox.harborlockers.com/api/v1/towers/${order.tower_id}/lockers/${order.locker_id}/release-locker`,
+                    `${HARBOR_API_URL}/api/v1/towers/${order.tower_id}/lockers/${order.locker_id}/release-locker`,
                     {},
                     { headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }}
                 );
@@ -2517,7 +2523,7 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
 
         // Get Harbor token
         const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
             `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
         );
@@ -2529,7 +2535,7 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
             try {
                 logger.info(`🔍 Fetching locker info from dropoff request ${requestId}`);
                 const requestInfo = await axios.get(
-                    `https://api.sandbox.harborlockers.com/api/v1/locker-open-requests/${requestId}`,
+                    `${HARBOR_API_URL}/api/v1/locker-open-requests/${requestId}`,
                     { headers: { 'Authorization': `Bearer ${accessToken}` }}
                 );
                 finalLockerId = requestInfo.data.lockerId || requestInfo.data.locker?.id;
@@ -2557,7 +2563,7 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
 
                 // Create pickup request
                 const pickupResponse = await axios.post(
-                    'https://api.sandbox.harborlockers.com/api/v1/locker-open-requests/pickup-locker-request',
+                    `${HARBOR_API_URL}/api/v1/locker-open-requests/pickup-locker-request`,
                     {
                         lockerId: parseInt(finalLockerId),
                         keypadIntent: 'pickup',
@@ -4212,13 +4218,13 @@ app.get('/api/orders/:shop', requireApiAuth, auditCustomerDataAccess('view_order
 async function fetchHarborLocationNames() {
     try {
         const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
             `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
         );
         const accessToken = tokenResponse.data.access_token;
         const locationsResponse = await axios.get(
-            'https://api.sandbox.harborlockers.com/api/v1/locations/',
+            `${HARBOR_API_URL}/api/v1/locations/`,
             { headers: { 'Authorization': `Bearer ${accessToken}` }, params: { limit: 500 } }
         );
         const locations = locationsResponse.data || [];
@@ -4324,7 +4330,7 @@ app.get('/api/locker-availability/:shop', requireApiAuth, async (req, res) => {
 
         // Get Harbor token
         const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
             `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
         );
@@ -4332,7 +4338,7 @@ app.get('/api/locker-availability/:shop', requireApiAuth, async (req, res) => {
 
         // Fetch all locations to get addresses
         const locationsResponse = await axios.get(
-            'https://api.sandbox.harborlockers.com/api/v1/locations/',
+            `${HARBOR_API_URL}/api/v1/locations/`,
             { headers: { 'Authorization': `Bearer ${accessToken}` }, params: { limit: 100 } }
         );
         const allLocations = locationsResponse.data || [];
@@ -4349,7 +4355,7 @@ app.get('/api/locker-availability/:shop', requireApiAuth, async (req, res) => {
 
             try {
                 const availabilityResponse = await axios.get(
-                    `https://api.sandbox.harborlockers.com/api/v1/locations/${pref.location_id}/availability`,
+                    `${HARBOR_API_URL}/api/v1/locations/${pref.location_id}/availability`,
                     { headers: { 'Authorization': `Bearer ${accessToken}` } }
                 );
 
@@ -4416,7 +4422,7 @@ app.get('/api/location-availability/:locationId', async (req, res) => {
 
         // Get Harbor token
         const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
             `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
         );
@@ -4424,7 +4430,7 @@ app.get('/api/location-availability/:locationId', async (req, res) => {
 
         // Fetch availability for this location
         const availabilityResponse = await axios.get(
-            `https://api.sandbox.harborlockers.com/api/v1/locations/${locationId}/availability`,
+            `${HARBOR_API_URL}/api/v1/locations/${locationId}/availability`,
             { headers: { 'Authorization': `Bearer ${accessToken}` }}
         );
 
@@ -4537,7 +4543,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
 
         // Get Harbor token
         const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
             `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
         );
@@ -4546,7 +4552,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
 
         // Get all locations from Harbor
         const locationsResponse = await axios.get(
-            'https://api.sandbox.harborlockers.com/api/v1/locations/',
+            `${HARBOR_API_URL}/api/v1/locations/`,
             {
                 headers: { 'Authorization': `Bearer ${harborAccessToken}` },
                 params: { limit: 100 }
@@ -4592,7 +4598,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
         for (const location of enabledLocations) {
             try {
                 const availabilityResponse = await axios.get(
-                    `https://api.sandbox.harborlockers.com/api/v1/locations/${location.id}/availability`,
+                    `${HARBOR_API_URL}/api/v1/locations/${location.id}/availability`,
                     { headers: { 'Authorization': `Bearer ${harborAccessToken}` }}
                 );
 
@@ -5007,14 +5013,14 @@ app.get('/api/customer/order-status/:orderId', async (req, res) => {
         if (order.location_id) {
             try {
                 const tokenResponse = await axios.post(
-                    'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                    `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
                     `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
                     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
                 );
                 const harborToken = tokenResponse.data.access_token;
 
                 const locationResponse = await axios.get(
-                    `https://api.sandbox.harborlockers.com/api/v1/locations/${order.location_id}/`,
+                    `${HARBOR_API_URL}/api/v1/locations/${order.location_id}/`,
                     { headers: { 'Authorization': `Bearer ${harborToken}` } }
                 );
 
@@ -5145,7 +5151,7 @@ app.get('/api/pickup-points', async (req, res) => {
 
         // Get Harbor token
         const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
             `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
         );
@@ -5154,7 +5160,7 @@ app.get('/api/pickup-points', async (req, res) => {
 
         // Get all Harbor locations
         const locationsResponse = await axios.get(
-            'https://api.sandbox.harborlockers.com/api/v1/locations/',
+            `${HARBOR_API_URL}/api/v1/locations/`,
             {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 params: { limit: 100 }
@@ -5188,7 +5194,7 @@ app.get('/api/pickup-points', async (req, res) => {
         for (const location of nearestLocations) {
             try {
                 const availabilityResponse = await axios.get(
-                    `https://api.sandbox.harborlockers.com/api/v1/locations/${location.id}/availability`,
+                    `${HARBOR_API_URL}/api/v1/locations/${location.id}/availability`,
                     { headers: { 'Authorization': `Bearer ${accessToken}` }}
                 );
 
@@ -5275,7 +5281,7 @@ app.post('/api/manual-order/:shop', requireApiAuth, async (req, res) => {
 
         // Get Harbor token
         const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
             `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
         );
@@ -5284,7 +5290,7 @@ app.post('/api/manual-order/:shop', requireApiAuth, async (req, res) => {
 
         // Check availability at this location to find an available locker type
         const availabilityResponse = await axios.get(
-            `https://api.sandbox.harborlockers.com/api/v1/locations/${lockerId}/availability`,
+            `${HARBOR_API_URL}/api/v1/locations/${lockerId}/availability`,
             { headers: { 'Authorization': `Bearer ${accessToken}` }}
         );
 
@@ -5339,7 +5345,7 @@ app.post('/api/manual-order/:shop', requireApiAuth, async (req, res) => {
 
         // Create dropoff request with Harbor using available locker type
         const dropoffResponse = await axios.post(
-            'https://api.sandbox.harborlockers.com/api/v1/locker-open-requests/dropoff-locker-request',
+            `${HARBOR_API_URL}/api/v1/locker-open-requests/dropoff-locker-request`,
             {
                 locationId: parseInt(lockerId),
                 lockerTypeId: availableLockerTypeId,
@@ -5396,7 +5402,7 @@ app.post('/api/generate-dropoff-link/:shop', requireApiAuth, async (req, res) =>
         
         // Get Harbor token
         const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
             `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
         );
@@ -5405,7 +5411,7 @@ app.post('/api/generate-dropoff-link/:shop', requireApiAuth, async (req, res) =>
         
         // Create dropoff request
         const dropoffResponse = await axios.post(
-            'https://api.sandbox.harborlockers.com/api/v1/locker-open-requests/dropoff-locker-request',
+            `${HARBOR_API_URL}/api/v1/locker-open-requests/dropoff-locker-request`,
             {
                 locationId,
                 lockerTypeId,
@@ -5433,7 +5439,7 @@ app.post('/api/generate-pickup-link/:shop', requireApiAuth, async (req, res) => 
         
         // Get Harbor token
         const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
             `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
         );
@@ -5442,7 +5448,7 @@ app.post('/api/generate-pickup-link/:shop', requireApiAuth, async (req, res) => 
         
         // Create pickup request
         const pickupResponse = await axios.post(
-            'https://api.sandbox.harborlockers.com/api/v1/locker-open-requests/pickup-locker-request',
+            `${HARBOR_API_URL}/api/v1/locker-open-requests/pickup-locker-request`,
             {
                 lockerId,
                 keypadIntent: 'pickup',
@@ -5494,7 +5500,7 @@ app.post('/api/fix-order-locker/:shop', requireApiAuth, async (req, res) => {
 
         // Get Harbor token
         const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
             `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
         );
@@ -5502,7 +5508,7 @@ app.post('/api/fix-order-locker/:shop', requireApiAuth, async (req, res) => {
 
         // Fetch request info from Harbor
         const requestInfo = await axios.get(
-            `https://api.sandbox.harborlockers.com/api/v1/locker-open-requests/${requestId}`,
+            `${HARBOR_API_URL}/api/v1/locker-open-requests/${requestId}`,
             { headers: { 'Authorization': `Bearer ${accessToken}` }}
         );
 
@@ -5586,7 +5592,7 @@ app.post('/api/emergency-open/:shop', requireApiAuth, async (req, res) => {
 
         // Get Harbor token
         const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
             `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
         );
@@ -5602,7 +5608,7 @@ app.post('/api/emergency-open/:shop', requireApiAuth, async (req, res) => {
             logger.info(`   🔗 Generating new pickup link for locker ${order.locker_id}...`);
 
             const pickupResponse = await axios.post(
-                'https://api.sandbox.harborlockers.com/api/v1/locker-open-requests/pickup-locker-request',
+                `${HARBOR_API_URL}/api/v1/locker-open-requests/pickup-locker-request`,
                 {
                     lockerId: parseInt(order.locker_id),
                     keypadIntent: 'pickup',
@@ -6365,7 +6371,7 @@ async function processAppUninstall(shop) {
             logger.info(`   🔓 Releasing ${activeOrders.rows.length} active locker(s)...`);
             try {
                 const tokenResponse = await axios.post(
-                    'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                    `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
                     `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
                     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
                 );
@@ -6374,7 +6380,7 @@ async function processAppUninstall(shop) {
                 for (const order of activeOrders.rows) {
                     try {
                         await axios.post(
-                            `https://api.sandbox.harborlockers.com/api/v1/towers/${order.tower_id}/lockers/${order.locker_id}/release-locker`,
+                            `${HARBOR_API_URL}/api/v1/towers/${order.tower_id}/lockers/${order.locker_id}/release-locker`,
                             {},
                             { headers: { 'Authorization': `Bearer ${harborToken}` }}
                         );
@@ -6460,7 +6466,7 @@ async function processOrderCancellation(order, shopDomain) {
         if (lockerOrder.locker_id && lockerOrder.tower_id) {
             try {
                 const tokenResponse = await axios.post(
-                    'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                    `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
                     `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
                     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
                 );
@@ -6468,7 +6474,7 @@ async function processOrderCancellation(order, shopDomain) {
 
                 logger.info(`   🔓 Releasing locker ${lockerOrder.locker_id} in tower ${lockerOrder.tower_id}...`);
                 await axios.post(
-                    `https://api.sandbox.harborlockers.com/api/v1/towers/${lockerOrder.tower_id}/lockers/${lockerOrder.locker_id}/release-locker`,
+                    `${HARBOR_API_URL}/api/v1/towers/${lockerOrder.tower_id}/lockers/${lockerOrder.locker_id}/release-locker`,
                     {},
                     { headers: { 'Authorization': `Bearer ${accessToken}` }}
                 );
@@ -6887,7 +6893,7 @@ async function generateDropoffLink(locationId, lockerTypeId, orderId, orderNumbe
 
     // Get Harbor token
     const tokenResponse = await axios.post(
-        'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+        `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
         `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
     );
@@ -6898,7 +6904,7 @@ async function generateDropoffLink(locationId, lockerTypeId, orderId, orderNumbe
     // Create dropoff request
     // Note: requireLowLocker removed to allow all available lockers
     const dropoffResponse = await axios.post(
-        'https://api.sandbox.harborlockers.com/api/v1/locker-open-requests/dropoff-locker-request',
+        `${HARBOR_API_URL}/api/v1/locker-open-requests/dropoff-locker-request`,
         {
             locationId,
             lockerTypeId,
@@ -7000,7 +7006,7 @@ async function checkLockerExpiry() {
             let harborToken = null;
             try {
                 const tokenResponse = await axios.post(
-                    'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                    `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
                     `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
                     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
                 );
@@ -7014,7 +7020,7 @@ async function checkLockerExpiry() {
                 try {
                     // Release the locker in Harbor
                     await axios.post(
-                        `https://api.sandbox.harborlockers.com/api/v1/towers/${order.tower_id}/lockers/${order.locker_id}/release-locker`,
+                        `${HARBOR_API_URL}/api/v1/towers/${order.tower_id}/lockers/${order.locker_id}/release-locker`,
                         {},
                         { headers: { 'Authorization': `Bearer ${harborToken}` }}
                     );
@@ -8499,7 +8505,7 @@ app.post('/carrier-service/rates', async (req, res) => {
 
                 // Get Harbor token and check availability
                 const harborTokenResp = await axios.post(
-                    'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+                    `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
                     `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
                     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
                 );
@@ -8509,7 +8515,7 @@ app.post('/carrier-service/rates', async (req, res) => {
                 for (const locId of enabledIds) {
                     try {
                         const availResp = await axios.get(
-                            `https://api.sandbox.harborlockers.com/api/v1/locations/${locId}/availability`,
+                            `${HARBOR_API_URL}/api/v1/locations/${locId}/availability`,
                             { headers: { 'Authorization': `Bearer ${harborToken}` } }
                         );
                         const avail = availResp.data;
@@ -8595,7 +8601,7 @@ app.post('/carrier-service/rates', async (req, res) => {
 
         // Get Harbor token
         const tokenResponse = await axios.post(
-            'https://accounts.sandbox.harborlockers.com/realms/harbor/protocol/openid-connect/token',
+            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
             `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
         );
@@ -8604,7 +8610,7 @@ app.post('/carrier-service/rates', async (req, res) => {
 
         // Get nearby locations from Harbor
         const locationsResponse = await axios.get(
-            'https://api.sandbox.harborlockers.com/api/v1/locations/',
+            `${HARBOR_API_URL}/api/v1/locations/`,
             {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
                 params: { limit: 100 }
@@ -8639,7 +8645,7 @@ app.post('/carrier-service/rates', async (req, res) => {
             try {
                 // Check if there are available lockers at this location
                 const availabilityResponse = await axios.get(
-                    `https://api.sandbox.harborlockers.com/api/v1/locations/${location.id}/availability`,
+                    `${HARBOR_API_URL}/api/v1/locations/${location.id}/availability`,
                     {
                         headers: { 'Authorization': `Bearer ${accessToken}` }
                     }
