@@ -3321,12 +3321,27 @@ app.get('/api/settings/:shop', requireApiAuth, async (req, res) => {
         }
 
         const settings = result.rows[0];
+        // Schema drift fix: fulfillment_days/vacation_days were declared as text/varchar
+        // in the existing DB, so pg returns them as the Postgres array literal "{a,b,c}"
+        // instead of a JS array. Parse defensively so the client always gets an array.
+        const parseArrayField = (val) => {
+            if (Array.isArray(val)) return val;
+            if (typeof val !== 'string') return [];
+            const trimmed = val.trim();
+            if (trimmed === '' || trimmed === '{}') return [];
+            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+                return trimmed.slice(1, -1).split(',').map(s => s.trim()).filter(Boolean);
+            }
+            return [val];
+        };
         res.json({
             freePickup: settings.free_pickup,
             holdTimeDays: settings.hold_time_days,
             processingDays: settings.processing_days || 1,
-            fulfillmentDays: settings.fulfillment_days || ['monday','tuesday','wednesday','thursday','friday'],
-            vacationDays: settings.vacation_days || [],
+            fulfillmentDays: parseArrayField(settings.fulfillment_days).length > 0
+                ? parseArrayField(settings.fulfillment_days)
+                : ['monday','tuesday','wednesday','thursday','friday'],
+            vacationDays: parseArrayField(settings.vacation_days),
             useCheckoutExtension: settings.use_checkout_extension || false
         });
     } catch (error) {
