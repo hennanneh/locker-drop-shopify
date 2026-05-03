@@ -4685,15 +4685,18 @@
         let settingsLoaded = false;
 
         async function loadSettings(_attempt = 0) {
+            const MAX_ATTEMPTS = 3;
             try {
                 const response = await window.__nativeFetch(`/api/settings/${shop}`);
                 if (!response.ok) {
-                    // App Bridge sometimes hasn't supplied a session token yet on the first
-                    // call after a fresh embed load → 401. Retry once after a short delay
-                    // before surfacing the data-loss banner. Other load* calls re-fetch via
-                    // the 30-sec auto-refresh, so they self-heal; loadSettings only runs once.
-                    if ((response.status === 401 || response.status === 400) && _attempt < 1) {
-                        await new Promise(r => setTimeout(r, 1500));
+                    // First-call race: App Bridge's idToken() can race with init() on a
+                    // fresh embed load → 401. Network blips or backend restarts can yield
+                    // 5xx. Other load* calls re-fetch via the 30-sec auto-refresh, but
+                    // loadSettings runs once at startup. Retry up to 2 more times with
+                    // backoff before surfacing the data-loss banner.
+                    if (_attempt < MAX_ATTEMPTS - 1) {
+                        const delay = 1000 * Math.pow(2, _attempt); // 1s, 2s
+                        await new Promise(r => setTimeout(r, delay));
                         return loadSettings(_attempt + 1);
                     }
                     throw new Error('HTTP ' + response.status);
@@ -4728,7 +4731,12 @@
                 updatePickupPreview();
                 settingsLoaded = true;
             } catch (error) {
-                console.error('Error loading settings:', error);
+                console.error('Error loading settings (attempt ' + (_attempt + 1) + '):', error);
+                if (_attempt < MAX_ATTEMPTS - 1) {
+                    const delay = 1000 * Math.pow(2, _attempt);
+                    await new Promise(r => setTimeout(r, delay));
+                    return loadSettings(_attempt + 1);
+                }
                 settingsLoaded = false;
                 notify('Could not load your saved settings. Refresh to retry — auto-save is disabled until they load.');
             }
