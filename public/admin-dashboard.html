@@ -1941,10 +1941,10 @@
 
             <!-- Theme Blocks deep-link installer -->
             <div class="card" style="margin-top: 24px;">
-                <h3 style="margin-top: 0;">📦 One-click Theme Block Installer</h3>
-                <p style="color: #6d7175;">Each button below opens the Theme Editor with the corresponding LockerDrop block ready to drop into your theme. The active theme will be opened on the suggested template.</p>
+                <h3 style="margin-top: 0;">📦 Add a LockerDrop Block to Your Theme</h3>
+                <p style="color: #6d7175;">Each button opens the Theme Editor on the right template. From there click <strong>Add block</strong> in the section you want, choose <strong>Apps</strong>, and pick the LockerDrop block.</p>
                 <div id="theme-block-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 12px;"></div>
-                <p style="color: #6d7175; font-size: 12px; margin-top: 12px;">If a button does nothing, your theme may not yet support app blocks (Online Store 2.0+). Switch to a 2.0 theme or use the manual path: <em>Online Store → Themes → Customize → Add block → Apps → LockerDrop</em>.</p>
+                <p style="color: #6d7175; font-size: 12px; margin-top: 12px;">If you don't see LockerDrop under Apps, your theme may not yet support app blocks (Online Store 2.0+). Switch to a 2.0 theme.</p>
             </div>
 
             <!-- Need Help - Bottom of Learn Tab -->
@@ -2961,13 +2961,17 @@
             }
         }
 
-        // Build the theme-block deep-link installer (S3-4).
-        // Each block opens the active theme in the editor with the block ready to drop in.
+        // Build the theme-block deep-link panel (S3-4).
+        // Each button opens the Theme Editor at the relevant template; merchant
+        // adds the block via the side panel. We deliberately don't include
+        // activateAppId because the value Shopify expects there is the *deployed*
+        // extension UUID (assigned at release time) — not the local uid in
+        // shopify.extension.toml — and getting it right at runtime requires an
+        // App Management API call we don't currently make.
         function renderThemeBlockInstaller() {
             const grid = document.getElementById('theme-block-grid');
             if (!grid || grid.dataset.rendered === '1') return;
 
-            const THEME_EXT_UUID = 'd71b01d3-dccb-3d16-1c2a-cc7818e5e0932046a4f7';
             const blocks = [
                 { handle: 'product-pickup-badge', template: 'product', label: 'Product pickup badge', desc: 'Shows "Available for locker pickup" on each eligible product page.' },
                 { handle: 'cart-pickup-reminder', template: 'cart', label: 'Cart pickup reminder', desc: 'Reminds shoppers in the cart that locker pickup is available.' },
@@ -2980,12 +2984,11 @@
             grid.innerHTML = blocks.map(b => {
                 const url = 'https://' + shop + '/admin/themes/current/editor'
                     + '?context=apps'
-                    + '&template=' + encodeURIComponent(b.template)
-                    + '&activateAppId=' + encodeURIComponent(THEME_EXT_UUID + '/' + b.handle);
+                    + '&template=' + encodeURIComponent(b.template);
                 return '<div class="info-box" style="display: flex; flex-direction: column; gap: 8px;">'
                     + '<strong>' + b.label + '</strong>'
                     + '<span style="color: #6d7175; font-size: 13px;">' + b.desc + '</span>'
-                    + '<a href="' + url + '" target="_top" class="btn btn-primary" style="text-align: center; text-decoration: none; font-size: 13px; padding: 8px 12px;">Add to ' + b.template + ' page</a>'
+                    + '<a href="' + url + '" target="_top" class="btn btn-primary" style="text-align: center; text-decoration: none; font-size: 13px; padding: 8px 12px;">Open ' + b.template + ' template</a>'
                     + '</div>';
             }).join('');
             grid.dataset.rendered = '1';
