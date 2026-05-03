@@ -1,14 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9V5MYQXT0E"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-9V5MYQXT0E');
-    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LockerDrop - Dashboard</title>
@@ -2621,9 +2613,9 @@
         // Initialize Shopify App Bridge for embedded app experience
         const isEmbedded = window.self !== window.top;
         if (window.shopify) {
-            console.log('✅ Shopify App Bridge loaded (embedded:', isEmbedded, ')');
+            // console.log('✅ Shopify App Bridge loaded (embedded:', isEmbedded, ')');
         } else if (shop) {
-            console.log('ℹ️ App Bridge not available — running outside Shopify Admin');
+            // console.log('ℹ️ App Bridge not available — running outside Shopify Admin');
         }
 
         // Helper to open external URLs (breaks out of iframe when embedded)
@@ -3963,7 +3955,7 @@
                     }
                 }
             } catch (error) {
-                console.log('Could not fetch store location:', error);
+                // console.log('Could not fetch store location:', error);
             }
 
             // Load lockers (with or without store location)
@@ -5243,8 +5235,8 @@
                     let matched = 0;
                     let skippedRows = []; // Track which rows were skipped for debugging
 
-                    console.log('CSV Import - Column indices:', colIndex);
-                    console.log('CSV Import - Products loaded:', productsData.length);
+                    // console.log('CSV Import - Column indices:', colIndex);
+                    // console.log('CSV Import - Products loaded:', productsData.length);
 
                     for (let i = 1; i < lines.length; i++) {
                         const values = parseCSVLine(lines[i]);
@@ -5311,7 +5303,7 @@
                         }
                     }
 
-                    console.log('CSV Import complete:', { matched, skipped, skippedRows });
+                    // console.log('CSV Import complete:', { matched, skipped, skippedRows });
 
                     // Re-render the products list with updated data
                     renderProducts();

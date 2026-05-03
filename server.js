@@ -6558,14 +6558,6 @@ async function processNewOrder(order, shopDomain) {
                 const reservation = reservationResult.rows[0];
                 logger.info(`✅ Using pre-reserved locker: ${reservation.locker_id} (${reservation.locker_size})`);
 
-                // Mark reservation as used
-                await db.query(
-                    `UPDATE locker_reservations
-                     SET status = 'used', used_by_order_id = $1, used_at = NOW()
-                     WHERE reservation_ref = $2`,
-                    [order.id.toString(), reservationRef]
-                );
-
                 // Get customer phone
                 const customerPhone = order.phone ||
                     order.shipping_address?.phone ||
@@ -6573,32 +6565,50 @@ async function processNewOrder(order, shopDomain) {
                     order.customer?.phone ||
                     null;
 
-                // Save order using the reservation's dropoff link
-                await db.query(
-                    `INSERT INTO orders (
-                        shop, shopify_order_id, order_number,
-                        customer_email, customer_name, customer_phone,
-                        location_id, locker_id, tower_id,
-                        dropoff_link, dropoff_request_id, status, preferred_pickup_date
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-                    [
-                        shop,
-                        order.id.toString(),
-                        order.order_number.toString(),
-                        order.email,
-                        order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : 'Guest',
-                        customerPhone,
-                        reservation.location_id,
-                        reservation.locker_id,
-                        reservation.tower_id,
-                        reservation.dropoff_link,
-                        reservation.dropoff_request_id,
-                        'pending_dropoff',
-                        preferredPickupDate
-                    ]
-                );
+                // Mark reservation used + insert order in one transaction.
+                // Without this, a crash between the two writes leaves the reservation
+                // burned with no order record — the customer paid Shopify but has no locker link.
+                const client = await db.pool.connect();
+                try {
+                    await client.query('BEGIN');
+                    await client.query(
+                        `UPDATE locker_reservations
+                         SET status = 'used', used_by_order_id = $1, used_at = NOW()
+                         WHERE reservation_ref = $2`,
+                        [order.id.toString(), reservationRef]
+                    );
+                    await client.query(
+                        `INSERT INTO orders (
+                            shop, shopify_order_id, order_number,
+                            customer_email, customer_name, customer_phone,
+                            location_id, locker_id, tower_id,
+                            dropoff_link, dropoff_request_id, status, preferred_pickup_date
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+                        [
+                            shop,
+                            order.id.toString(),
+                            order.order_number.toString(),
+                            order.email,
+                            order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : 'Guest',
+                            customerPhone,
+                            reservation.location_id,
+                            reservation.locker_id,
+                            reservation.tower_id,
+                            reservation.dropoff_link,
+                            reservation.dropoff_request_id,
+                            'pending_dropoff',
+                            preferredPickupDate
+                        ]
+                    );
+                    await client.query('COMMIT');
+                } catch (txErr) {
+                    await client.query('ROLLBACK').catch(() => {});
+                    throw txErr;
+                } finally {
+                    client.release();
+                }
 
-                // Charge usage fee via Shopify Billing
+                // Charge usage fee via Shopify Billing (after commit; idempotent by order id).
                 const chargeResult = await chargeUsageFee(shop, order.id.toString(), order.order_number?.toString());
                 if (!chargeResult.charged) {
                     logger.warn({ shop, orderId: order.id, reason: chargeResult.reason },
@@ -7048,7 +7058,7 @@ async function checkStuckOrders() {
             const stuckPendingDropoff = await db.query(`
                 SELECT id, order_number, customer_name, customer_email, locker_name,
                        dropoff_link, created_at,
-                       EXTRACT(HOURS FROM NOW() - created_at) as hours_stuck
+                       EXTRACT(EPOCH FROM NOW() - created_at) / 3600 as hours_stuck
                 FROM orders
                 WHERE shop = $1
                   AND status = 'pending_dropoff'
@@ -7060,7 +7070,7 @@ async function checkStuckOrders() {
             const stuckDroppedOff = await db.query(`
                 SELECT id, order_number, customer_name, customer_email, locker_name,
                        updated_at,
-                       EXTRACT(HOURS FROM NOW() - updated_at) as hours_stuck
+                       EXTRACT(EPOCH FROM NOW() - updated_at) / 3600 as hours_stuck
                 FROM orders
                 WHERE shop = $1
                   AND status = 'dropped_off'
