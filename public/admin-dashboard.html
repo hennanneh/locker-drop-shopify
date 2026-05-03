@@ -665,6 +665,78 @@
             line-height: 1;
         }
 
+        /* Loading skeletons — gentle shimmer while data is fetching, instead of fake 0s */
+        @keyframes lockerdrop-shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .skeleton {
+            display: inline-block;
+            background: linear-gradient(90deg, #f1f1f2 0%, #e3e4e6 50%, #f1f1f2 100%);
+            background-size: 200% 100%;
+            animation: lockerdrop-shimmer 1.4s infinite linear;
+            color: transparent !important;
+            border-radius: 4px;
+            min-width: 32px;
+            height: 1em;
+            line-height: 1em;
+            user-select: none;
+        }
+        .stat-value.skeleton { min-width: 60px; height: 32px; }
+        .skeleton-cell {
+            background: linear-gradient(90deg, #f1f1f2 0%, #e3e4e6 50%, #f1f1f2 100%);
+            background-size: 200% 100%;
+            animation: lockerdrop-shimmer 1.4s infinite linear;
+            border-radius: 4px;
+            height: 14px;
+            display: block;
+        }
+
+        /* Async confirm replacement modal — replaces native browser confirm() dialogs */
+        .confirm-modal-overlay {
+            position: fixed; inset: 0; z-index: 10000;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(2px);
+            display: flex; align-items: center; justify-content: center;
+            animation: confirm-fade-in 150ms ease-out;
+        }
+        @keyframes confirm-fade-in { from { opacity: 0 } to { opacity: 1 } }
+        .confirm-modal-content {
+            background: var(--p-color-bg-surface);
+            border-radius: 12px;
+            padding: 24px 28px;
+            max-width: 480px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+        }
+        .confirm-modal-title {
+            margin: 0 0 12px 0;
+            font-size: 17px;
+            color: var(--p-color-text);
+        }
+        .confirm-modal-body {
+            color: var(--p-color-text-secondary);
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 24px;
+        }
+        .confirm-modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        .confirm-modal-actions .btn-danger {
+            background: #d72c0d;
+            border-color: #d72c0d;
+            color: white;
+        }
+        .confirm-modal-actions .btn-danger:hover {
+            background: #b82908;
+            border-color: #b82908;
+        }
+
         .close:hover {
             color: var(--p-color-text);
         }
@@ -1343,6 +1415,50 @@
             }
             window.__rawAlert(message);
         };
+
+        // confirmAsync() replaces native browser confirm() with a Polaris-styled modal.
+        // Returns Promise<boolean>. opts: { title, confirmLabel, cancelLabel, danger }.
+        window.confirmAsync = function(message, opts = {}) {
+            return new Promise((resolve) => {
+                const title = opts.title || 'Confirm';
+                const confirmLabel = opts.confirmLabel || 'Confirm';
+                const cancelLabel = opts.cancelLabel || 'Cancel';
+                const danger = !!opts.danger;
+                const escapeHtml = (s) => String(s).replace(/[&<>"']/g, c =>
+                    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+                const overlay = document.createElement('div');
+                overlay.className = 'confirm-modal-overlay';
+                overlay.setAttribute('role', 'dialog');
+                overlay.setAttribute('aria-modal', 'true');
+                overlay.innerHTML =
+                    '<div class="confirm-modal-content">'
+                    + '<h3 class="confirm-modal-title">' + escapeHtml(title) + '</h3>'
+                    + '<div class="confirm-modal-body">' + escapeHtml(message).replace(/\n/g, '<br>') + '</div>'
+                    + '<div class="confirm-modal-actions">'
+                    + '<button class="btn btn-secondary" data-action="cancel">' + escapeHtml(cancelLabel) + '</button>'
+                    + '<button class="btn ' + (danger ? 'btn-danger' : 'btn-primary') + '" data-action="confirm">' + escapeHtml(confirmLabel) + '</button>'
+                    + '</div></div>';
+                document.body.appendChild(overlay);
+                const confirmBtn = overlay.querySelector('[data-action="confirm"]');
+                const cancelBtn = overlay.querySelector('[data-action="cancel"]');
+                setTimeout(() => confirmBtn.focus(), 0);
+                const cleanup = (result) => {
+                    document.removeEventListener('keydown', onKey);
+                    overlay.remove();
+                    resolve(result);
+                };
+                const onKey = (e) => {
+                    if (e.key === 'Escape') { e.preventDefault(); cleanup(false); }
+                    else if (e.key === 'Enter' && document.activeElement === confirmBtn) {
+                        e.preventDefault(); cleanup(true);
+                    }
+                };
+                document.addEventListener('keydown', onKey);
+                confirmBtn.onclick = () => cleanup(true);
+                cancelBtn.onclick = () => cleanup(false);
+                overlay.onclick = (e) => { if (e.target === overlay) cleanup(false); };
+            });
+        };
     </script>
     <script>
         // __nativeFetch attaches a Shopify session token (JWT) to /api/* requests.
@@ -1463,25 +1579,25 @@
         <div class="stats-grid">
             <div class="stat-card stat-card-clickable" onclick="navigateToOrderFilter('pending_dropoff')" title="Click to view pending drop-off orders">
                 <div class="stat-label">Pending Drop-offs</div>
-                <div class="stat-value" id="stat-pending">0</div>
+                <div class="stat-value skeleton" id="stat-pending">000</div>
                 <div class="stat-subtext" id="stat-pending-subtext"></div>
                 <button class="stat-action-btn" onclick="event.stopPropagation(); navigateToOrderFilter('pending_dropoff')">View Orders →</button>
             </div>
             <div class="stat-card stat-card-clickable" onclick="navigateToOrderFilter('ready_for_pickup')" title="Click to view orders ready for pickup">
                 <div class="stat-label">Ready for Pickup</div>
-                <div class="stat-value" id="stat-ready">0</div>
+                <div class="stat-value skeleton" id="stat-ready">000</div>
                 <div class="stat-subtext" id="stat-ready-subtext"></div>
                 <button class="stat-action-btn" onclick="event.stopPropagation(); navigateToOrderFilter('ready_for_pickup')">Monitor Status →</button>
             </div>
             <div class="stat-card stat-card-clickable" onclick="navigateToOrderFilter('completed')" title="Click to view completed orders">
                 <div class="stat-label">Completed This Week</div>
-                <div class="stat-value" id="stat-completed">0</div>
+                <div class="stat-value skeleton" id="stat-completed">000</div>
                 <div class="stat-subtext" id="stat-completed-subtext"></div>
                 <button class="stat-action-btn" onclick="event.stopPropagation(); navigateToOrderFilter('completed')">View Report →</button>
             </div>
             <div class="stat-card stat-card-clickable" onclick="navigateToOrderFilter('future_dropoff')" title="Click to view orders scheduled for future drop-off">
                 <div class="stat-label">Future Drop-offs</div>
-                <div class="stat-value" id="stat-future">0</div>
+                <div class="stat-value skeleton" id="stat-future">000</div>
                 <div class="stat-subtext" id="stat-future-subtext">Scheduled for later</div>
                 <button class="stat-action-btn" onclick="event.stopPropagation(); navigateToOrderFilter('future_dropoff')">View Orders →</button>
             </div>
@@ -1533,11 +1649,10 @@
                         </tr>
                     </thead>
                     <tbody id="orders-table-body">
-                        <tr>
-                            <td colspan="9" class="empty-state">
-                                <h3>Loading orders...</h3>
-                            </td>
-                        </tr>
+                        <!-- Skeleton rows shown until first loadOrders() resolves -->
+                        <tr><td colspan="9" style="padding: 12px;"><span class="skeleton-cell" style="width: 70%"></span></td></tr>
+                        <tr><td colspan="9" style="padding: 12px;"><span class="skeleton-cell" style="width: 85%"></span></td></tr>
+                        <tr><td colspan="9" style="padding: 12px;"><span class="skeleton-cell" style="width: 60%"></span></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -3184,7 +3299,10 @@
                 const lockersCount = stats.activeLockers || 0;
                 const futureCount = stats.futureDropoffs || 0;
 
-                // Update stat values
+                // Update stat values (and remove skeleton shimmer once data is in)
+                ['stat-pending', 'stat-ready', 'stat-completed', 'stat-future'].forEach(id => {
+                    document.getElementById(id).classList.remove('skeleton');
+                });
                 document.getElementById('stat-pending').textContent = pendingCount;
                 document.getElementById('stat-ready').textContent = readyCount;
                 document.getElementById('stat-completed').textContent = completedCount;
@@ -3611,7 +3729,7 @@
             if (!newLocationId || !currentModalOrderNumber) return;
 
             const locationName = select.options[select.selectedIndex].text;
-            if (!confirm(`Move order #${currentModalOrderNumber} to ${locationName}? This will generate a new dropoff link.`)) return;
+            if (!await confirmAsync(`Move order #${currentModalOrderNumber} to ${locationName}? This will generate a new dropoff link.`)) return;
 
             const btn = document.getElementById('btn-confirm-location');
             btn.disabled = true;
@@ -3647,7 +3765,7 @@
         // Resend notification to customer
         async function resendNotification(orderNumber, type) {
             const typeLabel = type === 'both' ? 'SMS and Email' : type === 'sms' ? 'SMS' : 'Email';
-            if (!confirm(`Resend ${typeLabel} notification for order #${orderNumber}?`)) return;
+            if (!await confirmAsync(`Resend ${typeLabel} notification for order #${orderNumber}?`)) return;
 
             try {
                 const response = await window.__nativeFetch(`/api/resend-notification/${orderNumber}`, {
@@ -3679,7 +3797,7 @@
 
         // Regenerate pickup link - for when customer's link has expired
         async function regeneratePickupLink(orderNumber) {
-            if (!confirm(`Regenerate pickup link for order #${orderNumber}?\n\nUse this if the current link shows an error or has expired.`)) return;
+            if (!await confirmAsync(`Regenerate pickup link for order #${orderNumber}?\n\nUse this if the current link shows an error or has expired.`)) return;
 
             try {
                 const response = await window.__nativeFetch(`/api/emergency-open/${shop}`, {
@@ -3709,7 +3827,7 @@
 
         // Regenerate dropoff link for an order (when link has expired)
         async function regenerateDropoffLink(orderNumber) {
-            if (!confirm(`Regenerate dropoff link for order #${orderNumber}?\n\nUse this if the current link shows a 502 error or has expired.`)) return;
+            if (!await confirmAsync(`Regenerate dropoff link for order #${orderNumber}?\n\nUse this if the current link shows a 502 error or has expired.`)) return;
 
             try {
                 const btn = event.target;
@@ -3743,7 +3861,7 @@
         // Regenerate dropoff link with a specific locker size (after "doesn't fit")
         async function regenerateDropoffLinkWithSize(orderNumber, size) {
             const sizeLabel = size ? size.charAt(0).toUpperCase() + size.slice(1) : 'auto-detected';
-            if (!confirm(`Generate a new dropoff link (${sizeLabel} locker) for order #${orderNumber}?`)) return;
+            if (!await confirmAsync(`Generate a new dropoff link (${sizeLabel} locker) for order #${orderNumber}?`)) return;
 
             try {
                 const btn = event.target;
@@ -3777,7 +3895,7 @@
 
         // Sync Orders from Shopify
         async function syncOrders() {
-            if (!confirm('Sync all LockerDrop orders from Shopify?')) return;
+            if (!await confirmAsync('Sync all LockerDrop orders from Shopify?')) return;
 
             try {
                 const response = await window.__nativeFetch(`/api/sync-orders/${shop}`);
@@ -3850,7 +3968,7 @@
         async function cancelLockerRequest() {
             const orderId = document.getElementById('modal-order-number').textContent;
 
-            if (!confirm(`Are you sure you want to cancel the locker for order ${orderId}? This will release the locker reservation.`)) {
+            if (!await confirmAsync(`Are you sure you want to cancel the locker for order ${orderId}? This will release the locker reservation.`)) {
                 return;
             }
 
@@ -4281,7 +4399,7 @@
             });
 
             if (selectedLockers.length === 0) {
-                const confirmed = confirm(
+                const confirmed = await confirmAsync(
                     '⚠️ No lockers selected!\n\n' +
                     'Customers won\'t see LockerDrop as a pickup option at checkout if you have no lockers enabled.\n\n' +
                     'Are you sure you want to continue with no lockers?'
@@ -5159,7 +5277,7 @@
             const configuredOrExcluded = products.length;
             const unconfiguredCount = totalProducts - configuredOrExcluded;
             if (unconfiguredCount > 0) {
-                const proceed = confirm(
+                const proceed = await confirmAsync(
                     `⚠️ ${unconfiguredCount} product${unconfiguredCount !== 1 ? 's' : ''} still ${unconfiguredCount !== 1 ? 'have' : 'has'} no size configured.\n\n` +
                     `Products without sizes will NOT be available for LockerDrop pickup.\n` +
                     `Customers with unconfigured products in their cart won't see the locker option at checkout.\n\n` +
@@ -5648,7 +5766,7 @@
 
         // Remove logo
         async function removeLogo() {
-            if (!confirm('Remove your logo?')) return;
+            if (!await confirmAsync('Remove your logo?')) return;
 
             try {
                 const response = await window.__nativeFetch(`/api/branding/${shop}/logo`, {
