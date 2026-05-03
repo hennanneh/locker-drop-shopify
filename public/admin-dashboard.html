@@ -1331,9 +1331,13 @@
         window.__rawAlert = window.alert.bind(window);
         window.notify = function(message, opts = {}) {
             const text = String(message == null ? '' : message).replace(/\n+/g, ' ').trim();
+            // Auto-style as error toast if the message clearly conveys failure.
+            // Callers can override by passing { isError: false } explicitly.
+            const looksLikeError = /^(failed|error|❌|⚠️|could not|unable)/i.test(text);
+            const finalOpts = { duration: 5000, ...(looksLikeError ? { isError: true } : {}), ...opts };
             if (window.shopify && window.shopify.toast && typeof window.shopify.toast.show === 'function') {
                 try {
-                    window.shopify.toast.show(text, { duration: 5000, ...opts });
+                    window.shopify.toast.show(text, finalOpts);
                     return;
                 } catch (e) { /* fall through */ }
             }
@@ -3590,8 +3594,11 @@
                     return;
                 }
 
+                // Sort alphabetically by name so the dropdown is predictable
+                const sorted = [...preferences].sort((a, b) =>
+                    (a.location_name || '').localeCompare(b.location_name || ''));
                 select.innerHTML = '<option value="">Select a location...</option>' +
-                    preferences.map(p => `<option value="${p.location_id}">${p.location_name || 'Location ' + p.location_id}</option>`).join('');
+                    sorted.map(p => `<option value="${p.location_id}">${p.location_name || 'Location ' + p.location_id}</option>`).join('');
             } catch (error) {
                 console.error('Error loading locations:', error);
                 select.innerHTML = '<option value="">Failed to load locations</option>';
@@ -4044,10 +4051,17 @@
                 // Update search info banner
                 const searchInfoEl = document.getElementById('locker-search-info');
                 const searchInfoTextEl = document.getElementById('locker-search-info-text');
-                if (myLockersOnly) {
+                const totalSaved = savedPreferenceIds.length;
+                if (myLockersOnly && searchValue) {
+                    searchInfoEl.style.background = '#fff8e6';
+                    searchInfoTextEl.style.color = '#8a6116';
+                    searchInfoTextEl.textContent = `Showing your selected lockers within 50 miles of "${searchValue}". Clear the search to see all ${totalSaved} selected.`;
+                } else if (myLockersOnly) {
                     searchInfoEl.style.background = '#e3f9e5';
                     searchInfoTextEl.style.color = '#108043';
-                    searchInfoTextEl.textContent = 'Showing only your selected lockers. Uncheck "My lockers only" to browse all available locations.';
+                    searchInfoTextEl.textContent = totalSaved > 0
+                        ? `Showing all ${totalSaved} of your selected lockers. Uncheck "My lockers only" to browse all available locations.`
+                        : 'You haven\'t selected any lockers yet. Uncheck "My lockers only" to browse all available locations.';
                 } else if (searchValue) {
                     searchInfoEl.style.background = '#e3f9e5';
                     searchInfoTextEl.style.color = '#108043';
@@ -4826,8 +4840,11 @@
                 if (preferences.length === 0) {
                     select.innerHTML = '<option value="">No lockers configured - go to My Lockers tab</option>';
                 } else {
+                    // Sort alphabetically by name so the dropdown is predictable
+                    const sorted = [...preferences].sort((a, b) =>
+                        (a.location_name || '').localeCompare(b.location_name || ''));
                     select.innerHTML = '<option value="">Select a locker...</option>' +
-                        preferences.map(p => `<option value="${p.location_id}" data-name="${p.location_name}">${p.location_name}</option>`).join('');
+                        sorted.map(p => `<option value="${p.location_id}" data-name="${p.location_name}">${p.location_name}</option>`).join('');
                 }
             } catch (error) {
                 console.error('Error loading lockers:', error);
