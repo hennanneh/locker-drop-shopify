@@ -1416,6 +1416,43 @@
             window.__rawAlert(message);
         };
 
+        // friendlyError() turns a backend error response into copy a merchant can act on.
+        // Pass `context` describing what the user was trying to do (e.g. "Move", "Regenerate
+        // link"). Maps common patterns to specific advice; falls through to the raw message
+        // with the context as prefix; final fallback names support@lockerdrop.it.
+        window.friendlyError = function(result, context = '') {
+            const raw = (result && (result.error || result.details || result.message || result.detail))
+                || (result && typeof result === 'string' ? result : '')
+                || '';
+            const text = String(raw).toLowerCase();
+            const verb = context ? context : 'Action';
+            if (text.includes('duplicate') || text.includes('already exists') || text.includes('unique constraint')) {
+                return `${verb} blocked: that record already exists. Try a different reference.`;
+            }
+            if (text.includes('not found') || text.includes('404')) {
+                return `${verb} failed: we couldn't find that record. Refresh and try again.`;
+            }
+            if (text.includes('unauthorized') || text.includes('401') || text.includes('invalid session') || text.includes('expired')) {
+                return `Your session expired. Reload the app from Shopify Admin to sign back in.`;
+            }
+            if (text.includes('locker') && (text.includes('not available') || text.includes('no available') || text.includes('availability'))) {
+                return `${verb} failed: no suitable locker is available. Try a different size or location.`;
+            }
+            if (text.includes('harbor') || text.includes('econnrefused') || text.includes('etimedout') || text.includes('econnreset') || text.includes('502') || text.includes('503') || text.includes('504')) {
+                return `${verb} failed: couldn't reach Harbor. Try again in a moment — if it persists, email support@lockerdrop.it.`;
+            }
+            if (text.includes('rate limit') || text.includes('429') || text.includes('too many')) {
+                return `Slow down — too many requests. Wait a few seconds and try again.`;
+            }
+            if (text.includes('shipping') || text.includes('carrier service')) {
+                return `${verb} failed: ${raw}. Check Settings → Shipping in your Shopify Admin.`;
+            }
+            if (raw && !/^unknown error$/i.test(text)) {
+                return `${verb} failed: ${raw}`;
+            }
+            return `${verb} failed. Refresh the page; if the issue persists, email support@lockerdrop.it.`;
+        };
+
         // confirmAsync() replaces native browser confirm() with a Polaris-styled modal.
         // Returns Promise<boolean>. opts: { title, confirmLabel, cancelLabel, danger }.
         window.confirmAsync = function(message, opts = {}) {
@@ -2149,10 +2186,9 @@
 
         <!-- Settings Tab -->
         <div id="settings" class="tab-content">
-            <!-- Auto-save Status -->
-            <div id="settings-save-status" style="display: none; padding: 12px 16px; background: #e3f5ef; border-radius: 8px; margin-bottom: 20px; color: #008060; font-size: 14px;">
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="#008060" style="vertical-align: middle; margin-right: 8px;"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/></svg>
-                <span>Settings saved</span>
+            <!-- Auto-save status (states: saving / saved / error) -->
+            <div id="settings-save-status" data-state="" style="display: none; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 14px;">
+                <span id="settings-save-status-text">Settings saved</span>
             </div>
 
             <!-- Shipping Setup Card -->
@@ -3750,7 +3786,7 @@
                     await loadOrders();
                     viewOrder(currentModalOrderNumber);
                 } else {
-                    notify('Failed: ' + (result.error || 'Unknown error'));
+                    notify(friendlyError(result, 'Move order'));
                     btn.disabled = false;
                     btn.textContent = 'Move Order';
                 }
@@ -3787,11 +3823,11 @@
                     }
                     notify(message);
                 } else {
-                    notify('Failed: ' + (result.error || 'Unknown error'));
+                    notify(friendlyError(result, 'Resend notification'));
                 }
             } catch (error) {
                 console.error('Error resending notification:', error);
-                notify('Error sending notification');
+                notify(friendlyError({ error: error.message }, 'Resend notification'));
             }
         }
 
@@ -3813,11 +3849,11 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    notify(`✅ New pickup link generated for order #${orderNumber}!\n\nThe page will refresh to show the new link.`);
+                    notify(`✓ New pickup link generated for order #${orderNumber}. Refreshing…`);
                     closeModal();
                     loadOrders();
                 } else {
-                    notify(`Failed to regenerate link:\n\n${result.error || 'Unknown error'}`);
+                    notify(friendlyError(result, 'Regenerate pickup link'));
                 }
             } catch (error) {
                 console.error('Error regenerating pickup link:', error);
@@ -3843,12 +3879,12 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    notify(`New dropoff link generated for order #${orderNumber}!\n\nThe page will refresh to show the new link.`);
+                    notify(`✓ New dropoff link generated for order #${orderNumber}. Refreshing…`);
                     // Refresh the orders and reopen the modal
                     await loadOrders();
                     viewOrder(orderNumber);
                 } else {
-                    notify('Failed to regenerate link: ' + (result.details || result.error || 'Unknown error'));
+                    notify(friendlyError(result, 'Regenerate dropoff link'));
                     btn.innerHTML = originalText;
                     btn.disabled = false;
                 }
@@ -3883,7 +3919,7 @@
                     await loadOrders();
                     viewOrder(orderNumber);
                 } else {
-                    notify('Failed: ' + (result.details || result.error || 'Unknown error'));
+                    notify(friendlyError(result, 'Generate new locker link'));
                     btn.innerHTML = originalText;
                     btn.disabled = false;
                 }
@@ -3906,7 +3942,7 @@
                     loadOrders();
                     loadStats();
                 } else {
-                    notify('Failed to sync: ' + (result.error || 'Unknown error'));
+                    notify(friendlyError(result, 'Sync orders'));
                 }
             } catch (error) {
                 console.error('Error syncing:', error);
@@ -3934,11 +3970,11 @@
                     loadStats();
                     loadOrders();
                 } else {
-                    notify('Failed to update order: ' + (result.error || 'Unknown error'));
+                    notify(friendlyError(result, 'Update order'));
                 }
             } catch (error) {
                 console.error('Error updating order:', error);
-                notify('Failed to update order status: ' + error.message);
+                notify(friendlyError({ error: error.message }, 'Update order status'));
             }
         }
 
@@ -3957,7 +3993,7 @@
                 if (result.success) {
                     notify('Pickup email resent to customer!');
                 } else {
-                    notify('Failed to resend: ' + (result.error || 'Unknown error'));
+                    notify(friendlyError(result, 'Resend notification'));
                 }
             } catch (error) {
                 console.error('Error resending email:', error);
@@ -3986,7 +4022,7 @@
                     closeModal();
                     loadOrders(); // Refresh the orders list
                 } else {
-                    notify('Failed to cancel: ' + (result.error || 'Unknown error'));
+                    notify(friendlyError(result, 'Cancel locker'));
                 }
             } catch (error) {
                 console.error('Error cancelling locker:', error);
@@ -4471,6 +4507,39 @@
             }, 500);
         }
 
+        // Render the save-status banner with state-specific styling.
+        function setSettingsSaveStatus(state) {
+            const el = document.getElementById('settings-save-status');
+            const text = document.getElementById('settings-save-status-text');
+            if (!el || !text) return;
+            el.dataset.state = state;
+            switch (state) {
+                case 'saving':
+                    el.style.display = 'block';
+                    el.style.background = '#fff8e6';
+                    el.style.color = '#8a6116';
+                    text.textContent = '⏳ Saving…';
+                    break;
+                case 'saved':
+                    el.style.display = 'block';
+                    el.style.background = '#e3f5ef';
+                    el.style.color = '#008060';
+                    text.textContent = '✓ Settings saved';
+                    setTimeout(() => {
+                        if (el.dataset.state === 'saved') el.style.display = 'none';
+                    }, 2500);
+                    break;
+                case 'error':
+                    el.style.display = 'block';
+                    el.style.background = '#fef2f2';
+                    el.style.color = '#bf0711';
+                    text.textContent = '⚠ Settings not saved — your last change wasn\'t persisted. Check the toast for details.';
+                    break;
+                default:
+                    el.style.display = 'none';
+            }
+        }
+
         // Save Settings quietly (no alerts, shows status banner)
         async function saveSettingsQuiet() {
             try {
@@ -4490,6 +4559,7 @@
                 // Update pricing display
                 updatePricingDisplay(freePickup);
 
+                setSettingsSaveStatus('saving');
                 const response = await window.__nativeFetch(`/api/settings/${shop}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -4503,20 +4573,18 @@
                     })
                 });
 
+                if (!response.ok) throw new Error('HTTP ' + response.status);
                 const data = await response.json();
                 if (data.success) {
-                    // Show saved status
-                    const statusEl = document.getElementById('settings-save-status');
-                    if (statusEl) {
-                        statusEl.style.display = 'block';
-                        // Hide after 3 seconds
-                        setTimeout(() => {
-                            statusEl.style.display = 'none';
-                        }, 3000);
-                    }
+                    setSettingsSaveStatus('saved');
+                } else {
+                    setSettingsSaveStatus('error');
+                    notify(friendlyError(data, 'Save settings'));
                 }
             } catch (error) {
                 console.error('Error saving settings:', error);
+                setSettingsSaveStatus('error');
+                notify(friendlyError({ error: error.message }, 'Save settings'));
             }
         }
 
@@ -4552,16 +4620,10 @@
 
                 const data = await response.json();
                 if (data.success) {
-                    // Show saved status instead of alert
-                    const statusEl = document.getElementById('settings-save-status');
-                    if (statusEl) {
-                        statusEl.style.display = 'block';
-                        setTimeout(() => {
-                            statusEl.style.display = 'none';
-                        }, 3000);
-                    }
+                    setSettingsSaveStatus('saved');
                 } else {
-                    notify('Failed to save settings');
+                    setSettingsSaveStatus('error');
+                    notify(friendlyError(data, 'Save settings'));
                 }
             } catch (error) {
                 console.error('Error saving settings:', error);
@@ -4949,6 +5011,22 @@
             }
         };
 
+        // Close any open dashboard modal on Escape (matches the confirm-modal behavior).
+        // Skip when a confirm-modal is already open — that one handles Esc itself and
+        // we don't want a single Esc to dismiss both.
+        document.addEventListener('keydown', function(event) {
+            if (event.key !== 'Escape') return;
+            if (document.querySelector('.confirm-modal-overlay')) return;
+            const orderModal = document.getElementById('orderModal');
+            const manualModal = document.getElementById('manualOrderModal');
+            const onboardingModal = document.getElementById('onboardingModal');
+            const visible = (el) => el && getComputedStyle(el).display !== 'none';
+            if (visible(orderModal)) { orderModal.style.display = 'none'; return; }
+            if (visible(manualModal)) { manualModal.style.display = 'none'; return; }
+            // Onboarding modal intentionally NOT dismissable via Esc — it's the first-run
+            // walkthrough; merchants should use the explicit Skip button.
+        });
+
         // Manual Order Functions
         async function openManualOrderModal() {
             const modal = document.getElementById('manualOrderModal');
@@ -5139,7 +5217,7 @@
                     loadOrders();
                     loadStats();
                 } else {
-                    notify('Failed to create order: ' + (result.error || 'Unknown error'));
+                    notify(friendlyError(result, 'Create order'));
                 }
             } catch (error) {
                 console.error('Error creating manual order:', error);
@@ -5350,7 +5428,7 @@
                         btn.style.background = '';
                     }, 2500);
                 } else {
-                    notify('Failed to save: ' + (result.error || 'Unknown error'));
+                    notify(friendlyError(result, 'Save'));
                     btn.textContent = originalText;
                 }
             } catch (error) {
@@ -5794,7 +5872,7 @@
                     // Auto-save branding settings
                     autoSaveBranding();
                 } else {
-                    notify('Error uploading logo: ' + (result.error || 'Unknown error'));
+                    notify(friendlyError(result, 'Upload logo'));
                 }
             } catch (error) {
                 console.error('Error uploading logo:', error);
@@ -5826,7 +5904,7 @@
                     // Auto-save branding settings
                     autoSaveBranding();
                 } else {
-                    notify('Error removing logo: ' + (result.error || 'Unknown error'));
+                    notify(friendlyError(result, 'Remove logo'));
                 }
             } catch (error) {
                 console.error('Error removing logo:', error);
@@ -6045,21 +6123,17 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    // Show saved status banner
-                    const statusEl = document.getElementById('settings-save-status');
-                    if (statusEl) {
-                        statusEl.style.display = 'block';
-                        setTimeout(() => {
-                            statusEl.style.display = 'none';
-                        }, 3000);
-                    }
+                    setSettingsSaveStatus('saved');
                 } else if (result.upgrade) {
                     notify('Custom branding requires the Enterprise plan. Please upgrade to access this feature.');
                 } else {
-                    notify('Error: ' + (result.error || 'Could not save settings'));
+                    setSettingsSaveStatus('error');
+                    notify(friendlyError(result, 'Save branding'));
                 }
             } catch (error) {
                 console.error('Error saving branding:', error);
+                setSettingsSaveStatus('error');
+                notify(friendlyError({ error: error.message }, 'Save branding'));
             }
         }
 
