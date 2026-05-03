@@ -1858,9 +1858,30 @@
 
                 <div class="collapsible-content">
                 <p class="card-description" style="margin-bottom: 16px;">Quick reference guides to get you up and running with LockerDrop.</p>
+
+                <!-- Anchor nav so merchants can jump to a section without scrolling. -->
+                <nav class="info-box" style="margin-bottom: 16px; background: #f6f6f7; border: 1px solid #e1e3e5;">
+                    <strong style="display: block; margin-bottom: 8px; font-size: 13px; color: #6d7175; text-transform: uppercase; letter-spacing: 0.5px;">Jump to</strong>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px;">
+                        <a href="#learn-quick-start" style="color: #5c6ac4;">Quick Start</a>
+                        <span style="color: #c9cccf;">·</span>
+                        <a href="#learn-lifecycle" style="color: #5c6ac4;">Order Lifecycle</a>
+                        <span style="color: #c9cccf;">·</span>
+                        <a href="#learn-locker-sizes" style="color: #5c6ac4;">Locker Sizes</a>
+                        <span style="color: #c9cccf;">·</span>
+                        <a href="#learn-product-sizes" style="color: #5c6ac4;">Setting Product Sizes</a>
+                        <span style="color: #c9cccf;">·</span>
+                        <a href="#learn-multi-item" style="color: #5c6ac4;">Multi-Item Orders</a>
+                        <span style="color: #c9cccf;">·</span>
+                        <a href="#learn-checkout" style="color: #5c6ac4;">Shopify Plus Checkout</a>
+                        <span style="color: #c9cccf;">·</span>
+                        <a href="#learn-faq" style="color: #5c6ac4;">Common Questions</a>
+                    </div>
+                </nav>
+
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
                     <!-- Quick Start -->
-                    <div class="info-box" style="background: white; border: 1px solid #e1e3e5;">
+                    <div class="info-box" id="learn-quick-start" style="background: white; border: 1px solid #e1e3e5; scroll-margin-top: 80px;">
                         <h4 style="margin: 0 0 12px; color: #5c6ac4; font-size: 15px;">Quick Start</h4>
                         <ol style="margin: 0 0 0 20px; padding: 0; line-height: 1.8; font-size: 14px;">
                             <li>Select locker locations in <strong>My Lockers</strong></li>
@@ -1874,7 +1895,7 @@
                     </div>
 
                     <!-- Order Lifecycle -->
-                    <div class="info-box" style="background: white; border: 1px solid #e1e3e5;">
+                    <div class="info-box" id="learn-lifecycle" style="background: white; border: 1px solid #e1e3e5; scroll-margin-top: 80px;">
                         <h4 style="margin: 0 0 12px; color: #5c6ac4; font-size: 15px;">Order Lifecycle</h4>
                         <div style="font-size: 14px;">
                             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
@@ -1897,7 +1918,7 @@
                     </div>
 
                     <!-- Locker Sizes -->
-                    <div class="info-box" style="background: white; border: 1px solid #e1e3e5;">
+                    <div class="info-box" id="learn-locker-sizes" style="background: white; border: 1px solid #e1e3e5; scroll-margin-top: 80px;">
                         <h4 style="margin: 0 0 12px; color: #5c6ac4; font-size: 15px;">Locker Sizes</h4>
                         <table style="width: 100%; font-size: 14px;">
                             <tr style="border-bottom: 1px solid #e1e3e5;">
@@ -1923,7 +1944,7 @@
                     </div>
 
                     <!-- Product Sizes -->
-                    <div class="info-box" style="background: white; border: 1px solid #e1e3e5;">
+                    <div class="info-box" id="learn-product-sizes" style="background: white; border: 1px solid #e1e3e5; scroll-margin-top: 80px;">
                         <h4 style="margin: 0 0 12px; color: #5c6ac4; font-size: 15px;">Setting Product Sizes</h4>
                         <div style="font-size: 14px; line-height: 1.6;">
                             <p style="margin: 0 0 8px;"><strong>Option 1: Exact Dimensions</strong> (Recommended)</p>
@@ -1934,7 +1955,7 @@
                     </div>
 
                     <!-- Multi-Item Orders -->
-                    <div class="info-box" style="background: white; border: 1px solid #e1e3e5;">
+                    <div class="info-box" id="learn-multi-item" style="background: white; border: 1px solid #e1e3e5; scroll-margin-top: 80px;">
                         <h4 style="margin: 0 0 12px; color: #5c6ac4; font-size: 15px;">Multi-Item Orders</h4>
                         <div style="font-size: 14px; line-height: 1.6;">
                             <p style="margin: 0 0 8px;">When customers order multiple items:</p>
@@ -1950,7 +1971,7 @@
                     </div>
 
                     <!-- Shopify Plus Checkout -->
-                    <div class="info-box" style="background: white; border: 1px solid #e1e3e5;">
+                    <div class="info-box" id="learn-checkout" style="background: white; border: 1px solid #e1e3e5; scroll-margin-top: 80px;">
                         <h4 style="margin: 0 0 12px; color: #5c6ac4; font-size: 15px;">Shopify Plus Checkout</h4>
                         <div style="font-size: 14px; line-height: 1.6;">
                             <p style="margin: 0 0 8px;"><strong>For Plus Stores Only</strong></p>
@@ -1971,7 +1992,7 @@
                     </div>
 
                     <!-- Common Questions -->
-                    <div class="info-box" style="background: white; border: 1px solid #e1e3e5;">
+                    <div class="info-box" id="learn-faq" style="background: white; border: 1px solid #e1e3e5; scroll-margin-top: 80px;">
                         <h4 style="margin: 0 0 12px; color: #5c6ac4; font-size: 15px;">Common Questions</h4>
                         <div style="font-size: 14px; line-height: 1.6;">
                             <p style="margin: 0 0 10px;"><strong>Customer lost pickup info?</strong><br>
