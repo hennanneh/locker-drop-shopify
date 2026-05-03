@@ -3331,8 +3331,8 @@
 
                 const completedSubtext = document.getElementById('stat-completed-subtext');
                 if (completedCount > 0) {
-                    const savings = completedCount * 8; // $8 avg cost savings
-                    completedSubtext.innerHTML = `<span class="success">💰 Saved ~$${savings} vs traditional delivery</span>`;
+                    // Use a real, defensible metric instead of a fabricated dollar figure.
+                    completedSubtext.innerHTML = `<span class="success">📦 ${completedCount} package${completedCount !== 1 ? 's' : ''} picked up this week</span>`;
                 } else {
                     completedSubtext.innerHTML = '';
                 }
@@ -4458,6 +4458,10 @@
 
         // Auto-save Settings (debounced)
         function autoSaveSettings() {
+            // Refuse to save until settings have been successfully loaded — otherwise we'd
+            // be writing hardcoded HTML defaults over the merchant's saved configuration.
+            if (!settingsLoaded) return;
+
             // Clear any pending save
             if (autoSaveTimer) clearTimeout(autoSaveTimer);
 
@@ -4566,9 +4570,14 @@
         }
 
         // Load Settings
+        // Guards against the "loadSettings fails silently → autoSave overwrites real settings
+        // with hardcoded HTML defaults" data-loss path called out in the UX audit.
+        let settingsLoaded = false;
+
         async function loadSettings() {
             try {
                 const response = await window.__nativeFetch(`/api/settings/${shop}`);
+                if (!response.ok) throw new Error('HTTP ' + response.status);
                 const data = await response.json();
 
                 // Checkout extension
@@ -4597,8 +4606,11 @@
 
                 // Update pickup preview
                 updatePickupPreview();
+                settingsLoaded = true;
             } catch (error) {
                 console.error('Error loading settings:', error);
+                settingsLoaded = false;
+                notify('Could not load your saved settings. Refresh to retry — auto-save is disabled until they load.');
             }
         }
 
@@ -4909,8 +4921,16 @@
                 cb.addEventListener('change', updatePickupPreview);
             });
 
-            // Auto-refresh orders every 30 seconds
+            // Auto-refresh orders every 30 seconds — but skip when a modal is open or
+            // a manual order is being submitted, so the table doesn't shift mid-read.
             setInterval(() => {
+                const orderModal = document.getElementById('orderModal');
+                const manualModal = document.getElementById('manualOrderModal');
+                const aModalIsOpen =
+                    (orderModal && getComputedStyle(orderModal).display !== 'none') ||
+                    (manualModal && getComputedStyle(manualModal).display !== 'none') ||
+                    document.querySelector('.confirm-modal-overlay');
+                if (aModalIsOpen) return;
                 loadOrders();
                 loadStats();
                 updateRefreshTime();
@@ -5071,6 +5091,28 @@
             if (!orderNumber || !customerName || !customerEmail || !lockerId) {
                 notify('Please fill in all required fields');
                 return;
+            }
+
+            // Block submission if the availability indicator says "No locker available".
+            // The same checkUpdateLockerAvailabilityDisplay populated this; submitting
+            // anyway burns a Harbor reservation when the server's allocation fails.
+            const availabilityHtml = document.getElementById('manual-locker-availability').innerHTML;
+            if (availabilityHtml.includes('⚠')) {
+                const proceed = await confirmAsync(
+                    'No suitable locker is available at this location for the selected size. Submitting anyway will likely fail. Proceed anyway?',
+                    { title: 'No locker available', confirmLabel: 'Submit anyway', cancelLabel: 'Pick another size or location', danger: true }
+                );
+                if (!proceed) return;
+            }
+
+            // Also catch duplicate orderNumber client-side so we don't waste a Harbor
+            // reservation on an INSERT that's going to fail.
+            if (Array.isArray(allOrders) && allOrders.some(o => String(o.order_number) === orderNumber)) {
+                const proceed = await confirmAsync(
+                    `Order #${orderNumber} already exists. Use a different reference or it will fail to save.`,
+                    { title: 'Duplicate order number', confirmLabel: 'Submit anyway', cancelLabel: 'Pick another', danger: true }
+                );
+                if (!proceed) return;
             }
 
             try {
