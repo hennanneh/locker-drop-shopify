@@ -83,6 +83,7 @@ async function verifyImageMagicBytes(filePath) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 const db = require('./db');
+const { runMigrations } = require('./migrations');
 
 // Email service (Resend)
 const { Resend } = require('resend');
@@ -7241,35 +7242,7 @@ function scheduleStuckOrderCheck() {
 // ============================================
 // BRANDING SETTINGS (Enterprise Feature)
 // ============================================
-
-// Create branding settings table
-async function initBrandingSettings() {
-    try {
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS branding_settings (
-                id SERIAL PRIMARY KEY,
-                shop VARCHAR(255) UNIQUE NOT NULL,
-                logo_url TEXT,
-                primary_color VARCHAR(7) DEFAULT '#5c6ac4',
-                secondary_color VARCHAR(7) DEFAULT '#202223',
-                success_message TEXT DEFAULT 'Thank you for picking up your order!',
-                show_upsells BOOLEAN DEFAULT true,
-                upsell_heading TEXT DEFAULT 'You might also like',
-                upsell_product_ids TEXT[],
-                rebuy_enabled BOOLEAN DEFAULT false,
-                rebuy_api_key VARCHAR(255),
-                rebuy_widget_id VARCHAR(255),
-                custom_css TEXT,
-                created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP DEFAULT NOW()
-            );
-            CREATE INDEX IF NOT EXISTS idx_branding_shop ON branding_settings(shop);
-        `);
-        logger.info('🎨 Branding settings table ready');
-    } catch (error) {
-        logger.error('Error creating branding settings table:', error);
-    }
-}
+// Schema for `branding_settings` lives in migrations/20260504000000_baseline_schema.js
 
 // Get branding settings for a shop
 app.get('/api/branding/:shop', async (req, res) => {
@@ -7511,190 +7484,9 @@ app.delete('/api/branding/:shop/logo', requireApiAuth, async (req, res) => {
 // ============================================
 // AUDIT LOGGING
 // ============================================
-
-// Create audit log table if it doesn't exist
-async function initAuditLog() {
-    try {
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS audit_log (
-                id SERIAL PRIMARY KEY,
-                timestamp TIMESTAMP DEFAULT NOW(),
-                user_id VARCHAR(255),
-                action VARCHAR(100) NOT NULL,
-                resource_type VARCHAR(50),
-                resource_id VARCHAR(100),
-                shop VARCHAR(255),
-                ip_address VARCHAR(45),
-                user_agent TEXT,
-                details JSONB,
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-            CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp);
-            CREATE INDEX IF NOT EXISTS idx_audit_log_shop ON audit_log(shop);
-            CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
-        `);
-        logger.info('📋 Audit log table ready');
-    } catch (error) {
-        logger.error('Error creating audit log table:', error);
-    }
-}
-
-// Create locker reservations table for checkout reservations
-async function initLockerReservations() {
-    try {
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS locker_reservations (
-                id SERIAL PRIMARY KEY,
-                reservation_ref VARCHAR(100) UNIQUE NOT NULL,
-                shop VARCHAR(255) NOT NULL,
-                location_id VARCHAR(50) NOT NULL,
-                locker_id VARCHAR(50),
-                tower_id VARCHAR(50),
-                dropoff_link VARCHAR(500),
-                dropoff_request_id VARCHAR(50),
-                locker_size VARCHAR(20),
-                customer_email VARCHAR(255),
-                customer_phone VARCHAR(50),
-                pickup_date DATE,
-                created_at TIMESTAMP DEFAULT NOW(),
-                expires_at TIMESTAMP NOT NULL,
-                status VARCHAR(20) DEFAULT 'pending',
-                used_by_order_id VARCHAR(100),
-                used_at TIMESTAMP
-            );
-            CREATE INDEX IF NOT EXISTS idx_reservations_shop ON locker_reservations(shop);
-            CREATE INDEX IF NOT EXISTS idx_reservations_status ON locker_reservations(status);
-            CREATE INDEX IF NOT EXISTS idx_reservations_expires ON locker_reservations(expires_at);
-            CREATE INDEX IF NOT EXISTS idx_reservations_email ON locker_reservations(customer_email);
-        `);
-        // Fix column types if table already exists with wrong types (INTEGER -> VARCHAR)
-        await db.query(`ALTER TABLE locker_reservations ALTER COLUMN tower_id TYPE VARCHAR(50)`).catch(() => {});
-        await db.query(`ALTER TABLE locker_reservations ALTER COLUMN locker_id TYPE VARCHAR(50)`).catch(() => {});
-        await db.query(`ALTER TABLE locker_reservations ALTER COLUMN location_id TYPE VARCHAR(50)`).catch(() => {});
-        await db.query(`ALTER TABLE locker_reservations ALTER COLUMN dropoff_request_id TYPE VARCHAR(50)`).catch(() => {});
-        logger.info('🔒 Locker reservations table ready');
-    } catch (error) {
-        logger.error('Error creating locker reservations table:', error);
-    }
-}
-
-// Ensure notes column exists on orders table
-async function ensureOrdersNotesColumn() {
-    try {
-        await db.query(`
-            ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes TEXT;
-        `);
-        logger.info('📝 Orders notes column ready');
-    } catch (error) {
-        logger.error('Error adding notes column:', error);
-    }
-}
-
-// Create subscriptions table for usage-based billing
-async function initSubscriptions() {
-    try {
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS subscriptions (
-                id SERIAL PRIMARY KEY,
-                shop VARCHAR(255) UNIQUE NOT NULL,
-                plan_name VARCHAR(50) DEFAULT 'usage',
-                status VARCHAR(50) DEFAULT 'pending',
-                shopify_subscription_id VARCHAR(255),
-                shopify_line_item_id VARCHAR(255),
-                capped_amount DECIMAL(10,2) DEFAULT 200.00,
-                per_order_fee DECIMAL(10,2) DEFAULT 1.50,
-                orders_this_month INTEGER DEFAULT 0,
-                total_charged_this_month DECIMAL(10,2) DEFAULT 0.00,
-                billing_cycle_start TIMESTAMP DEFAULT NOW(),
-                trial_ends_at TIMESTAMP,
-                monthly_order_limit INTEGER DEFAULT -1,
-                shopify_charge_id VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
-        // Migrate existing tables: add new columns if they don't exist
-        await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS shopify_subscription_id VARCHAR(255);`);
-        await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS shopify_line_item_id VARCHAR(255);`);
-        await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS capped_amount DECIMAL(10,2) DEFAULT 200.00;`);
-        await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS per_order_fee DECIMAL(10,2) DEFAULT 1.50;`);
-        await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS total_charged_this_month DECIMAL(10,2) DEFAULT 0.00;`);
-        // Add billing_charged column to orders for idempotency
-        await db.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS billing_charged BOOLEAN DEFAULT false;`);
-        logger.info('💳 Subscriptions table ready');
-    } catch (error) {
-        logger.error('Error creating subscriptions table:', error);
-    }
-}
-
-// Create waitlist table for landing page signups
-async function ensureWaitlistTable() {
-    try {
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS waitlist (
-                id SERIAL PRIMARY KEY,
-                email VARCHAR(255) UNIQUE NOT NULL,
-                created_at TIMESTAMP DEFAULT NOW(),
-                updated_at TIMESTAMP
-            );
-        `);
-        logger.info('📧 Waitlist table ready');
-    } catch (error) {
-        logger.error('Error creating waitlist table:', error);
-    }
-}
-
-// Ensure preferred_pickup_date column exists on orders table
-async function ensurePickupDateColumn() {
-    try {
-        await db.query(`
-            ALTER TABLE orders ADD COLUMN IF NOT EXISTS preferred_pickup_date DATE;
-        `);
-        logger.info('📅 Orders preferred_pickup_date column ready');
-    } catch (error) {
-        logger.error('Error adding preferred_pickup_date column:', error);
-    }
-}
-
-// Ensure location_name column exists on orders table (denormalized from locker_preferences)
-async function ensureOrdersLocationNameColumn() {
-    try {
-        await db.query(`
-            ALTER TABLE orders ADD COLUMN IF NOT EXISTS location_name VARCHAR(255);
-        `);
-        logger.info('📍 Orders location_name column ready');
-    } catch (error) {
-        logger.error('Error adding location_name column:', error);
-    }
-}
-
-// Ensure excluded column exists on product_locker_sizes table
-async function ensureProductExcludedColumn() {
-    try {
-        await db.query(`
-            ALTER TABLE product_locker_sizes ADD COLUMN IF NOT EXISTS excluded BOOLEAN DEFAULT FALSE;
-        `);
-        logger.info('🚫 Product excluded column ready');
-    } catch (error) {
-        logger.error('Error adding excluded column:', error);
-    }
-}
-
-// Ensure store plan columns exist
-async function ensureStorePlanColumns() {
-    try {
-        await db.query(`
-            ALTER TABLE stores ADD COLUMN IF NOT EXISTS shop_plan VARCHAR(100);
-            ALTER TABLE stores ADD COLUMN IF NOT EXISTS carrier_service_registered BOOLEAN DEFAULT false;
-            ALTER TABLE stores ADD COLUMN IF NOT EXISTS plan_last_checked TIMESTAMP;
-            ALTER TABLE stores ADD COLUMN IF NOT EXISTS partner_development BOOLEAN DEFAULT false;
-            ALTER TABLE stores ADD COLUMN IF NOT EXISTS shopify_plus BOOLEAN DEFAULT false;
-        `);
-        logger.info('🏪 Store plan columns ready');
-    } catch (error) {
-        logger.error('Error adding store plan columns:', error);
-    }
-}
+// Schema for `audit_log`, `locker_reservations`, `subscriptions`, `waitlist`,
+// `branding_settings`, plus all additive ALTERs on `orders`, `stores`, and
+// `product_locker_sizes` lives in migrations/20260504000000_baseline_schema.js.
 
 // Query shop plan from Shopify GraphQL
 async function getShopPlan(shop, accessToken) {
@@ -8802,38 +8594,17 @@ app.post('/api/errors', express.json(), (req, res) => {
 // ============================================
 
 app.listen(PORT, async () => {
-    // Initialize audit logging table
-    await initAuditLog();
+    // Apply pending DB migrations (replaces the legacy ensure*/init* startup
+    // helpers; see migrations/ and P4-2 in LAUNCH_CHECKLIST.md).
+    try {
+        await runMigrations({ logger });
+    } catch (err) {
+        logger.error({ err: err.message, stack: err.stack }, '❌ Migration runner failed');
+    }
 
-    // Initialize locker reservations table
-    await initLockerReservations();
-
-    // Ensure notes column exists on orders table
-    await ensureOrdersNotesColumn();
-
-    // Ensure preferred_pickup_date column exists
-    await ensurePickupDateColumn();
-
-    // Ensure location_name column exists on orders
-    await ensureOrdersLocationNameColumn();
-
-    // Encrypt any legacy plaintext access tokens at rest (S2-10)
+    // Encrypt any legacy plaintext access tokens at rest (S2-10).
+    // This is a data migration, not a schema migration — keep it separate.
     await db.migrateAccessTokensToEncrypted();
-
-    // Ensure excluded column exists on product_locker_sizes
-    await ensureProductExcludedColumn();
-
-    // Initialize branding settings table
-    await initBrandingSettings();
-
-    // Initialize waitlist table
-    await ensureWaitlistTable();
-
-    // Initialize subscriptions table
-    await initSubscriptions();
-
-    // Ensure store plan columns exist
-    await ensureStorePlanColumns();
 
     // Schedule data retention cleanup
     scheduleDataRetention();

@@ -76,7 +76,7 @@ Launch-readiness is gated by **Sprint 1 (security & auth)**. Several items previ
 | ID | Task | Severity | Notes |
 |----|------|----------|-------|
 | P4-1 | Refactor `server.js` into modular route files (was #29) | 🟢 MEDIUM | 8500 lines. Maintainability, not launch-blocking. |
-| P4-2 | Adopt a real DB migration system (NEW) | 🟢 MEDIUM | Replace the scattered `ensureXColumn()` patterns in `server.js:8520-8543`. Pick `node-pg-migrate` or similar. First post-launch schema change will be scary without this. |
+| P4-2 | Adopt a real DB migration system (NEW) | 🟢 MEDIUM | ✅ Done 2026-05-04. `node-pg-migrate` v8 wired in. Baseline migration `migrations/20260504000000_baseline_schema.js` captures all prior schema (idempotent — safe to apply against the populated prod DB). Server startup now calls `runMigrations()` from `migrations.js` instead of 11 separate `ensure*`/`init*` helpers (deleted). Future schema changes: `npm run migrate:create -- <name>`. |
 | P4-3 | Add automated tests (was #33) | 🔵 LOW | Critical paths first: webhook HMAC, OAuth, order lifecycle. |
 | P4-4 | CI/CD via GitHub Actions (was #34) | 🔵 LOW | Auto-deploy to Droplet on `main` push. |
 | P4-5 | Returns via locker (was #35) | 🔵 LOW | Future feature. |
