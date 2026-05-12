@@ -2849,18 +2849,28 @@
         // Check if user needs onboarding (no locker preferences saved)
         async function checkOnboardingNeeded() {
             try {
-                const response = await window.__nativeFetch(`/api/locker-preferences/${shop}`);
-                const preferences = await response.json();
-
-                // Check if user has skipped onboarding before
-                const skippedOnboarding = localStorage.getItem(`lockerdrop_onboarding_skipped_${shop}`);
+                const [prefsResp, skipResp] = await Promise.all([
+                    window.__nativeFetch(`/api/locker-preferences/${shop}`),
+                    window.__nativeFetch(`/api/onboarding-skip/${shop}`)
+                ]);
+                const preferences = await prefsResp.json();
+                // Skip state lives on the server (stores.onboarding_skipped_at) so it
+                // follows the merchant across devices. Fall back to legacy localStorage
+                // for one transitional read — gets cleared the moment we touch it.
+                let skipped = false;
+                if (skipResp.ok) {
+                    const skipData = await skipResp.json();
+                    skipped = !!skipData.skipped;
+                } else {
+                    skipped = !!localStorage.getItem(`lockerdrop_onboarding_skipped_${shop}`);
+                }
+                // Migrate any stale localStorage value away once we've consulted the server.
+                localStorage.removeItem(`lockerdrop_onboarding_skipped_${shop}`);
 
                 if (preferences.length === 0) {
-                    if (skippedOnboarding) {
-                        // Show reminder banner instead of modal
+                    if (skipped) {
                         showSetupReminderBanner();
                     } else {
-                        // Show onboarding modal
                         showOnboardingModal();
                     }
                 }
@@ -2936,10 +2946,31 @@
                 // Completed onboarding
                 closeOnboardingModal();
                 hideSetupReminderBanner();
-                localStorage.removeItem(`lockerdrop_onboarding_skipped_${shop}`);
+                clearOnboardingSkipState();
                 // Navigate to lockers tab to start setup
                 showTab('lockers');
             }
+        }
+
+        // Server-backed onboarding-skip helpers (UX_AUDIT #3-2).
+        async function persistOnboardingSkip() {
+            try {
+                await window.__nativeFetch(`/api/onboarding-skip/${shop}`, { method: 'POST' });
+            } catch (e) {
+                console.warn('Could not persist onboarding-skip to server:', e.message);
+            }
+            // Belt-and-suspenders: if the network call fails, fall back to localStorage so
+            // the merchant at least isn't re-prompted in this browser.
+            localStorage.setItem(`lockerdrop_onboarding_skipped_${shop}`, 'true');
+        }
+
+        async function clearOnboardingSkipState() {
+            try {
+                await window.__nativeFetch(`/api/onboarding-skip/${shop}`, { method: 'DELETE' });
+            } catch (e) {
+                console.warn('Could not clear server onboarding-skip:', e.message);
+            }
+            localStorage.removeItem(`lockerdrop_onboarding_skipped_${shop}`);
         }
 
         function onboardingBack() {
@@ -2950,13 +2981,13 @@
         }
 
         function skipOnboarding() {
-            localStorage.setItem(`lockerdrop_onboarding_skipped_${shop}`, 'true');
+            persistOnboardingSkip();
             closeOnboardingModal();
             showSetupReminderBanner();
         }
 
         function reopenOnboarding() {
-            localStorage.removeItem(`lockerdrop_onboarding_skipped_${shop}`);
+            clearOnboardingSkipState();
             hideSetupReminderBanner();
             currentOnboardingStep = 1;
             showOnboardingModal();
@@ -2965,7 +2996,7 @@
         function goToLockersTab() {
             closeOnboardingModal();
             hideSetupReminderBanner();
-            localStorage.removeItem(`lockerdrop_onboarding_skipped_${shop}`);
+            clearOnboardingSkipState();
             showTab('lockers');
         }
 

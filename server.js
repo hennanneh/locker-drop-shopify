@@ -757,6 +757,51 @@ app.get('/api/check-scopes/:shop', requireApiAuth, async (req, res) => {
     }
 });
 
+// Onboarding-skip state lives on stores.onboarding_skipped_at so it follows
+// the merchant across devices (see UX_AUDIT #3-2 + migration 20260504100000).
+app.get('/api/onboarding-skip/:shop', requireApiAuth, async (req, res) => {
+    const { shop } = req.params;
+    try {
+        const result = await db.query(
+            'SELECT onboarding_skipped_at FROM stores WHERE shop = $1',
+            [shop]
+        );
+        const skippedAt = result.rows[0]?.onboarding_skipped_at || null;
+        res.json({ skipped: skippedAt !== null, skippedAt });
+    } catch (err) {
+        logger.error({ err: err.message, shop }, 'Error fetching onboarding-skip state');
+        res.status(500).json({ error: 'Failed to fetch onboarding state' });
+    }
+});
+
+app.post('/api/onboarding-skip/:shop', requireApiAuth, async (req, res) => {
+    const { shop } = req.params;
+    try {
+        await db.query(
+            'UPDATE stores SET onboarding_skipped_at = NOW() WHERE shop = $1',
+            [shop]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        logger.error({ err: err.message, shop }, 'Error saving onboarding-skip state');
+        res.status(500).json({ error: 'Failed to save onboarding state' });
+    }
+});
+
+app.delete('/api/onboarding-skip/:shop', requireApiAuth, async (req, res) => {
+    const { shop } = req.params;
+    try {
+        await db.query(
+            'UPDATE stores SET onboarding_skipped_at = NULL WHERE shop = $1',
+            [shop]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        logger.error({ err: err.message, shop }, 'Error clearing onboarding-skip state');
+        res.status(500).json({ error: 'Failed to clear onboarding state' });
+    }
+});
+
 // Get store location info for initial locker search
 app.get('/api/store-location/:shop', requireApiAuth, async (req, res) => {
     const { shop } = req.params;
