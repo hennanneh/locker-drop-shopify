@@ -3714,9 +3714,18 @@
                         <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLink('${order.orderNumber}')" style="margin-left: 8px;" title="Regenerate if link expired">
                             🔄 Regenerate
                         </button>
-                        <div style="margin-top: 12px; padding: 10px; background: #f0fdf4; border-radius: 6px; font-size: 12px; color: #065f46;">
-                            💡 <strong>Tip:</strong> You can verify or change the locker size before opening.
-                        </div>
+                        <details style="margin-top: 12px;">
+                            <summary style="cursor: pointer; color: #5c6ac4; font-size: 13px; font-weight: 500;">Override size →</summary>
+                            <div style="margin-top: 10px; padding: 10px; background: #f6f6f7; border-radius: 6px;">
+                                <p style="color: #6d7175; font-size: 12px; margin-bottom: 8px;">Force a specific locker size if the auto-picked one won't fit. This swaps the reservation; the old link stops working.</p>
+                                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                    <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'small')">Small</button>
+                                    <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'medium')">Medium</button>
+                                    <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'large')">Large</button>
+                                    <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'x-large')">X-Large</button>
+                                </div>
+                            </div>
+                        </details>
                         ` : '<span style="color: #008060; margin-left: 8px;">✓ Used</span>'}
                     `;
                 } else if (dropoffPending && order.locationId) {
