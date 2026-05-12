@@ -1667,8 +1667,8 @@
                     </span>
                     <button class="btn btn-primary" onclick="openManualOrderModal()">+ Add Manual Order</button>
                 </div>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center;">
-                    <button class="filter-btn active" data-status="active" onclick="filterOrders('active')">Active</button>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; align-items: center;">
+                    <button class="filter-btn active" data-status="active" onclick="filterOrders('active')">Open</button>
                     <button class="filter-btn" data-status="pending_dropoff" onclick="filterOrders('pending_dropoff')">Pending Drop-off</button>
                     <button class="filter-btn" data-status="future_dropoff" onclick="filterOrders('future_dropoff')">Future Drop-off</button>
                     <button class="filter-btn" data-status="ready_for_pickup" onclick="filterOrders('ready_for_pickup')">Ready for Pickup</button>
@@ -1676,6 +1676,11 @@
                     <button class="filter-btn" data-status="cancelled" onclick="filterOrders('cancelled')">Cancelled</button>
                     <button class="filter-btn" data-status="all" onclick="filterOrders('all')">All</button>
                     <input type="search" id="orders-search" placeholder="Search order # or customer…" oninput="searchOrders()" style="margin-left: auto; padding: 8px 12px; border: 1px solid #c4cdd5; border-radius: 6px; font-size: 13px; min-width: 240px;">
+                </div>
+                <!-- Auto-refresh indicator — gives merchants a "now" anchor when the table
+                     silently re-renders every 30 s. Populated by updateRefreshTime(). -->
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+                    <span id="orders-last-refresh" style="color: #6d7175; font-size: 12px;" title="Orders auto-refresh every 30 seconds (paused while a modal is open)">Updated just now</span>
                 </div>
                 <table class="orders-table">
                     <thead>
@@ -2498,10 +2503,10 @@
     </div>
 
     <!-- Order Detail Modal -->
-    <div id="orderModal" class="modal">
+    <div id="orderModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="orderModalTitle">
         <div class="modal-content">
-            <span class="close" onclick="closeModal()">&times;</span>
-            <h2 style="margin-bottom: 20px;">Order Details</h2>
+            <span class="close" onclick="closeModal()" aria-label="Close">&times;</span>
+            <h2 id="orderModalTitle" style="margin-bottom: 20px;">Order Details</h2>
 
             <div class="order-details">
                 <div class="detail-row">
@@ -2560,32 +2565,35 @@
     </div>
 
     <!-- Manual Order Modal -->
-    <div id="manualOrderModal" class="modal">
+    <div id="manualOrderModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="manualOrderModalTitle">
         <div class="modal-content">
-            <span class="close" onclick="closeManualOrderModal()">&times;</span>
-            <h2 style="margin-bottom: 20px;">Add Manual Order</h2>
+            <span class="close" onclick="closeManualOrderModal()" aria-label="Close">&times;</span>
+            <h2 id="manualOrderModalTitle" style="margin-bottom: 20px;">Add Manual Order</h2>
 
             <form id="manualOrderForm" onsubmit="submitManualOrder(event)">
                 <div style="margin-bottom: 16px;">
-                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">Order Number / Reference *</label>
+                    <label class="form-label" for="manual-order-number">Order Number / Reference *</label>
                     <input type="text" id="manual-order-number" required placeholder="e.g., 1031 or MANUAL-001"
                            class="form-input">
                 </div>
 
                 <div style="margin-bottom: 16px;">
-                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">Customer Name *</label>
+                    <label class="form-label" for="manual-customer-name">Customer Name *</label>
                     <input type="text" id="manual-customer-name" required placeholder="John Smith"
                            class="form-input">
                 </div>
 
                 <div style="margin-bottom: 16px;">
-                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">Customer Email *</label>
+                    <label class="form-label" for="manual-customer-email">Customer Email *</label>
                     <input type="email" id="manual-customer-email" required placeholder="customer@example.com"
                            class="form-input">
                 </div>
 
                 <div style="margin-bottom: 16px;">
-                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">Required Locker Size *</label>
+                    <label class="form-label" for="manual-locker-size">
+                        Required Locker Size *
+                        <a href="#learn-locker-sizes" onclick="closeManualOrderModal(); showTab('learn'); return true;" title="What size should I pick?" style="display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-left: 4px; border: 1px solid #c4cdd5; border-radius: 50%; color: #6d7175; font-size: 11px; line-height: 1; text-decoration: none; font-weight: 400;">?</a>
+                    </label>
                     <select id="manual-locker-size" required
                             class="form-input"
                             onchange="updateLockerAvailabilityDisplay()">
@@ -2598,7 +2606,7 @@
                 </div>
 
                 <div style="margin-bottom: 16px;">
-                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">Locker Location *</label>
+                    <label class="form-label" for="manual-locker-select">Locker Location *</label>
                     <select id="manual-locker-select" required
                             class="form-input"
                             onchange="updateLockerAvailabilityDisplay()">
@@ -2608,7 +2616,7 @@
                 </div>
 
                 <div style="margin-bottom: 16px;">
-                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">Preferred Pickup Date</label>
+                    <label class="form-label" for="manual-pickup-date">Preferred Pickup Date</label>
                     <input type="date" id="manual-pickup-date"
                            class="form-input"
                            min="">
@@ -3766,7 +3774,10 @@
                     btnMarkDropped.style.display = 'none';
                 }
 
-                document.getElementById('orderModal').style.display = 'block';
+                const orderModalEl = document.getElementById('orderModal');
+                orderModalEl.style.display = 'block';
+                // Focus first focusable so Tab cycles inside the modal (sets up the trap).
+                setTimeout(() => { const f = focusableWithin(orderModalEl); if (f[0]) f[0].focus(); }, 0);
             } catch (error) {
                 console.error('Error loading order:', error);
                 notify(friendlyError({ error: error.message }, 'Load order details'));
@@ -4971,12 +4982,16 @@
             }
         }
 
-        // Update last refresh timestamp
+        // Update last refresh timestamp. Two render targets:
+        //   - #orders-last-refresh (visible pip on the Orders tab)
+        //   - #last-refresh (legacy span in Settings; hidden but kept for compat)
         function updateRefreshTime() {
             const now = new Date();
-            const timeStr = now.toLocaleTimeString();
-            const el = document.getElementById('last-refresh');
-            if (el) el.textContent = timeStr;
+            const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+            const ordersEl = document.getElementById('orders-last-refresh');
+            if (ordersEl) ordersEl.textContent = `Updated ${timeStr}`;
+            const legacyEl = document.getElementById('last-refresh');
+            if (legacyEl) legacyEl.textContent = timeStr;
         }
 
         // Validate Shopify token on load
@@ -5096,14 +5111,61 @@
             }
         };
 
+        // Focus-trap helper. Returns the topmost visible aria-modal dialog,
+        // or null if none is open. Used to scope Tab cycling inside the modal.
+        function topmostOpenModal() {
+            const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+            for (let i = dialogs.length - 1; i >= 0; i--) {
+                const el = dialogs[i];
+                if (getComputedStyle(el).display !== 'none' && el.offsetParent !== null) return el;
+            }
+            return null;
+        }
+
+        // Focusable-element selector for Tab cycle. Excludes disabled, hidden,
+        // and tabindex=-1. Filters out elements whose offsetParent is null
+        // (hidden via display:none on an ancestor).
+        function focusableWithin(root) {
+            const sel = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+            return Array.from(root.querySelectorAll(sel))
+                .filter(el => el.offsetParent !== null);
+        }
+
         // Keyboard shortcuts:
         //   Esc — close any open dashboard modal (matches the confirm-modal behavior;
         //         skipped when a confirm-modal is already open so a single Esc doesn't
         //         dismiss two layers).
+        //   Tab — when a modal is open, cycle focus within it (don't escape to the
+        //         page behind).
         //   /   — focus the Orders search box, when not already typing.
         document.addEventListener('keydown', function(event) {
             const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)
                 || document.activeElement?.isContentEditable;
+
+            // Tab focus trap inside open modal.
+            if (event.key === 'Tab') {
+                // Confirm-modal owns its own focus already; let it handle its own Tab.
+                if (document.querySelector('.confirm-modal-overlay')) return;
+                const modal = topmostOpenModal();
+                if (!modal) return;
+                const focusables = focusableWithin(modal);
+                if (focusables.length === 0) return;
+                const first = focusables[0];
+                const last = focusables[focusables.length - 1];
+                const active = document.activeElement;
+                if (event.shiftKey) {
+                    if (active === first || !modal.contains(active)) {
+                        event.preventDefault();
+                        last.focus();
+                    }
+                } else {
+                    if (active === last || !modal.contains(active)) {
+                        event.preventDefault();
+                        first.focus();
+                    }
+                }
+                return;
+            }
 
             if (event.key === 'Escape') {
                 if (document.querySelector('.confirm-modal-overlay')) return;
@@ -5167,6 +5229,8 @@
             }
 
             modal.style.display = 'block';
+            // Focus the first form field so Tab cycles inside the modal (focus trap).
+            setTimeout(() => { const f = focusableWithin(modal); if (f[0]) f[0].focus(); }, 0);
         }
 
         function closeManualOrderModal() {
@@ -5273,7 +5337,20 @@
             // Block submission if the availability indicator says "No locker available".
             // The same checkUpdateLockerAvailabilityDisplay populated this; submitting
             // anyway burns a Harbor reservation when the server's allocation fails.
+            // Also block while the check is in-flight or unknown — submitting against
+            // "Checking…" or "Could not check" is a coin-flip that wastes a reservation.
             const availabilityHtml = document.getElementById('manual-locker-availability').innerHTML;
+            if (availabilityHtml.includes('Checking availability')) {
+                notify('Still checking locker availability. Hold on a moment, then try again.');
+                return;
+            }
+            if (availabilityHtml.includes('Could not check')) {
+                const proceed = await confirmAsync(
+                    "Couldn't confirm availability for this locker. Submitting anyway may fail. Proceed?",
+                    { title: 'Availability unknown', confirmLabel: 'Submit anyway', cancelLabel: 'Try a different locker', danger: true }
+                );
+                if (!proceed) return;
+            }
             if (availabilityHtml.includes('⚠')) {
                 const proceed = await confirmAsync(
                     'No suitable locker is available at this location for the selected size. Submitting anyway will likely fail. Proceed anyway?',

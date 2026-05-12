@@ -4104,6 +4104,11 @@ app.get('/api/product-sizes/:shop', requireApiAuth, async (req, res) => {
 // ============================================
 // DOCUMENTATION ROUTES
 // ============================================
+// These routes are intentionally public and must stay that way — the dashboard
+// links to them with target="_blank" from inside Shopify Admin, which means the
+// embedded session token isn't attached. If you ever add auth here, also rewire
+// every call site in admin-dashboard.html to use App Bridge `Redirect.toRemote`,
+// or merchants will hit a login wall. See UX_AUDIT.md finding #10-1.
 
 // Serve documentation pages
 app.get('/docs/training', (req, res) => {
