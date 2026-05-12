@@ -1438,6 +1438,11 @@
             if (text.includes('locker') && (text.includes('not available') || text.includes('no available') || text.includes('availability'))) {
                 return `${verb} failed: no suitable locker is available. Try a different size or location.`;
             }
+            // Cancelling a locker after the customer already opened it is a common refusal —
+            // map it to actionable copy that points to the right next step.
+            if (text.includes('already accessed') || text.includes('locker already opened') || text.includes('already opened')) {
+                return `Customer already accessed this locker — mark the order Completed instead.`;
+            }
             if (text.includes('harbor') || text.includes('econnrefused') || text.includes('etimedout') || text.includes('econnreset') || text.includes('502') || text.includes('503') || text.includes('504')) {
                 return `${verb} failed: couldn't reach Harbor. Try again in a moment — if it persists, email support@lockerdrop.it.`;
             }
@@ -1828,7 +1833,6 @@
                         <div style="text-align: center;">H (in)</div>
                         <div style="text-align: center;">Locker Size</div>
                         <div style="text-align: center;" title="Check to exclude from LockerDrop">Exclude</div>
-                        <div style="text-align: center;" title="Exclude this product from LockerDrop">Exclude</div>
                     </div>
 
                     <div id="products-list">
@@ -3076,7 +3080,7 @@
                 }
             } catch (error) {
                 console.error('Error registering carrier:', error);
-                notify('Failed to register carrier service. Please try again later.');
+                notify(friendlyError({ error: error.message }, 'Register carrier service'));
             } finally {
                 if (btn) {
                     btn.disabled = false;
@@ -3765,7 +3769,7 @@
                 document.getElementById('orderModal').style.display = 'block';
             } catch (error) {
                 console.error('Error loading order:', error);
-                notify('Failed to load order details');
+                notify(friendlyError({ error: error.message }, 'Load order details'));
             }
         }
 
@@ -3840,7 +3844,7 @@
                 }
             } catch (error) {
                 console.error('Error changing location:', error);
-                notify('Error changing location. Please try again.');
+                notify(friendlyError({ error: error.message }, 'Change location'));
                 btn.disabled = false;
                 btn.textContent = 'Move Order';
             }
@@ -3905,7 +3909,7 @@
                 }
             } catch (error) {
                 console.error('Error regenerating pickup link:', error);
-                notify('Error: Failed to regenerate link. Please try again.');
+                notify(friendlyError({ error: error.message }, 'Regenerate pickup link'));
             }
         }
 
@@ -3938,7 +3942,7 @@
                 }
             } catch (error) {
                 console.error('Error regenerating dropoff link:', error);
-                notify('Error regenerating link. Please try again.');
+                notify(friendlyError({ error: error.message }, 'Regenerate dropoff link'));
             }
         }
 
@@ -3973,7 +3977,7 @@
                 }
             } catch (error) {
                 console.error('Error generating dropoff link with size:', error);
-                notify('Error generating link. Please try again.');
+                notify(friendlyError({ error: error.message }, 'Generate dropoff link'));
             }
         }
 
@@ -3994,7 +3998,7 @@
                 }
             } catch (error) {
                 console.error('Error syncing:', error);
-                notify('Error syncing orders');
+                notify(friendlyError({ error: error.message }, 'Sync orders'));
             }
         }
 
@@ -4045,7 +4049,7 @@
                 }
             } catch (error) {
                 console.error('Error resending email:', error);
-                notify('Failed to resend email');
+                notify(friendlyError({ error: error.message }, 'Resend email'));
             }
         }
 
@@ -4074,7 +4078,7 @@
                 }
             } catch (error) {
                 console.error('Error cancelling locker:', error);
-                notify('Failed to cancel locker request');
+                notify(friendlyError({ error: error.message }, 'Cancel locker'));
             }
         }
 
@@ -4528,13 +4532,13 @@
                     // Also hide reminder banner if it was showing
                     hideSetupReminderBanner();
                 } else {
-                    notify('Failed to save preferences');
+                    notify(friendlyError(data, 'Save locker preferences'));
                     btn.textContent = originalText;
                 }
                 loadStats();
             } catch (error) {
                 console.error('Error:', error);
-                notify('Error saving preferences');
+                notify(friendlyError({ error: error.message }, 'Save locker preferences'));
                 btn.textContent = originalText;
             } finally {
                 btn.classList.remove('btn-loading');
@@ -4682,7 +4686,7 @@
                 }
             } catch (error) {
                 console.error('Error saving settings:', error);
-                notify('Error saving settings');
+                notify(friendlyError({ error: error.message }, 'Save settings'));
             }
         }
 
@@ -5279,8 +5283,9 @@
             }
 
             // Also catch duplicate orderNumber client-side so we don't waste a Harbor
-            // reservation on an INSERT that's going to fail.
-            if (Array.isArray(allOrders) && allOrders.some(o => String(o.order_number) === orderNumber)) {
+            // reservation on an INSERT that's going to fail. Synced orders come back
+            // as camelCase (`orderNumber`); manual/raw rows may be snake — check both.
+            if (Array.isArray(allOrders) && allOrders.some(o => String(o.orderNumber ?? o.order_number) === orderNumber)) {
                 const proceed = await confirmAsync(
                     `Order #${orderNumber} already exists. Use a different reference or it will fail to save.`,
                     { title: 'Duplicate order number', confirmLabel: 'Submit anyway', cancelLabel: 'Pick another', danger: true }
@@ -5316,7 +5321,7 @@
                 }
             } catch (error) {
                 console.error('Error creating manual order:', error);
-                notify('Error creating order: ' + error.message);
+                notify(friendlyError({ error: error.message }, 'Create order'));
             }
         }
 
@@ -5528,7 +5533,7 @@
                 }
             } catch (error) {
                 console.error('Error saving product sizes:', error);
-                notify('Error saving: ' + error.message);
+                notify(friendlyError({ error: error.message }, 'Save product sizes'));
                 btn.textContent = originalText;
             } finally {
                 btn.classList.remove('btn-loading');
@@ -5844,17 +5849,21 @@
                     notify(result.message);
                     loadSubscription();
                 } else {
-                    notify('Error: ' + (result.error || 'Action failed'));
+                    notify(friendlyError(result, 'Dev billing action'));
                 }
             } catch (error) {
                 console.error('Error:', error);
-                notify('Error: ' + error.message);
+                notify(friendlyError({ error: error.message }, 'Dev billing action'));
             }
         }
 
         // ============================================
         // BRANDING FUNCTIONS (Enterprise Only)
         // ============================================
+        // Same data-loss guard as the main Settings tab: refuse to autosave
+        // until we've successfully loaded once, otherwise a flaky GET would let
+        // autoSaveBranding POST hardcoded HTML defaults over real branding.
+        let brandingLoaded = false;
 
         async function loadBrandingSettings() {
             try {
@@ -5928,8 +5937,11 @@
                 // Toggle Rebuy settings visibility
                 document.getElementById('rebuy-settings').style.display = data.rebuyEnabled ? 'block' : 'none';
 
+                brandingLoaded = true;
             } catch (error) {
                 console.error('Error loading branding settings:', error);
+                brandingLoaded = false;
+                notify('Could not load your saved branding. Refresh to retry — branding auto-save is disabled until it loads.');
             }
         }
 
@@ -5978,7 +5990,7 @@
                 }
             } catch (error) {
                 console.error('Error uploading logo:', error);
-                notify('Error uploading logo. Please try again.');
+                notify(friendlyError({ error: error.message }, 'Upload logo'));
             } finally {
                 uploadBtn.innerHTML = originalText;
                 uploadBtn.disabled = false;
@@ -6010,7 +6022,7 @@
                 }
             } catch (error) {
                 console.error('Error removing logo:', error);
-                notify('Error removing logo. Please try again.');
+                notify(friendlyError({ error: error.message }, 'Remove logo'));
             }
         }
 
@@ -6187,6 +6199,9 @@
 
         // Auto-save Branding (debounced)
         function autoSaveBranding() {
+            // Refuse to save until branding has been successfully loaded — otherwise
+            // we'd be writing hardcoded HTML defaults over the merchant's real config.
+            if (!brandingLoaded) return;
             if (autoSaveBrandingTimer) clearTimeout(autoSaveBrandingTimer);
             autoSaveBrandingTimer = setTimeout(async () => {
                 await saveBrandingSettings();
