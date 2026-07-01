@@ -2275,6 +2275,42 @@ app.post('/api/pickup-complete', requireOrderToken, async (req, res) => {
     }
 });
 
+// ── Reviewer / dev-store simulation of the physical locker steps ──────────────
+// Drop-off and pickup normally require a phone at a Harbor locker, which an App
+// Store reviewer can't do. On DEVELOPMENT stores only, these endpoints drive the
+// exact same completion flow (drop-off → ready_for_pickup, pickup → fulfilled) by
+// forwarding to the real handlers with a signed order token. Hard-gated to
+// partner_development shops so they can never run on a live merchant store.
+async function simulateLockerStep(req, res, stage) {
+    try {
+        const { shop, orderId } = req.params;
+        const orderNumber = String(orderId).replace(/^#/, '');
+        const store = await db.query('SELECT partner_development FROM stores WHERE shop = $1', [shop]);
+        if (!store.rows[0]?.partner_development) {
+            return res.status(403).json({ error: 'Simulation is only available on development stores.' });
+        }
+        const own = await db.query('SELECT id FROM orders WHERE shop = $1 AND order_number = $2', [shop, orderNumber]);
+        if (own.rows.length === 0) {
+            return res.status(404).json({ error: 'Order not found for this shop' });
+        }
+        const endpoint = stage === 'dropoff' ? 'dropoff-complete' : 'pickup-complete';
+        const PORT = process.env.PORT || 3000;
+        const fwd = await axios.post(
+            `http://localhost:${PORT}/api/${endpoint}`,
+            { orderNumber, t: signOrderToken(orderNumber), status: stage === 'dropoff' ? 'dropped_off' : 'picked_up' },
+            { headers: { 'Content-Type': 'application/json' }, validateStatus: () => true }
+        );
+        logger.info({ shop, orderNumber, stage }, '🧪 Simulated locker step (dev store)');
+        return res.status(fwd.status).json(fwd.data);
+    } catch (e) {
+        logger.error({ err: e }, 'Simulate locker step failed');
+        return res.status(500).json({ error: e.message });
+    }
+}
+
+app.post('/api/simulate/:shop/:orderId/dropoff', requireApiAuth, (req, res) => simulateLockerStep(req, res, 'dropoff'));
+app.post('/api/simulate/:shop/:orderId/pickup', requireApiAuth, (req, res) => simulateLockerStep(req, res, 'pickup'));
+
 // Cancel locker request for an order
 app.post('/api/order/:shop/:orderId/cancel-locker', requireApiAuth, async (req, res) => {
     try {

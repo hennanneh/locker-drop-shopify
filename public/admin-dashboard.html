@@ -3652,9 +3652,34 @@
                     <td data-label="Status"><span class="status-badge status-${order.status}">${formatStatus(order.status, order.completedAt)}</span></td>
                     <td>
                         <button class="btn btn-primary btn-small" onclick="viewOrder('${order.orderNumber}')">View</button>
+                        ${shopPlanData?.partnerDevelopment && order.status === 'pending_dropoff' ? `<button class="btn btn-secondary btn-small" title="Reviewer only (development store): simulate the physical drop-off" onclick="simulateStep('${order.orderNumber}','dropoff')">Sim drop-off</button>` : ''}
+                        ${shopPlanData?.partnerDevelopment && order.status === 'ready_for_pickup' ? `<button class="btn btn-secondary btn-small" title="Reviewer only (development store): simulate the physical pickup" onclick="simulateStep('${order.orderNumber}','pickup')">Sim pickup</button>` : ''}
                     </td>
                 </tr>
             `).join('');
+        }
+
+        // Reviewer/dev-store only: simulate the physical locker drop-off/pickup so an
+        // App Store reviewer can complete the flow without visiting a Harbor locker.
+        // Backend hard-gates this to development stores; buttons only render there.
+        async function simulateStep(orderNumber, stage) {
+            const label = stage === 'dropoff' ? 'drop-off' : 'pickup';
+            if (!confirm(`Simulate ${label} for order #${orderNumber}? (development stores only)`)) return;
+            try {
+                const resp = await window.__nativeFetch(`/api/simulate/${shop}/${orderNumber}/${stage}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await resp.json().catch(() => ({}));
+                if (resp.ok && result.success !== false) {
+                    notify(`Simulated ${label} for #${orderNumber}.`);
+                    await loadOrders();
+                } else {
+                    notify(result.error || result.message || `Could not simulate ${label}.`);
+                }
+            } catch (e) {
+                notify(`Could not simulate ${label}: ${e.message}`);
+            }
         }
 
         // Single source of truth for status labels — reused across order badges,
