@@ -5042,13 +5042,39 @@
 
                 if (!result.valid) {
                     console.warn('Shopify token invalid:', result.error);
-                    document.getElementById('reconnect-banner').style.display = 'block';
-                    if (result.error) {
-                        document.getElementById('reconnect-message').textContent =
-                            `⚠️ Shopify connection error: ${result.error}. Click to reconnect.`;
+
+                    // A simply-missing offline token (fresh install, or cleared) is
+                    // not an "error" to the merchant — recover it seamlessly by
+                    // completing OAuth once per session (Shopify skips the consent
+                    // screen when scopes are already granted, so this is invisible).
+                    // The session flag prevents a redirect loop if the callback keeps
+                    // failing to persist the token.
+                    const isMissingToken = result.needsReconnect &&
+                        (!result.error || /no token found/i.test(String(result.error)));
+
+                    if (isMissingToken && !sessionStorage.getItem('ld_reconnect_attempted')) {
+                        sessionStorage.setItem('ld_reconnect_attempted', '1');
+                        reconnectToShopify();
+                        return false;
                     }
+
+                    const banner = document.getElementById('reconnect-banner');
+                    const msg = document.getElementById('reconnect-message');
+                    const btn = banner.querySelector('button');
+                    if (isMissingToken) {
+                        // Friendly "finish connecting" framing, not a scary error.
+                        banner.style.background = '#e7f5ff';
+                        banner.style.color = '#1c3d5a';
+                        msg.textContent = '👋 Finish connecting LockerDrop to your store to start accepting locker orders.';
+                        if (btn) btn.textContent = 'Connect to Shopify';
+                    } else if (result.error) {
+                        msg.textContent = `⚠️ Shopify connection error: ${result.error}. Click to reconnect.`;
+                    }
+                    banner.style.display = 'block';
                     return false;
                 }
+                // Clear the one-shot guard once we're validly connected again.
+                sessionStorage.removeItem('ld_reconnect_attempted');
                 return true;
             } catch (error) {
                 console.error('Error validating token:', error);

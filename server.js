@@ -4721,7 +4721,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
                     availableLockers.push({
                         id: location.id,
                         name: location.name || location.location_name,
-                        address: location.address || `${location.street_address}, ${location.city}, ${location.state} ${location.zip}`,
+                        address: location.address || [location.street_address, location.city, [location.state, location.zip].filter(Boolean).join(' ').trim()].filter(Boolean).join(', '),
                         city: location.city,
                         state: location.state,
                         zip: location.zip,
