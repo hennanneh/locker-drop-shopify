@@ -521,7 +521,7 @@ const accessTokens = new Map();
 app.get('/auth/install', (req, res) => {
     const shop = req.query.shop;
     const redirectUri = `https://app.lockerdrop.it/auth/callback`;
-    const scopes = process.env.SHOPIFY_SCOPES || 'write_shipping,read_orders,write_orders,read_products,read_fulfillments,write_fulfillments';
+    const scopes = process.env.SHOPIFY_SCOPES || 'write_shipping,read_orders,write_orders,read_products,read_fulfillments,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders';
     const nonce = crypto.randomBytes(16).toString('hex');
     
     const installUrl = 
@@ -637,7 +637,7 @@ app.get('/auth/reconnect', (req, res) => {
     logger.info(`🔄 Reconnect requested for ${shop}`);
 
     const redirectUri = `https://app.lockerdrop.it/auth/callback`;
-    const scopes = process.env.SHOPIFY_SCOPES || 'write_shipping,read_orders,write_orders,read_products,read_fulfillments,write_fulfillments';
+    const scopes = process.env.SHOPIFY_SCOPES || 'write_shipping,read_orders,write_orders,read_products,read_fulfillments,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders';
     const nonce = crypto.randomBytes(16).toString('hex');
 
     const installUrl =
@@ -720,7 +720,7 @@ app.get('/api/check-scopes/:shop', requireApiAuth, async (req, res) => {
         const grantedScopes = (data?.currentAppInstallation?.accessScopes || []).map(s => s.handle);
 
         // Required scopes for full functionality
-        const requiredScopes = ['write_fulfillments', 'read_fulfillments'];
+        const requiredScopes = ['write_fulfillments', 'read_fulfillments', 'read_merchant_managed_fulfillment_orders', 'write_merchant_managed_fulfillment_orders'];
         const missingScopes = requiredScopes.filter(s => !grantedScopes.includes(s));
 
         if (missingScopes.length > 0) {
@@ -8278,7 +8278,7 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
             errorMessage.includes('Access denied') ||
             error.response?.status === 403
         )) {
-            logger.error(`🔐 Permission error detected - shop "${shop}" needs to re-authorize with write_fulfillments scope`);
+            logger.error(`🔐 Permission error detected - shop "${shop}" needs to re-authorize for fulfillment-order scopes (read/write_merchant_managed_fulfillment_orders)`);
             return {
                 success: false,
                 message: errorMessage,

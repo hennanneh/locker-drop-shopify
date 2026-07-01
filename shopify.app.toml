@@ -19,8 +19,12 @@ embedded = true
 #                        (avoids duplicates on retry).
 #   write_fulfillments — Create fulfillments via fulfillmentCreateV2 once the customer
 #                        picks up the package.
+#   read/write_merchant_managed_fulfillment_orders — Required to read an order's
+#                        fulfillmentOrders and create the fulfillment via
+#                        fulfillmentCreateV2. Without these, `order.fulfillmentOrders`
+#                        returns "Access denied" and auto-fulfillment fails.
 [access_scopes]
-scopes = "write_shipping,read_orders,write_orders,read_products,read_fulfillments,write_fulfillments"
+scopes = "write_shipping,read_orders,write_orders,read_products,read_fulfillments,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders"
 
 [auth]
 redirect_urls = ["https://app.lockerdrop.it/auth/callback"]
