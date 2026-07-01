@@ -6416,6 +6416,21 @@ app.post('/webhooks/shop/redact', verifyShopifyWebhook, async (req, res) => {
 
 // ==================== End GDPR Webhooks ====================
 
+// Run a DELETE inside a SAVEPOINT so an error on an OPTIONAL table (e.g. a
+// missing relation that "may not exist yet") rolls back only that statement
+// instead of aborting the whole surrounding transaction. `savepoint` is a
+// fixed internal identifier, never user input.
+async function deleteWithSavepoint(client, savepoint, sql, params) {
+    await client.query(`SAVEPOINT ${savepoint}`);
+    try {
+        await client.query(sql, params);
+        await client.query(`RELEASE SAVEPOINT ${savepoint}`);
+    } catch (e) {
+        await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+        logger.info(`   ⚠️ Skipped ${savepoint} cleanup: ${e.message}`);
+    }
+}
+
 async function processAppUninstall(shop) {
     if (!shop) {
         logger.info('❌ No shop domain in uninstall webhook');
@@ -6460,45 +6475,61 @@ async function processAppUninstall(shop) {
             }
         }
 
-        // Delete shop data in order (respecting foreign keys)
-        await db.query('DELETE FROM locker_events WHERE order_id IN (SELECT id FROM orders WHERE shop = $1)', [shop]);
-        await db.query('DELETE FROM orders WHERE shop = $1', [shop]);
-        await db.query('DELETE FROM locker_preferences WHERE shop = $1', [shop]);
-        await db.query('DELETE FROM product_locker_sizes WHERE shop = $1', [shop]);
-        await db.query('DELETE FROM shop_settings WHERE shop = $1', [shop]);
-        await db.query('DELETE FROM subscriptions WHERE shop = $1', [shop]);
-
-        // Delete branding settings and uploaded logo
+        // Read the branding logo path BEFORE the transaction so the file is only
+        // unlinked after a successful COMMIT (never on a rollback).
+        let logoPathToDelete = null;
         try {
             const branding = await db.query('SELECT logo_url FROM branding_settings WHERE shop = $1', [shop]);
             if (branding.rows.length > 0 && branding.rows[0].logo_url) {
-                const logoPath = path.join(__dirname, 'public', branding.rows[0].logo_url);
-                if (fs.existsSync(logoPath)) {
-                    fs.unlinkSync(logoPath);
-                    logger.info(`   🗑️ Deleted logo file: ${logoPath}`);
-                }
+                const p = path.join(__dirname, 'public', branding.rows[0].logo_url);
+                if (fs.existsSync(p)) logoPathToDelete = p;
             }
-            await db.query('DELETE FROM branding_settings WHERE shop = $1', [shop]);
         } catch (e) {
-            // branding_settings table may not exist yet
+            // branding_settings table may not exist yet — ignore
         }
 
-        // Delete sessions for this shop
+        // Delete all shop data atomically: either everything is removed or nothing
+        // is, so we can never leave an inconsistent partial state (e.g. a
+        // subscriptions row without its matching stores row).
+        const client = await db.pool.connect();
         try {
-            await db.query(`DELETE FROM user_sessions WHERE sess::text LIKE $1`, [`%${shop}%`]);
-        } catch (e) {
-            // user_sessions table may not exist yet
+            await client.query('BEGIN');
+
+            // Core tables (always present). Order respects foreign keys.
+            await client.query('DELETE FROM locker_events WHERE order_id IN (SELECT id FROM orders WHERE shop = $1)', [shop]);
+            await client.query('DELETE FROM orders WHERE shop = $1', [shop]);
+            await client.query('DELETE FROM locker_preferences WHERE shop = $1', [shop]);
+            await client.query('DELETE FROM product_locker_sizes WHERE shop = $1', [shop]);
+            await client.query('DELETE FROM shop_settings WHERE shop = $1', [shop]);
+            await client.query('DELETE FROM subscriptions WHERE shop = $1', [shop]);
+
+            // Optional tables that "may not exist yet" — isolate each in a savepoint
+            // so a missing-relation error can't abort the whole transaction.
+            await deleteWithSavepoint(client, 'sp_branding', 'DELETE FROM branding_settings WHERE shop = $1', [shop]);
+            await deleteWithSavepoint(client, 'sp_sessions', 'DELETE FROM user_sessions WHERE sess::text LIKE $1', [`%${shop}%`]);
+
+            // Store record + access token last.
+            await client.query('DELETE FROM stores WHERE shop = $1', [shop]);
+
+            await client.query('COMMIT');
+        } catch (txError) {
+            try { await client.query('ROLLBACK'); }
+            catch (rbError) { logger.error(`   ⚠️ ROLLBACK failed for ${shop}: ${rbError.message}`); }
+            throw txError; // surfaced below; shop/redact re-runs this as a safety net
+        } finally {
+            client.release();
         }
 
-        // Delete store record and access token last
-        await db.query('DELETE FROM stores WHERE shop = $1', [shop]);
-
-        // Remove from in-memory token cache
+        // Post-commit side effects — only after the deletes are durably committed.
+        if (logoPathToDelete) {
+            try { fs.unlinkSync(logoPathToDelete); logger.info(`   🗑️ Deleted logo file: ${logoPathToDelete}`); }
+            catch (e) { logger.info(`   ⚠️ Could not delete logo file: ${e.message}`); }
+        }
         accessTokens.delete(shop);
 
         logger.info(`✅ All data cleaned up for ${shop}`);
     } catch (error) {
-        logger.error(`❌ Error cleaning up data for ${shop}:`, error);
+        logger.error({ err: error }, `❌ Error cleaning up data for ${shop}`);
     }
 }
 
