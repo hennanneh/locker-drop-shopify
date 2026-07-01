@@ -2265,28 +2265,22 @@
                     </div>
                 </div>
 
-                <!-- State C: Not eligible — manual rate (blue/info) -->
+                <!-- State C: CCS not enabled — required to use LockerDrop (yellow/action) -->
                 <div id="shipping-state-manual" style="display: none;">
-                    <div style="background: #f0f4ff; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: flex-start; gap: 8px;">
-                        <svg width="16" height="16" viewBox="0 0 20 20" fill="#5c6ac4" style="flex-shrink: 0; margin-top: 2px;"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm1 11H9v-2h2v2zm0-4H9V6h2v3z"/></svg>
-                        <span style="color: #3b4b7a; font-size: 14px;">Your Shopify plan (<strong id="plan-name-display"></strong>) doesn't include carrier-calculated shipping. Use a manual shipping rate instead — it works great!</span>
+                    <div style="background: #fff8e6; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; display: flex; align-items: flex-start; gap: 8px;">
+                        <svg width="16" height="16" viewBox="0 0 20 20" fill="#8a6d00" style="flex-shrink: 0; margin-top: 2px;"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 3a1 1 0 011 1v4a1 1 0 01-2 0V6a1 1 0 011-1zm0 8a1 1 0 100 2 1 1 0 000-2z"/></svg>
+                        <span style="color: #8a6d00; font-size: 14px;"><strong>LockerDrop needs carrier-calculated shipping.</strong> Your Shopify plan (<strong id="plan-name-display"></strong>) doesn't have it enabled yet — turn it on so LockerDrop can show locker locations at checkout with live availability.</span>
                     </div>
-                    <p style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">Add a manual shipping rate for LockerDrop:</p>
-                    <ol style="margin: 0 0 12px 0; padding-left: 20px; font-size: 13px; line-height: 1.8; color: #6d7175;">
-                        <li>Go to <strong>Settings → Shipping and delivery</strong></li>
-                        <li>Select the <strong>General Shipping Rate</strong> profile</li>
-                        <li>In your shipping zone (e.g. United States), click <strong>Add rate</strong></li>
-                        <li>Rate Type should be <strong>"Use flat rate"</strong>, Shipping Rate should be set to <strong>"custom"</strong></li>
-                        <li>Set custom rate name to <strong>"LockerDrop Pickup"</strong></li>
-                        <li>Set the price (e.g. <strong>$0.00</strong> for free pickup)</li>
-                    </ol>
+                    <p style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">How to enable it:</p>
+                    <ul style="margin: 0 0 12px 0; padding-left: 20px; font-size: 13px; line-height: 1.8; color: #6d7175;">
+                        <li><strong>Grow plan:</strong> switch to annual billing (included free), or contact Shopify to add carrier-calculated shipping (~$20/mo).</li>
+                        <li><strong>Advanced / Plus:</strong> already included — just click Retry below.</li>
+                        <li><strong>Basic plan:</strong> carrier-calculated shipping isn't available — upgrade to Grow or higher to use LockerDrop.</li>
+                    </ul>
                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                        <button class="btn btn-secondary" onclick="openShippingSettings()">Open Shipping Settings</button>
-                        <button class="btn btn-secondary" onclick="retryCarrierRegistration()" style="font-size: 13px;">Upgraded plan? Try carrier setup</button>
+                        <button class="btn btn-primary" onclick="retryCarrierRegistration()">I've enabled it — Retry</button>
+                        <a class="btn btn-secondary" href="https://help.shopify.com/en/manual/fulfillment/setup/shipping-rates/third-party-carrier-calculated-shipping" target="_blank" style="text-decoration: none;">How to enable →</a>
                     </div>
-                    <p style="font-size: 12px; color: #8c9196; margin-top: 8px;">
-                        Want automatic rates? Enable <a href="https://help.shopify.com/en/manual/shipping/setting-up-and-managing-your-shipping/calculated-shipping-rates" target="_blank" style="color: #5c6ac4;">carrier-calculated shipping</a> ($20/mo add-on) or upgrade to Advanced.
-                    </p>
                 </div>
             </div>
 
@@ -2738,18 +2732,15 @@
                     <!-- Manual rate instructions (carrier not registered — Basic/Standard or registration failed) -->
                     <div id="onboarding-manual-instructions" style="display: none;">
                         <div style="background: var(--p-color-bg-surface-secondary); border-radius: var(--p-border-radius-200); padding: var(--p-space-400);">
-                            <p style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">Add a manual shipping rate for LockerDrop:</p>
-                            <ol style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 2;">
-                                <li>Go to <strong>Settings → Shipping and delivery</strong></li>
-                                <li>Select the <strong>General Shipping Rate</strong> profile</li>
-                                <li>In your shipping zone (e.g. United States), click <strong>Add rate</strong></li>
-                                <li>Rate Type should be <strong>"Use flat rate"</strong>, Shipping Rate should be set to <strong>"custom"</strong></li>
-                                <li>Set custom rate name to <strong>"LockerDrop Pickup"</strong></li>
-                                <li>Set the price (e.g. <strong>$0.00</strong> for free pickup)</li>
-                            </ol>
+                            <p style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">LockerDrop needs carrier-calculated shipping — turn it on to continue:</p>
+                            <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 2;">
+                                <li><strong>Grow plan:</strong> switch to annual billing (included free), or contact Shopify to add carrier-calculated shipping (~$20/mo).</li>
+                                <li><strong>Advanced / Plus:</strong> already included — no action needed.</li>
+                                <li><strong>Basic plan:</strong> not available — upgrade to Grow or higher to use LockerDrop.</li>
+                            </ul>
                         </div>
                         <div class="onboarding-tip" style="margin-top: 12px; font-size: 13px; color: var(--p-color-text-secondary);">
-                            On Advanced or Shopify Plus? LockerDrop can calculate rates automatically. <a href="https://help.shopify.com/en/manual/shipping/setting-up-and-managing-your-shipping/calculated-shipping-rates" target="_blank" style="color: #5c6ac4;">Learn more</a>
+                            Once enabled, LockerDrop lists each available locker at checkout automatically. <a href="https://help.shopify.com/en/manual/fulfillment/setup/shipping-rates/third-party-carrier-calculated-shipping" target="_blank" style="color: #5c6ac4;">How to enable →</a>
                         </div>
                     </div>
                     <div style="margin-top: 12px; text-align: center;">
@@ -3064,12 +3055,12 @@
                 badge.style.background = '#fff8e6';
                 badge.style.color = '#8a6d00';
             } else {
-                // State C: Not eligible — manual rate
+                // State C: CCS not enabled — required to use LockerDrop
                 document.getElementById('shipping-state-manual').style.display = '';
                 document.getElementById('plan-name-display').textContent = planInfo.plan || 'Basic';
-                badge.textContent = 'Manual setup';
-                badge.style.background = '#f0f4ff';
-                badge.style.color = '#5c6ac4';
+                badge.textContent = 'Action needed';
+                badge.style.background = '#fff8e6';
+                badge.style.color = '#8a6d00';
             }
         }
 

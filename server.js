@@ -571,25 +571,19 @@ app.get('/auth/callback', async (req, res) => {
                     [planData.displayName, planData.partnerDevelopment, planData.shopifyPlus, shop]
                 );
                 logger.info({ shop, plan: planData.displayName, eligible: isCarrierEligible(planData) }, 'Shop plan detected');
+            }
 
-                if (isCarrierEligible(planData)) {
-                    try {
-                        const result = await registerCarrierService(shop, accessToken);
-                        carrierRegistered = !!result;
-                    } catch (e) {
-                        logger.info('⚠️ Carrier service registration skipped (may already exist):', e.message);
-                    }
-                } else {
-                    logger.info({ shop, plan: planData.displayName }, 'Skipping carrier service — plan does not support carrier-calculated shipping');
-                }
-            } else {
-                // Couldn't detect plan — try registering anyway
-                try {
-                    const result = await registerCarrierService(shop, accessToken);
-                    carrierRegistered = !!result;
-                } catch (e) {
-                    logger.info('⚠️ Carrier service registration skipped:', e.message);
-                }
+            // LockerDrop requires carrier-calculated shipping. Attempt registration
+            // for EVERY store, not just name-eligible plans — a Grow store with the
+            // CCS add-on (or annual billing) is eligible even though its plan name
+            // isn't "Advanced"/"Plus". registerCarrierService returns null and logs
+            // when the plan doesn't have CCS enabled; the dashboard then prompts the
+            // merchant to turn it on (see docs/CCS_REQUIREMENT.md).
+            try {
+                const result = await registerCarrierService(shop, accessToken);
+                carrierRegistered = !!result;
+            } catch (e) {
+                logger.info('⚠️ Carrier service registration skipped:', e.message);
             }
             await db.query(
                 'UPDATE stores SET carrier_service_registered = $1 WHERE shop = $2',
@@ -3914,20 +3908,19 @@ app.get('/api/shop-plan/:shop', requireApiAuth, async (req, res) => {
                 const freshPlan = await getShopPlan(shop, accessToken);
                 if (freshPlan) {
                     planData = freshPlan;
-                    const wasEligible = isCarrierEligible({ displayName: store.shop_plan, partnerDevelopment: store.partner_development, shopifyPlus: store.shopify_plus });
-                    const nowEligible = isCarrierEligible(freshPlan);
-
-                    // Auto-register carrier service if plan upgraded to eligible
-                    if (nowEligible && !wasEligible && !store.carrier_service_registered) {
-                        logger.info({ shop, plan: freshPlan.displayName }, 'Plan upgraded — auto-registering carrier service');
+                    // Attempt carrier registration on every re-check until it succeeds.
+                    // Picks up a store that just enabled CCS (Grow add-on / annual
+                    // billing) or upgraded plan, without relying on plan-name matching.
+                    if (!store.carrier_service_registered) {
                         try {
                             const result = await registerCarrierService(shop, accessToken);
                             if (result) {
                                 await db.query('UPDATE stores SET carrier_service_registered = true WHERE shop = $1', [shop]);
                                 store.carrier_service_registered = true;
+                                logger.info({ shop, plan: freshPlan.displayName }, 'Carrier service registered (CCS now enabled)');
                             }
                         } catch (e) {
-                            logger.warn({ shop, err: e.message }, 'Auto carrier registration failed after plan upgrade');
+                            logger.warn({ shop, err: e.message }, 'Carrier registration attempt failed during plan re-check');
                         }
                     }
 
