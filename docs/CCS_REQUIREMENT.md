@@ -42,9 +42,13 @@ When `carrier_service_registered = false`, the dashboard must present CCS as a
 ## Rollout notes
 - Existing stores: the hourly `/api/shop-plan` re-check now attempts registration
   until it succeeds, so a store that enables CCS later is picked up automatically.
-- **Dev-store caveat:** development stores have CCS enabled regardless of the plan
-  they mirror, so the "Basic is blocked" path can't be faithfully tested on a dev
-  store — verify on a real Basic store.
+- **Dev stores DO mirror their tier's CCS eligibility** (verified 2026-07-01 via
+  `carrierServiceCreate`): Basic and Grow-without-add-on dev stores are rejected
+  with *"Carrier Calculated Shipping must be enabled"*; Advanced and Plus dev
+  stores register successfully. So the "Basic/Grow blocked" gate CAN be tested on
+  the `basic-ennanne` / `grow-ennanne` / `lockerdrop-dev` development stores — a
+  real production store is not required. (Earlier assumption that dev stores have
+  CCS regardless of tier was wrong.)
 - Unrelated but launch-critical: the app is currently on **Harbor sandbox**; switch
   to Harbor production before real customers (see LAUNCH_CHECKLIST S2-5).
 
