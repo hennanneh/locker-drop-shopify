@@ -1726,7 +1726,7 @@ app.get('/api/sync-orders/:shop', requireApiAuth, async (req, res) => {
                     order.id.toString(),
                     order.order_number?.toString() || order.name,
                     order.email || order.customer?.email,
-                    order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : 'Guest',
+                    order.customer ? ([order.customer.first_name, order.customer.last_name].filter(Boolean).join(' ') || 'Guest') : 'Guest',
                     syncLocationId,
                     syncLocationId ? 'pending_dropoff' : 'pending',
                     order.created_at
@@ -6330,7 +6330,7 @@ app.post('/webhooks/customers/data_request', verifyShopifyWebhook, async (req, r
             `SELECT order_number, customer_name, customer_email, customer_phone,
                     locker_name, status, preferred_pickup_date, created_at, updated_at
              FROM orders WHERE shop = $1 AND (customer_email = $2 OR customer_name = $3)`,
-            [shop, customerEmail, customer?.first_name ? `${customer.first_name} ${customer.last_name}` : '']
+            [shop, customerEmail, customer ? ([customer.first_name, customer.last_name].filter(Boolean).join(' ')) : '']
         );
 
         logger.info({ shop, customerId, orderCount: customerOrders.rows.length },
@@ -6727,7 +6727,7 @@ async function processNewOrder(order, shopDomain) {
                             order.id.toString(),
                             order.order_number.toString(),
                             order.email,
-                            order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : 'Guest',
+                            order.customer ? ([order.customer.first_name, order.customer.last_name].filter(Boolean).join(' ') || 'Guest') : 'Guest',
                             customerPhone,
                             reservation.location_id,
                             reservation.locker_id,
@@ -6879,7 +6879,7 @@ async function processNewOrder(order, shopDomain) {
                     order.id.toString(),
                     order.order_number.toString(),
                     order.email,
-                    order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : 'Guest',
+                    order.customer ? ([order.customer.first_name, order.customer.last_name].filter(Boolean).join(' ') || 'Guest') : 'Guest',
                     customerPhone,
                     preferredLocation.location_id,
                     dropoffLink.lockerId,
@@ -6907,7 +6907,7 @@ async function processNewOrder(order, shopDomain) {
                     order.id.toString(),
                     order.order_number.toString(),
                     order.email,
-                    order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : 'Guest',
+                    order.customer ? ([order.customer.first_name, order.customer.last_name].filter(Boolean).join(' ') || 'Guest') : 'Guest',
                     customerPhone,
                     preferredLocation.location_id,
                     'pending_allocation',
@@ -6928,7 +6928,7 @@ async function processNewOrder(order, shopDomain) {
         // Get store email from Shopify or use a default notification email
         const storeResult = await db.query('SELECT shop FROM stores WHERE shop = $1', [shop]);
         if (storeResult.rows.length > 0) {
-            const customerName = order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : 'Guest';
+            const customerName = order.customer ? ([order.customer.first_name, order.customer.last_name].filter(Boolean).join(' ') || 'Guest') : 'Guest';
 
             if (dropoffLink) {
                 // For now, we'll log the notification. In production, you'd get the seller's email from the store settings
