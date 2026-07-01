@@ -19,6 +19,29 @@ Launch-readiness is gated by **Sprint 1 (security & auth)**. Several items previ
 
 ---
 
+## 2026-07-01 — QA session update (current launch status)
+
+Full end-to-end QA against the dev-store matrix (basic / grow / advanced-ennanne + locker-plus, all Harbor **sandbox**).
+
+**Fixed & deployed this session:**
+- 🔴 Checkout locker picker returned **500 on every store** (`calculatePickupDate` crashed on Postgres text day-fields) — fixed (`deaf228`).
+- 🔴 **Auto-fulfillment failed on every store** ("Access denied for fulfillmentOrders field") — app lacked `read/write_merchant_managed_fulfillment_orders`. Added scopes → deployed new app version → re-authorized all 4 stores → verified an order reaches **Fulfilled** (`5d8456e`, `854d238`).
+- Require carrier-calculated shipping (Grow+ with CCS); **attempt-based** eligibility so Grow-with-add-on works (`34c3996`, see `docs/CCS_REQUIREMENT.md`).
+- `processAppUninstall` made transactional (`1e0f136`); reconnect self-heal UX + locker "undefined" address + "null" customer name fixed (`8d32d76`, `aad7f50`).
+- Reviewer **simulate drop-off/pickup** control, dev-store only, so App Store review can complete the physical steps (`854d238`).
+
+**Verified end-to-end (sandbox):** checkout → order sync → locker assignment → drop-off → pickup → locker release → notifications → **Shopify fulfillment**.
+
+**Remaining launch blockers:**
+1. **S2-5 Harbor → production** + finalize per-order pricing with Harbor → set `USAGE_BILLING` → verify one live usage charge. (All above validated on sandbox only.)
+2. **S1-6 remainder:** `SESSION_SECRET` rotated 2026-07-01 ✅; still rotate DB password, Shopify API secret, Twilio/Resend keys.
+3. **Sprint 3 App Store submission** — draft materials in `docs/APP_STORE_SUBMISSION.md`; needs Protected Customer Data approval + demo video + reviewer creds (reviewer-testability now solved via the simulate control).
+4. One full cycle on a **real** (non-dev) store once Harbor prod is live.
+
+Distribution: app is already **public** (correct for App Store; can't be changed) — submit after blockers clear.
+
+---
+
 ## Sprint 1 — Security & Auth (LAUNCH BLOCKERS)
 
 > Shopify's automated review will reject the app on first submission until S1-1 lands. The other Sprint 1 items are real-world breach risks, not theoretical.
@@ -30,7 +53,7 @@ Launch-readiness is gated by **Sprint 1 (security & auth)**. Several items previ
 | S1-3 | Per-order signed token on customer-facing public endpoints (NEW) | 🔴 CRITICAL | ✅ Done | Verified 2026-05-02: `/api/dropoff-complete`, `/api/pickup-complete`, `/api/retry-link/:orderNumber` all return 401 without `t=`. Tokens generated via `signOrderToken()` and verified by `requireOrderToken` middleware. | Helpers and middleware at `server.js:1306-1346`. All 8 `returnUrl: ...{dropoff,pickup}-success?...` sites in server.js append `&t=${signOrderToken(orderNumber)}`. `dropoff-success.html` + `pickup-success.html` read `t` from URL params and forward in API bodies / `/api/retry-link` query. |
 | S1-4 | Lock down `GET /api/orders/:shop` (NEW) | 🔴 CRITICAL | ✅ Done | Verified 2026-05-02: `/api/orders/test.myshopify.com` returns 401 with no bearer, 401 with bogus bearer. Same protection added to 25 other admin endpoints (validate-token, check-scopes, store-location, sync-orders, lockers, order/*/status, order/*/cancel-locker, subscription, settings GET, subscribe, billing/retry, shop-plan, products, product-sizes, stats, locker-preferences GET+POST, locker-availability, manual-order, generate-dropoff-link, generate-pickup-link, branding/logo DELETE, etc). | `requireApiAuth` chained before existing `auditCustomerDataAccess` on `/api/orders/:shop`. 35 total routes now protected. Public routes intentionally left open: `/api/branding/:shop` GET (read-only brand assets used by customer pages), `/api/upsell-products/:shop` GET (checkout extension), `/api/available-pickup-dates/:shop`, `/api/update-pickup-date/:shop/:orderNumber` (latter two will be gated by S1-3 signed tokens). |
 | S1-5 | Restrict CORS to Shopify domains for `/api/*` (NEW) | 🟡 HIGH | ✅ Done | Verified 2026-05-02: `OPTIONS /api/orders/:shop` from `https://evil.com` returns no `Access-Control-Allow-Origin`; from `https://test.myshopify.com` returns the same origin. | Updated CORS middleware splits public-API allowlist (kept `*`) from admin-API (only `*.myshopify.com` + `admin.shopify.com`). Public-API list at `server.js:380-396`. |
-| S1-6 | Rotate `SESSION_SECRET` and other live secrets (NEW) | 🔴 CRITICAL | ⬜ Not Started | New `.env` has `SESSION_SECRET` ≥ 32 random bytes (`openssl rand -hex 32`). Twilio, Resend, DB password, Shopify API secret all rotated. Old sessions invalidated. | Current value `lockerdrop-super-secret-key-2024` is trivially guessable and used to sign customer order-link tokens. Treat as already compromised. |
+| S1-6 | Rotate `SESSION_SECRET` and other live secrets (NEW) | 🔴 CRITICAL | 🟠 Partial | ✅ `SESSION_SECRET` rotated to a 32-byte random value 2026-07-01 (old sessions/order-links invalidated). ⬜ Still rotate: Twilio, Resend, DB password, Shopify API secret. | Old value `lockerdrop-super-secret-key-2024` was guessable and signed customer order-link tokens — now replaced. |
 | S1-7 | Apply rate limiting to remaining sensitive endpoints (was #13) | 🟡 HIGH | ✅ Done | Verified 2026-05-02: 70 parallel hits on `/api/orders/:shop` → 60 × 401 + 10 × 429. Same baseline now covers all `/api/*` paths. | New `apiLimiter` (60/min) applied at `app.use('/api/', apiLimiter)`. Stricter public/checkout limiters still stack on top for those paths. |
 | S1-8 | Strict shop-domain validation everywhere `req.params.shop` is used (NEW) | 🟡 HIGH | ✅ Done | Verified 2026-05-02: `requireApiAuth` returns 400 for shops not matching `^[a-z0-9][a-z0-9-]*\.myshopify\.com$`. | `isValidShopDomain()` helper added at `server.js:1234`. Used inside `requireApiAuth`. Other routes that take `:shop` param will inherit when S1-4 wires `requireApiAuth` to them. |
 
