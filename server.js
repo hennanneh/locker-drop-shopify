@@ -4765,7 +4765,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
             freePickup
         });
     } catch (error) {
-        logger.error('Error fetching checkout lockers:', error.response?.data || error.message);
+        logger.error({ err: error, data: error.response?.data }, 'Error fetching checkout lockers');
         res.status(500).json({ error: 'Failed to fetch lockers', lockers: [] });
     }
 });
@@ -7629,14 +7629,37 @@ function auditCustomerDataAccess(action) {
 function calculatePickupDate(processingDays, fulfillmentDays, vacationDays) {
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
-    // Convert vacation days to Set of date strings for fast lookup
-    const vacationSet = new Set((vacationDays || []).map(d => {
-        const date = new Date(d);
-        return date.toISOString().split('T')[0];
-    }));
+    // shop_settings.fulfillment_days / vacation_days may arrive as a Postgres
+    // text-array literal ("{monday,tuesday}"), a JSON/CSV string, or a JS array
+    // (schema drift — mirrors parseArrayField at the settings reader). Coerce to
+    // a real array so we never call .map on a string and 500 the checkout picker.
+    const toArray = (val) => {
+        if (Array.isArray(val)) return val;
+        if (typeof val !== 'string') return [];
+        const t = val.trim();
+        if (t === '' || t === '{}') return [];
+        if (t.startsWith('{') && t.endsWith('}')) {
+            return t.slice(1, -1).split(',').map(s => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
+        }
+        if (t.startsWith('[') && t.endsWith(']')) {
+            try { const a = JSON.parse(t); if (Array.isArray(a)) return a; } catch (_) { /* fall through */ }
+        }
+        return t.split(',').map(s => s.trim()).filter(Boolean);
+    };
 
-    // Normalize fulfillment days to lowercase
-    const fulfillmentSet = new Set((fulfillmentDays || ['monday','tuesday','wednesday','thursday','friday']).map(d => d.toLowerCase()));
+    // Convert vacation days to Set of date strings for fast lookup (skip invalid dates)
+    const vacationSet = new Set(
+        toArray(vacationDays)
+            .map(d => { const date = new Date(d); return isNaN(date.getTime()) ? null : date.toISOString().split('T')[0]; })
+            .filter(Boolean)
+    );
+
+    // Normalize fulfillment days to lowercase; fall back to weekdays if none valid
+    // (an empty set would make the dropoff-day loop below run forever).
+    let fulfillmentSet = new Set(toArray(fulfillmentDays).map(d => String(d).toLowerCase()).filter(Boolean));
+    if (fulfillmentSet.size === 0) {
+        fulfillmentSet = new Set(['monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
+    }
 
     // Helper to check if a date is a fulfillment day (and not a vacation day)
     function isFulfillmentDay(date) {
