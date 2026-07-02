@@ -2306,27 +2306,27 @@
                     </label>
                     <div id="pricing-info" class="info-box">
                         <div id="pricing-display">
-                            <strong>Customer pays:</strong> <span id="customer-price" style="color: #008060; font-size: 18px; font-weight: 600;">$1.00</span>
-                            <p style="color: #6d7175; margin: 4px 0 0 0; font-size: 13px;">LockerDrop service fee at checkout</p>
+                            <strong>Customer pays:</strong> <span id="customer-price" style="color: #008060; font-size: 18px; font-weight: 600;">the flat rate below</span>
+                            <p style="color: #6d7175; margin: 4px 0 0 0; font-size: 13px;">Flat rate at checkout, by locker size</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Checkout Extension Toggle (for Plus stores) -->
-                <div class="form-group" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #e1e3e5;">
-                    <label class="toggle-label" style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
-                        <input type="checkbox" id="use-checkout-extension" onchange="autoSaveSettings()">
-                        <div>
-                            <span style="font-weight: 500;">Use Checkout Extension (Plus Only)</span>
-                            <p class="form-help" style="margin-top: 4px;">Enable if you've added the LockerDrop widget in Checkout Customizer. This hides locker options from the shipping method list to prevent duplicates.</p>
-                        </div>
-                    </label>
-                    <div id="extension-mode-info" class="info-box" style="margin-top: 12px; background: #f4f6f8; border: 1px solid #e1e3e5;">
-                        <div style="font-size: 13px; color: #6d7175;">
-                            <strong>When enabled:</strong> Locker selection appears only in your checkout extension widget.<br>
-                            <strong>When disabled:</strong> Locker options appear as shipping methods (for non-Plus stores).
-                        </div>
+                <!-- Per-size flat pricing (hidden when Free Locker Pickup is on) -->
+                <div id="pricing-per-size" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e1e3e5;">
+                    <p style="font-weight: 500; margin-bottom: 4px;">Flat price by locker size</p>
+                    <p class="form-help" style="margin-bottom: 12px;">What the customer pays at checkout, based on the size their order needs.</p>
+                    <div class="two-column-grid">
+                        <label style="display:flex; align-items:center; gap:8px;">Small
+                            <span>$</span><input type="number" id="price-small" min="0" step="0.01" value="1.00" class="form-input" style="width:110px;" onchange="autoSaveSettings()"></label>
+                        <label style="display:flex; align-items:center; gap:8px;">Medium
+                            <span>$</span><input type="number" id="price-medium" min="0" step="0.01" value="1.00" class="form-input" style="width:110px;" onchange="autoSaveSettings()"></label>
+                        <label style="display:flex; align-items:center; gap:8px;">Large
+                            <span>$</span><input type="number" id="price-large" min="0" step="0.01" value="1.00" class="form-input" style="width:110px;" onchange="autoSaveSettings()"></label>
+                        <label style="display:flex; align-items:center; gap:8px;">X-Large
+                            <span>$</span><input type="number" id="price-xlarge" min="0" step="0.01" value="1.00" class="form-input" style="width:110px;" onchange="autoSaveSettings()"></label>
                     </div>
+                    <p class="form-help" style="margin-top: 14px; opacity: 0.65;">More modes coming soon: real-time pass-through and markup (+$ / +%) — pending Harbor pricing API.</p>
                 </div>
                 <span id="checkout-mode-save-status" style="display: none;"></span>
             </div>
@@ -4666,11 +4666,18 @@
             }
         }
 
+        // Reads the per-size price inputs (dollars) → cents object for the API.
+        function readLockerPrices() {
+            const g = (id) => { const el = document.getElementById(id); return el ? Math.max(0, Math.round(parseFloat(el.value || '0') * 100)) : 100; };
+            return { small: g('price-small'), medium: g('price-medium'), large: g('price-large'), xlarge: g('price-xlarge') };
+        }
+
         // Save Settings quietly (no alerts, shows status banner)
         async function saveSettingsQuiet() {
             try {
                 const freePickup = document.getElementById('free-pickup').checked;
-                const useCheckoutExtension = document.getElementById('use-checkout-extension').checked;
+                const useCheckoutExtension = false; // checkout-extension toggle removed — per-location everywhere
+                const lockerPrices = readLockerPrices();
                 const processingDays = parseInt(document.getElementById('processing-days').value) || 1;
                 const holdTimeDays = parseInt(document.getElementById('hold-time').value) || 5;
 
@@ -4692,6 +4699,7 @@
                     body: JSON.stringify({
                         freePickup,
                         useCheckoutExtension,
+                        lockerPrices,
                         processingDays,
                         holdTimeDays,
                         fulfillmentDays,
@@ -4718,7 +4726,8 @@
         async function saveSettings() {
             try {
                 const freePickup = document.getElementById('free-pickup').checked;
-                const useCheckoutExtension = document.getElementById('use-checkout-extension').checked;
+                const useCheckoutExtension = false; // checkout-extension toggle removed — per-location everywhere
+                const lockerPrices = readLockerPrices();
                 const processingDays = parseInt(document.getElementById('processing-days').value) || 1;
                 const holdTimeDays = parseInt(document.getElementById('hold-time').value) || 5;
 
@@ -4737,6 +4746,7 @@
                     body: JSON.stringify({
                         freePickup,
                         useCheckoutExtension,
+                        lockerPrices,
                         processingDays,
                         holdTimeDays,
                         fulfillmentDays,
@@ -4781,8 +4791,13 @@
                 }
                 const data = await response.json();
 
-                // Checkout extension
-                document.getElementById('use-checkout-extension').checked = data.useCheckoutExtension || false;
+                // Per-size locker prices (cents → dollars); null-safe
+                const lp = data.lockerPrices || {};
+                const setPrice = (id, cents) => { const el = document.getElementById(id); if (el) el.value = ((cents ?? 100) / 100).toFixed(2); };
+                setPrice('price-small', lp.small);
+                setPrice('price-medium', lp.medium);
+                setPrice('price-large', lp.large);
+                setPrice('price-xlarge', lp.xlarge);
 
                 // Free pickup
                 const checkbox = document.getElementById('free-pickup');
@@ -5023,8 +5038,10 @@
 
         // Update pricing display based on free pickup toggle
         function updatePricingDisplay(freePickup) {
+            const perSize = document.getElementById('pricing-per-size');
+            if (perSize) perSize.style.display = freePickup ? 'none' : '';
             const infoEl = document.getElementById('pricing-display');
-
+            if (!infoEl) return;
             if (freePickup) {
                 infoEl.innerHTML = `
                     <strong>Customer pays:</strong> <span id="customer-price" style="color: #008060;">$0.00</span> at checkout<br>
@@ -5032,8 +5049,8 @@
                 `;
             } else {
                 infoEl.innerHTML = `
-                    <strong>Customer pays:</strong> <span id="customer-price">Locker fee</span> at checkout<br>
-                    <small style="color: #6d7175;">Fee varies by locker size selected</small>
+                    <strong>Customer pays:</strong> <span id="customer-price">the flat rate below</span> at checkout<br>
+                    <small style="color: #6d7175;">Set per locker size</small>
                 `;
             }
         }
