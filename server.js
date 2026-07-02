@@ -1015,14 +1015,14 @@ app.post('/carrier/rates', async (req, res) => {
         let processingDays = 1;
         let fulfillmentDays = ['monday','tuesday','wednesday','thursday','friday'];
         let vacationDays = [];
+        // Checkout-block widget path is SHELVED for launch — every store (incl. Plus)
+        // uses per-location carrier rates: one shipping line per available locker, so
+        // the customer picks the location directly with no checkout block to place.
+        // To bring back the Plus inline widget later, fetch stores.shopify_plus and set:
+        //   useNativePickup = (settings.use_checkout_extension || false) && shopIsPlus;
         let useNativePickup = false;
-        let shopIsPlus = false;
 
         if (shopDomain) {
-            try {
-                const storeRow = await db.query('SELECT shopify_plus FROM stores WHERE shop = $1', [shopDomain]);
-                shopIsPlus = !!storeRow.rows[0]?.shopify_plus;
-            } catch (e) { /* default: not Plus */ }
             try {
                 const settingsResult = await db.query('SELECT * FROM shop_settings WHERE shop = $1', [shopDomain]);
                 if (settingsResult.rows.length > 0) {
@@ -1031,12 +1031,6 @@ app.post('/carrier/rates', async (req, res) => {
                     processingDays = settings.processing_days || 1;
                     fulfillmentDays = settings.fulfillment_days || ['monday','tuesday','wednesday','thursday','friday'];
                     vacationDays = settings.vacation_days || [];
-                    // The single "LockerDrop Pickup · select locker below" rate relies on the
-                    // checkout-block widget to render the picker, which is PLUS-ONLY. On any
-                    // non-Plus plan, fall through to per-location carrier rates (one shipping
-                    // line per locker) so there's never a dead "select below" prompt with no
-                    // widget. See docs/CCS_REQUIREMENT.md.
-                    useNativePickup = (settings.use_checkout_extension || false) && shopIsPlus;
                 }
             } catch (e) {
                 logger.info('Could not check shop settings:', e.message);
@@ -8358,14 +8352,14 @@ app.post('/carrier-service/rates', async (req, res) => {
         let processingDays = 1;
         let fulfillmentDays = ['monday','tuesday','wednesday','thursday','friday'];
         let vacationDays = [];
+        // Checkout-block widget path is SHELVED for launch — every store (incl. Plus)
+        // uses per-location carrier rates: one shipping line per available locker, so
+        // the customer picks the location directly with no checkout block to place.
+        // To bring back the Plus inline widget later, fetch stores.shopify_plus and set:
+        //   useNativePickup = (settings.use_checkout_extension || false) && shopIsPlus;
         let useNativePickup = false;
-        let shopIsPlus = false;
 
         if (shopDomain) {
-            try {
-                const storeRow = await db.query('SELECT shopify_plus FROM stores WHERE shop = $1', [shopDomain]);
-                shopIsPlus = !!storeRow.rows[0]?.shopify_plus;
-            } catch (e) { /* default: not Plus */ }
             try {
                 const settingsResult = await db.query('SELECT * FROM shop_settings WHERE shop = $1', [shopDomain]);
                 if (settingsResult.rows.length > 0) {
@@ -8374,12 +8368,6 @@ app.post('/carrier-service/rates', async (req, res) => {
                     processingDays = settings.processing_days || 1;
                     fulfillmentDays = settings.fulfillment_days || ['monday','tuesday','wednesday','thursday','friday'];
                     vacationDays = settings.vacation_days || [];
-                    // The single "LockerDrop Pickup · select locker below" rate relies on the
-                    // checkout-block widget to render the picker, which is PLUS-ONLY. On any
-                    // non-Plus plan, fall through to per-location carrier rates (one shipping
-                    // line per locker) so there's never a dead "select below" prompt with no
-                    // widget. See docs/CCS_REQUIREMENT.md.
-                    useNativePickup = (settings.use_checkout_extension || false) && shopIsPlus;
                 }
             } catch (e) {
                 logger.info('Could not check shop settings:', e.message);
