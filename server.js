@@ -1015,6 +1015,9 @@ app.post('/carrier/rates', async (req, res) => {
         let processingDays = 1;
         let fulfillmentDays = ['monday','tuesday','wednesday','thursday','friday'];
         let vacationDays = [];
+        // Per-size locker price in cents (size id -> cents): 1=small 2=medium 3=large 4=x-large.
+        // Seller-configurable flat pricing; defaults to $1.00. free_pickup overrides to $0.
+        let lockerSizePrices = { 1: 100, 2: 100, 3: 100, 4: 100 };
         // Checkout-block widget path is SHELVED for launch — every store (incl. Plus)
         // uses per-location carrier rates: one shipping line per available locker, so
         // the customer picks the location directly with no checkout block to place.
@@ -1031,6 +1034,12 @@ app.post('/carrier/rates', async (req, res) => {
                     processingDays = settings.processing_days || 1;
                     fulfillmentDays = settings.fulfillment_days || ['monday','tuesday','wednesday','thursday','friday'];
                     vacationDays = settings.vacation_days || [];
+                    lockerSizePrices = {
+                        1: settings.price_small_cents ?? 100,
+                        2: settings.price_medium_cents ?? 100,
+                        3: settings.price_large_cents ?? 100,
+                        4: settings.price_xlarge_cents ?? 100
+                    };
                 }
             } catch (e) {
                 logger.info('Could not check shop settings:', e.message);
@@ -1256,7 +1265,7 @@ app.post('/carrier/rates', async (req, res) => {
         }
 
         // Set price based on free pickup setting
-        const price = freePickup ? '0' : '100'; // $0 if free, $1.00 otherwise
+        const price = freePickup ? '0' : String(lockerSizePrices[requiredLockerTypeId] ?? 100); // per-size flat; $0 if free
         logger.info(`💰 Price: ${freePickup ? 'FREE (seller absorbs fee)' : '$1.00'}`);
         logger.info(`✅ Returning ${availableLocations.length} available locker options (pickup: ${pickupDateFormatted})`);
 
@@ -3422,7 +3431,13 @@ app.get('/api/settings/:shop', requireApiAuth, async (req, res) => {
                 ? parseArrayField(settings.fulfillment_days)
                 : ['monday','tuesday','wednesday','thursday','friday'],
             vacationDays: parseArrayField(settings.vacation_days),
-            useCheckoutExtension: settings.use_checkout_extension || false
+            useCheckoutExtension: settings.use_checkout_extension || false,
+            lockerPrices: {
+                small: settings.price_small_cents ?? 100,
+                medium: settings.price_medium_cents ?? 100,
+                large: settings.price_large_cents ?? 100,
+                xlarge: settings.price_xlarge_cents ?? 100
+            }
         });
     } catch (error) {
         logger.error('Error getting settings:', error);
@@ -3434,11 +3449,12 @@ app.get('/api/settings/:shop', requireApiAuth, async (req, res) => {
 app.post('/api/settings/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
-        const { freePickup, holdTimeDays, processingDays, fulfillmentDays, vacationDays, useCheckoutExtension } = req.body;
+        const { freePickup, holdTimeDays, processingDays, fulfillmentDays, vacationDays, useCheckoutExtension, lockerPrices } = req.body;
+        const clampCents = (v) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= 0 ? n : 100; };
 
         await db.query(`
-            INSERT INTO shop_settings (shop, free_pickup, hold_time_days, processing_days, fulfillment_days, vacation_days, use_checkout_extension, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+            INSERT INTO shop_settings (shop, free_pickup, hold_time_days, processing_days, fulfillment_days, vacation_days, use_checkout_extension, price_small_cents, price_medium_cents, price_large_cents, price_xlarge_cents, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
             ON CONFLICT (shop) DO UPDATE SET
                 free_pickup = $2,
                 hold_time_days = $3,
@@ -3446,6 +3462,10 @@ app.post('/api/settings/:shop', requireApiAuth, async (req, res) => {
                 fulfillment_days = $5,
                 vacation_days = $6,
                 use_checkout_extension = $7,
+                price_small_cents = $8,
+                price_medium_cents = $9,
+                price_large_cents = $10,
+                price_xlarge_cents = $11,
                 updated_at = NOW()
         `, [
             shop,
@@ -3454,7 +3474,11 @@ app.post('/api/settings/:shop', requireApiAuth, async (req, res) => {
             processingDays || 1,
             fulfillmentDays || ['monday','tuesday','wednesday','thursday','friday'],
             vacationDays || [],
-            useCheckoutExtension || false
+            useCheckoutExtension || false,
+            clampCents(lockerPrices?.small),
+            clampCents(lockerPrices?.medium),
+            clampCents(lockerPrices?.large),
+            clampCents(lockerPrices?.xlarge)
         ]);
 
         logger.info(`✅ Settings saved for ${shop}: freePickup=${freePickup}, processingDays=${processingDays}, useCheckoutExtension=${useCheckoutExtension}`);
@@ -8352,6 +8376,9 @@ app.post('/carrier-service/rates', async (req, res) => {
         let processingDays = 1;
         let fulfillmentDays = ['monday','tuesday','wednesday','thursday','friday'];
         let vacationDays = [];
+        // Per-size locker price in cents (size id -> cents): 1=small 2=medium 3=large 4=x-large.
+        // Seller-configurable flat pricing; defaults to $1.00. free_pickup overrides to $0.
+        let lockerSizePrices = { 1: 100, 2: 100, 3: 100, 4: 100 };
         // Checkout-block widget path is SHELVED for launch — every store (incl. Plus)
         // uses per-location carrier rates: one shipping line per available locker, so
         // the customer picks the location directly with no checkout block to place.
@@ -8368,6 +8395,12 @@ app.post('/carrier-service/rates', async (req, res) => {
                     processingDays = settings.processing_days || 1;
                     fulfillmentDays = settings.fulfillment_days || ['monday','tuesday','wednesday','thursday','friday'];
                     vacationDays = settings.vacation_days || [];
+                    lockerSizePrices = {
+                        1: settings.price_small_cents ?? 100,
+                        2: settings.price_medium_cents ?? 100,
+                        3: settings.price_large_cents ?? 100,
+                        4: settings.price_xlarge_cents ?? 100
+                    };
                 }
             } catch (e) {
                 logger.info('Could not check shop settings:', e.message);
@@ -8654,7 +8687,7 @@ app.post('/carrier-service/rates', async (req, res) => {
         }
 
         // Set price based on free pickup setting
-        const price = freePickup ? '0' : '100'; // $0 if free, $1.00 otherwise
+        const price = freePickup ? '0' : String(lockerSizePrices[requiredLockerTypeId] ?? 100); // per-size flat; $0 if free
         logger.info(`💰 Price: ${freePickup ? 'FREE (seller absorbs fee)' : '$1.00'}`);
 
         // Create shipping rates only for locations with available lockers
