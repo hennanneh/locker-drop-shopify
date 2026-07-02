@@ -6040,27 +6040,32 @@
                     return;
                 }
 
-                // Populate form fields
-                document.getElementById('branding-logo').value = data.logoUrl || '';
+                // Populate form fields (null-safe: some fields were removed from the
+                // form but the API still returns them — skip any element that's gone,
+                // otherwise one missing node aborts the whole load).
+                const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+                const setChk = (id, v) => { const el = document.getElementById(id); if (el) el.checked = v; };
+
+                setVal('branding-logo', data.logoUrl || '');
 
                 // Show logo preview if exists
                 if (data.logoUrl) {
-                    document.getElementById('logo-preview').src = data.logoUrl;
-                    document.getElementById('logo-preview-container').style.display = 'block';
-                    document.getElementById('logo-upload-container').style.display = 'none';
+                    const p = document.getElementById('logo-preview'); if (p) p.src = data.logoUrl;
+                    const pc = document.getElementById('logo-preview-container'); if (pc) pc.style.display = 'block';
+                    const uc = document.getElementById('logo-upload-container'); if (uc) uc.style.display = 'none';
                 } else {
-                    document.getElementById('logo-preview-container').style.display = 'none';
-                    document.getElementById('logo-upload-container').style.display = 'block';
+                    const pc = document.getElementById('logo-preview-container'); if (pc) pc.style.display = 'none';
+                    const uc = document.getElementById('logo-upload-container'); if (uc) uc.style.display = 'block';
                 }
 
-                document.getElementById('branding-primary-color').value = data.primaryColor || '#5c6ac4';
-                document.getElementById('branding-primary-color-text').value = data.primaryColor || '#5c6ac4';
-                document.getElementById('branding-secondary-color').value = data.secondaryColor || '#202223';
-                document.getElementById('branding-secondary-color-text').value = data.secondaryColor || '#202223';
-                document.getElementById('branding-success-message').value = data.successMessage || '';
-                document.getElementById('branding-show-upsells').checked = data.showUpsells !== false;
-                document.getElementById('branding-upsell-heading').value = data.upsellHeading || 'You might also like';
-                document.getElementById('branding-rebuy-enabled').checked = data.rebuyEnabled || false;
+                setVal('branding-primary-color', data.primaryColor || '#5c6ac4');
+                setVal('branding-primary-color-text', data.primaryColor || '#5c6ac4');
+                setVal('branding-secondary-color', data.secondaryColor || '#202223');
+                setVal('branding-secondary-color-text', data.secondaryColor || '#202223');
+                setVal('branding-success-message', data.successMessage || '');
+                setChk('branding-show-upsells', data.showUpsells !== false);
+                setVal('branding-upsell-heading', data.upsellHeading || 'You might also like');
+                setChk('branding-rebuy-enabled', data.rebuyEnabled || false);
 
                 // Load upsell products with full details
                 const savedProductIds = data.upsellProductIds || [];
@@ -6090,11 +6095,12 @@
                 }
                 renderSelectedUpsellProducts();
                 updateUpsellProductsHiddenField();
-                document.getElementById('branding-rebuy-widget-id').value = data.rebuyWidgetId || '';
-                document.getElementById('branding-custom-css').value = data.customCss || '';
+                setVal('branding-rebuy-widget-id', data.rebuyWidgetId || '');
+                setVal('branding-custom-css', data.customCss || '');
 
-                // Toggle Rebuy settings visibility
-                document.getElementById('rebuy-settings').style.display = data.rebuyEnabled ? 'block' : 'none';
+                // Toggle Rebuy settings visibility (element may be absent)
+                const rebuySettingsEl = document.getElementById('rebuy-settings');
+                if (rebuySettingsEl) rebuySettingsEl.style.display = data.rebuyEnabled ? 'block' : 'none';
 
                 brandingLoaded = true;
             } catch (error) {
