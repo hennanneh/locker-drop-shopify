@@ -2802,10 +2802,30 @@
             } catch(e) {}
         });
 
-        // Get shop from URL
+        // Get shop from URL. Fall back to the App Bridge `host` param (and App Bridge
+        // config), because client-side navigation in the embedded app can drop ?shop=
+        // while keeping ?host=, which otherwise breaks every /api/*/:shop call with
+        // "Shop parameter missing".
         const urlParams = new URLSearchParams(window.location.search);
-        const shop = urlParams.get('shop');
         const hostParam = urlParams.get('host');
+        function shopFromHost(host) {
+            if (!host) return null;
+            try {
+                let b64 = host.replace(/-/g, '+').replace(/_/g, '/');
+                while (b64.length % 4) b64 += '=';
+                const decoded = atob(b64); // "admin.shopify.com/store/<handle>" or "<shop>.myshopify.com/admin"
+                if (decoded.includes('/store/')) {
+                    const handle = decoded.split('/store/')[1].split(/[/?#]/)[0];
+                    return handle ? handle + '.myshopify.com' : null;
+                }
+                const h = decoded.split('/')[0];
+                return /\.myshopify\.com$/.test(h) ? h : null;
+            } catch (e) { return null; }
+        }
+        const shop = urlParams.get('shop')
+            || shopFromHost(hostParam)
+            || (window.shopify && window.shopify.config && window.shopify.config.shop)
+            || null;
 
         // Initialize Shopify App Bridge for embedded app experience
         const isEmbedded = window.self !== window.top;

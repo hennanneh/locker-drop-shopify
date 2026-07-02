@@ -1069,6 +1069,12 @@ app.post('/carrier/rates', async (req, res) => {
         logger.info(`📅 Expected pickup: ${pickupDateFormatted}`);
 
         const destination = rate.destination;
+        // Lockers are US-only — never offer locker pickup for international destinations,
+        // even if the carrier service is (auto-)added to an International shipping zone.
+        if (destination && destination.country && destination.country !== 'US') {
+            logger.info(`🌍 Non-US destination (${destination.country}) — LockerDrop pickup not offered`);
+            return res.json({ rates: [] });
+        }
         let lat = destination.latitude;
         let lon = destination.longitude;
 
@@ -8539,6 +8545,12 @@ app.post('/carrier-service/rates', async (req, res) => {
         }
 
         const destination = rateRequest.rate.destination;
+        // Lockers are US-only — never offer locker pickup for international destinations,
+        // even if the carrier service is (auto-)added to an International shipping zone.
+        if (destination && destination.country && destination.country !== 'US') {
+            logger.info(`🌍 Non-US destination (${destination.country}) — LockerDrop pickup not offered`);
+            return res.json({ rates: [] });
+        }
         let lat = destination.latitude;
         let lon = destination.longitude;
 
