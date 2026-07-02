@@ -1016,8 +1016,13 @@ app.post('/carrier/rates', async (req, res) => {
         let fulfillmentDays = ['monday','tuesday','wednesday','thursday','friday'];
         let vacationDays = [];
         let useNativePickup = false;
+        let shopIsPlus = false;
 
         if (shopDomain) {
+            try {
+                const storeRow = await db.query('SELECT shopify_plus FROM stores WHERE shop = $1', [shopDomain]);
+                shopIsPlus = !!storeRow.rows[0]?.shopify_plus;
+            } catch (e) { /* default: not Plus */ }
             try {
                 const settingsResult = await db.query('SELECT * FROM shop_settings WHERE shop = $1', [shopDomain]);
                 if (settingsResult.rows.length > 0) {
@@ -1026,7 +1031,12 @@ app.post('/carrier/rates', async (req, res) => {
                     processingDays = settings.processing_days || 1;
                     fulfillmentDays = settings.fulfillment_days || ['monday','tuesday','wednesday','thursday','friday'];
                     vacationDays = settings.vacation_days || [];
-                    useNativePickup = settings.use_checkout_extension || false;
+                    // The single "LockerDrop Pickup · select locker below" rate relies on the
+                    // checkout-block widget to render the picker, which is PLUS-ONLY. On any
+                    // non-Plus plan, fall through to per-location carrier rates (one shipping
+                    // line per locker) so there's never a dead "select below" prompt with no
+                    // widget. See docs/CCS_REQUIREMENT.md.
+                    useNativePickup = (settings.use_checkout_extension || false) && shopIsPlus;
                 }
             } catch (e) {
                 logger.info('Could not check shop settings:', e.message);
@@ -8349,8 +8359,13 @@ app.post('/carrier-service/rates', async (req, res) => {
         let fulfillmentDays = ['monday','tuesday','wednesday','thursday','friday'];
         let vacationDays = [];
         let useNativePickup = false;
+        let shopIsPlus = false;
 
         if (shopDomain) {
+            try {
+                const storeRow = await db.query('SELECT shopify_plus FROM stores WHERE shop = $1', [shopDomain]);
+                shopIsPlus = !!storeRow.rows[0]?.shopify_plus;
+            } catch (e) { /* default: not Plus */ }
             try {
                 const settingsResult = await db.query('SELECT * FROM shop_settings WHERE shop = $1', [shopDomain]);
                 if (settingsResult.rows.length > 0) {
@@ -8359,7 +8374,12 @@ app.post('/carrier-service/rates', async (req, res) => {
                     processingDays = settings.processing_days || 1;
                     fulfillmentDays = settings.fulfillment_days || ['monday','tuesday','wednesday','thursday','friday'];
                     vacationDays = settings.vacation_days || [];
-                    useNativePickup = settings.use_checkout_extension || false;
+                    // The single "LockerDrop Pickup · select locker below" rate relies on the
+                    // checkout-block widget to render the picker, which is PLUS-ONLY. On any
+                    // non-Plus plan, fall through to per-location carrier rates (one shipping
+                    // line per locker) so there's never a dead "select below" prompt with no
+                    // widget. See docs/CCS_REQUIREMENT.md.
+                    useNativePickup = (settings.use_checkout_extension || false) && shopIsPlus;
                 }
             } catch (e) {
                 logger.info('Could not check shop settings:', e.message);
