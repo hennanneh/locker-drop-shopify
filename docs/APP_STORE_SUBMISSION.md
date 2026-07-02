@@ -76,14 +76,19 @@ locker order, capped at $Y/month. Billed via Shopify.
    "Available 24/7"). Best differentiator shot for the listing.
 2. Dashboard order list with statuses — ✅ CAPTURED 2026-07-02 (in-admin Orders view with
    the 4 status cards). Empty-state; recapture with a live order for a fuller look.
-3. "My Lockers" location selection — ⏳ self-capture needed
-4. Product Sizes / per-size Pricing (Settings) — ⏳ self-capture needed
-5. Customer pickup screen / notification — ⏳ self-capture needed
+3. "My Lockers" map + selectable locker network (S/M/L/XL chips) — ✅ CAPTURED 2026-07-02
+   (self-captured). Map is a strong visual — crop to map + a few list rows.
+4. Product Sizes — per-product L/W/H + locker-size dropdown, CSV import/export —
+   ✅ CAPTURED 2026-07-02 (self-captured). Crop to header + 3–4 rows (full list is dense).
+5. Settings — "Carrier service active" banner + per-size Pricing + Fulfillment & Timing
+   (Pickup Date Preview) + Pickup Page Branding — ✅ CAPTURED 2026-07-02 (self-captured).
+   Best "proof of depth" shot; crop into 1–2 images.
 
-> Automation note: the app runs in a cross-origin iframe inside Shopify admin, so the
-> in-app left-nav (My Lockers / Product Sizes / Settings) can't be driven by tooling —
-> those config screens must be screenshotted manually (open the app, click the nav item,
-> screenshot). Checkout and the Orders dashboard were capturable and are done.
+> All 5 listing screenshots captured (2026-07-02). Suggested listing order:
+> checkout → My Lockers map → Settings (carrier active + pricing) → dashboard → product sizes.
+> Automation note: the app runs in a cross-origin iframe, so the config screens (My
+> Lockers / Product Sizes / Settings) were self-captured manually; checkout + Orders
+> dashboard were tool-captured. These are full-page grabs — crop each to its key section.
 > Shopify listing spec: 1600×900 (min 1280×720), PNG/JPG, ≤ 20 MB, up to 6 images.
 
 ---
