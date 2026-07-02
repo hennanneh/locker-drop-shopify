@@ -71,10 +71,20 @@ Advanced, or Plus**. Basic is not supported.
 locker order, capped at $Y/month. Billed via Shopify.
 
 **Screenshots to capture (no pricing text, no unsubstantiated stats):**
-1. Checkout showing LockerDrop locker options
-2. Dashboard order list with statuses
-3. "My Lockers" location selection
-4. Customer pickup screen / notification
+1. Checkout showing LockerDrop locker options — ✅ CAPTURED 2026-07-02 (advanced-ennanne
+   checkout: two locker options with location, distance "10.9 mi away", pickup date,
+   "Available 24/7"). Best differentiator shot for the listing.
+2. Dashboard order list with statuses — ✅ CAPTURED 2026-07-02 (in-admin Orders view with
+   the 4 status cards). Empty-state; recapture with a live order for a fuller look.
+3. "My Lockers" location selection — ⏳ self-capture needed
+4. Product Sizes / per-size Pricing (Settings) — ⏳ self-capture needed
+5. Customer pickup screen / notification — ⏳ self-capture needed
+
+> Automation note: the app runs in a cross-origin iframe inside Shopify admin, so the
+> in-app left-nav (My Lockers / Product Sizes / Settings) can't be driven by tooling —
+> those config screens must be screenshotted manually (open the app, click the nav item,
+> screenshot). Checkout and the Orders dashboard were capturable and are done.
+> Shopify listing spec: 1600×900 (min 1280×720), PNG/JPG, ≤ 20 MB, up to 6 images.
 
 ---
 
@@ -130,8 +140,11 @@ Dev Dashboard "Protected customer data" request:
 - Data retention: shop + order data deleted on uninstall (transactional cleanup);
   customer data deleted on redact request.
 - Access limited to the minimum scopes needed; staff access to prod is restricted.
-- **Action item:** publish a privacy policy URL and confirm a data-processing
-  agreement with Harbor (subprocessor) before attesting.
+- Privacy policy URL: **https://app.lockerdrop.it/privacy** — ✅ published & live
+  (verified HTTP 200, 2026-07-02). Lists subprocessors (Harbor, Twilio, Resend,
+  DigitalOcean) and confirms Harbor receives no customer PII (name/email/phone/address).
+- **Action item (remaining):** confirm a data-processing agreement with Harbor
+  (subprocessor) before final attestation.
 
 ---
 
