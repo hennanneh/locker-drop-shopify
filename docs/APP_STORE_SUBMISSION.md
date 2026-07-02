@@ -84,6 +84,13 @@ locker order, capped at $Y/month. Billed via Shopify.
    (Pickup Date Preview) + Pickup Page Branding — ✅ CAPTURED 2026-07-02 (self-captured).
    Best "proof of depth" shot; crop into 1–2 images.
 
+> ⚠️ Real-locker recapture (decided 2026-07-02): current screenshots show Harbor SANDBOX
+> lockers. Recapture with REAL lockers AFTER the Jul 7 Harbor call, once production API
+> access is provisioned (flip HARBOR_API_URL/ACCOUNTS_URL + prod client id/secret, restart,
+> re-shoot map + checkout). Verified 2026-07-02 the current sandbox client returns HTTP 401
+> unauthorized_client on production, so prod requires NEW credentials from Harbor — the
+> "same creds" assumption did not hold. Sandbox shots are placeholders until then.
+>
 > All 5 listing screenshots captured (2026-07-02). Suggested listing order:
 > checkout → My Lockers map → Settings (carrier active + pricing) → dashboard → product sizes.
 > Automation note: the app runs in a cross-origin iframe, so the config screens (My
