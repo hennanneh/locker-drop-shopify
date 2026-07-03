@@ -5334,9 +5334,13 @@
             loadSettings();
             updateRefreshTime();
 
-            // Setup guide widget (Stripe-style onboarding checklist) — before the
-            // background token/scope calls so a hiccup there can't block it.
-            initSetupGuide();
+            // Setup guide widget (Stripe-style onboarding checklist). The widget markup
+            // lives after this script in the DOM, so defer until parsing finishes.
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initSetupGuide);
+            } else {
+                initSetupGuide();
+            }
 
             // Validate Shopify token in background (don't block dashboard loading)
             validateToken();
