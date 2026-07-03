@@ -5334,14 +5334,15 @@
             loadSettings();
             updateRefreshTime();
 
+            // Setup guide widget (Stripe-style onboarding checklist) — before the
+            // background token/scope calls so a hiccup there can't block it.
+            initSetupGuide();
+
             // Validate Shopify token in background (don't block dashboard loading)
             validateToken();
 
             // Check scopes for fulfillment permissions
             checkScopes();
-
-            // Setup guide widget (Stripe-style onboarding checklist)
-            initSetupGuide();
 
             // Add event listener for free pickup checkbox
             const freePickupCheckbox = document.getElementById('free-pickup');
@@ -5409,6 +5410,10 @@
             const g = document.getElementById('setup-guide');
             if (!g || !shop) return;
             try { if (localStorage.getItem(sgKey('dismissed')) === '1') { g.hidden = true; return; } } catch (e) {}
+
+            // Show the widget immediately; checkmarks fill in as signals resolve, so
+            // a slow/failed fetch below can never keep the guide hidden.
+            g.hidden = false;
 
             // 1. Shipping rate — from plan data the app already tracks
             let carrierDone = false;
