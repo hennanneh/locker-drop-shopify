@@ -97,9 +97,9 @@
         }
 
         .sidebar {
-            width: 200px;
-            background: #1a1a2e;
-            padding: 24px 12px;
+            width: 216px;
+            background: #ffffff;
+            padding: 20px 12px;
             flex-shrink: 0;
             position: fixed;
             top: 0;
@@ -109,15 +109,16 @@
             z-index: 100;
             display: flex;
             flex-direction: column;
+            border-right: 1px solid #e6e6ea;
         }
 
         .sidebar-logo {
             color: #FE5535;
             font-weight: 800;
             font-size: 18px;
-            padding: 0 10px 24px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            margin-bottom: 16px;
+            padding: 4px 10px 20px;
+            border-bottom: 1px solid #ececed;
+            margin-bottom: 12px;
             letter-spacing: -0.3px;
         }
 
@@ -125,14 +126,25 @@
             flex: 1;
         }
 
+        .sidebar-section-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #9698a1;
+            padding: 0 12px;
+            margin: 16px 0 6px;
+        }
+        .sidebar-section-label:first-child { margin-top: 4px; }
+
         .sidebar-nav-item {
             display: flex;
             align-items: center;
             gap: 10px;
             width: 100%;
-            padding: 10px 12px;
+            padding: 9px 12px;
             border-radius: 8px;
-            color: rgba(255,255,255,0.5);
+            color: #4b4d57;
             font-size: 14px;
             font-weight: 500;
             background: none;
@@ -140,41 +152,45 @@
             cursor: pointer;
             text-align: left;
             margin-bottom: 2px;
-            transition: all 0.2s;
+            transition: background 0.15s, color 0.15s;
             font-family: inherit;
         }
 
         .sidebar-nav-item:hover {
-            color: rgba(255,255,255,0.8);
-            background: rgba(255,255,255,0.05);
+            color: #1a1a2e;
+            background: #f4f4f6;
         }
 
         .sidebar-nav-item.active {
-            color: white;
-            background: rgba(254, 85, 53, 0.2);
+            color: #FE5535;
+            background: rgba(254, 85, 53, 0.10);
+            font-weight: 600;
         }
 
         .sidebar-nav-item .nav-icon {
             width: 18px;
             text-align: center;
             font-size: 14px;
-            opacity: 0.7;
+            opacity: 0.65;
+            filter: grayscale(0.2);
         }
 
+        .sidebar-nav-item:hover .nav-icon,
         .sidebar-nav-item.active .nav-icon {
             opacity: 1;
+            filter: none;
         }
 
         .sidebar-footer {
-            padding: 16px 10px 0;
-            border-top: 1px solid rgba(255,255,255,0.1);
-            color: rgba(255,255,255,0.4);
+            padding: 14px 10px 0;
+            border-top: 1px solid #ececed;
+            color: #9698a1;
             font-size: 12px;
         }
 
         .main-content {
             flex: 1;
-            margin-left: 200px;
+            margin-left: 216px;
             background: var(--p-color-bg);
             min-height: 100vh;
         }
@@ -185,14 +201,15 @@
             align-items: center;
             gap: 12px;
             padding: 12px 16px;
-            background: #1a1a2e;
-            color: white;
+            background: #ffffff;
+            color: #1a1a2e;
+            border-bottom: 1px solid #e6e6ea;
         }
 
         .mobile-hamburger {
             background: none;
             border: none;
-            color: white;
+            color: #1a1a2e;
             font-size: 22px;
             cursor: pointer;
             padding: 4px;
@@ -827,26 +844,42 @@
 
         .stat-card {
             background: var(--p-color-bg-surface);
-            padding: var(--p-space-400);
-            border-radius: 10px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            border-left: 3px solid #e5e7eb;
+            padding: 18px 18px 16px;
+            border-radius: 12px;
+            border: 1px solid #e6e6ea;
+            box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
         }
-
-        .stat-card:nth-child(1) { border-left-color: #FE5535; }
-        .stat-card:nth-child(2) { border-left-color: #22c55e; }
-        .stat-card:nth-child(3) { border-left-color: #3b82f6; }
-        .stat-card:nth-child(4) { border-left-color: #a855f7; }
 
         .stat-label {
+            display: flex;
+            align-items: center;
+            gap: 7px;
             color: var(--p-color-text-secondary);
-            font-size: var(--p-font-size-100);
-            margin-bottom: var(--p-space-100);
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            margin-bottom: var(--p-space-200);
         }
 
+        .stat-label::before {
+            content: '';
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #cbd0d6;
+            flex-shrink: 0;
+        }
+
+        .stat-card:nth-child(1) .stat-label::before { background: #FE5535; }
+        .stat-card:nth-child(2) .stat-label::before { background: #22c55e; }
+        .stat-card:nth-child(3) .stat-label::before { background: #3b82f6; }
+        .stat-card:nth-child(4) .stat-label::before { background: #a855f7; }
+
         .stat-value {
-            font-size: var(--p-font-size-600);
-            font-weight: var(--p-font-weight-semibold);
+            font-size: 30px;
+            line-height: 1.1;
+            font-weight: 700;
+            letter-spacing: -0.02em;
             color: var(--p-color-text);
         }
 
@@ -1550,6 +1583,7 @@
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-logo">LockerDrop</div>
             <nav class="sidebar-nav">
+                <div class="sidebar-section-label">Operations</div>
                 <button class="sidebar-nav-item active" data-tab="orders" onclick="showTab('orders')">
                     <span class="nav-icon">&#128230;</span> Orders
                 </button>
@@ -1559,6 +1593,7 @@
                 <button class="sidebar-nav-item" data-tab="products" onclick="showTab('products')">
                     <span class="nav-icon">&#128229;</span> Product Sizes
                 </button>
+                <div class="sidebar-section-label">Account</div>
                 <button class="sidebar-nav-item" data-tab="settings" onclick="showTab('settings')">
                     <span class="nav-icon">&#9881;</span> Settings
                 </button>
