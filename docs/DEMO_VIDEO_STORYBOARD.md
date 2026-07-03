@@ -62,9 +62,15 @@ fulfillment. Give your customers a faster, more flexible way to get their orders
 | **2** | 0:20–1:00 | Show the **Setup guide** widget. Then **My Lockers** (map + select a couple locations) → **Product Sizes** (set one product's size) → **Settings** (pricing + pickup schedule). End on the setup guide at **3 of 3 · "You're all set."** |
 | **3** | 1:00–1:40 | Storefront → add a product → **checkout** → enter a U.S. address → the **LockerDrop locker options appear** (distance, pickup date, "Available 24/7") → select one → place order (Bogus Gateway test payment). |
 | **4** | 1:40–2:00 | Back to the **dashboard** → the new order appears in the table as **Pending drop-off** with a locker assigned. |
-| **5** | 2:00–2:35 | Open the **drop-off link** (on the demo store, click **Sim drop-off**) → status flips to **Ready for pickup** → show the customer notification. |
-| **6** | 2:35–3:05 | Open the **pickup link** (on the demo store, click **Sim pickup**) → order → **Completed**; show the Shopify order flip to **Fulfilled**. |
+| **5** | 2:00–2:35 | Open the **drop-off link** (on the demo store, click **Sim drop-off**) → status flips to **Ready for pickup** → show the customer notification. <br>🎬 **[optional phone insert — add later]** film opening the real drop-off link on a phone → locker-open action → drop-off success page. |
+| **6** | 2:35–3:05 | Open the **pickup link** (on the demo store, click **Sim pickup**) → order → **Completed**; show the Shopify order flip to **Fulfilled**. <br>🎬 **[optional phone insert — add later]** film the customer opening the real pickup link on a phone → locker opens → your **branded pickup success page** (logo, thank-you message, upsell). This is the best customer-facing shot. |
 | **7** | 3:05–3:20 | Land on the populated **dashboard** overview (or the logo) as a closing shot. |
+
+> 🎬 **Phone-UX inserts (beats 5b / 6b) — do these later.** The seeded demo orders use
+> placeholder links, so they **won't** render the real pages. To film the phone UX you need
+> a **genuine sandbox order**: run one real checkout on advanced-ennanne (Bogus Gateway),
+> which generates valid Harbor drop-off/pickup links. Open those links on a phone and film.
+> Slot the clips in at the cues above. If you skip it, the Sim flow alone is fine for review.
 
 ---
 
