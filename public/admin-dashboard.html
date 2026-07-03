@@ -5406,59 +5406,64 @@
         }
 
         let _sgProductsCache = null; // remembers a positive Shopify products check
-        async function refreshSetupGuide() {
-            const g = document.getElementById('setup-guide');
-            if (!g || !shop) return;
-            try { if (localStorage.getItem(sgKey('dismissed')) === '1') { g.hidden = true; return; } } catch (e) {}
 
-            // Show the widget immediately; checkmarks fill in as signals resolve, so
-            // a slow/failed fetch below can never keep the guide hidden.
-            g.hidden = false;
-
-            // 1. Shipping rate — from plan data the app already tracks
-            let carrierDone = false;
-            try {
-                const plan = shopPlanData || await fetchShopPlan();
-                carrierDone = !!(plan && plan.carrierServiceRegistered);
-            } catch (e) {}
-
-            // 2. Lockers chosen — cheap DB endpoint
-            let lockersDone = (typeof savedPreferenceIds !== 'undefined' && savedPreferenceIds.length > 0);
-            if (!lockersDone) {
-                try {
-                    const r = await window.__nativeFetch(`/api/locker-preferences/${shop}`);
-                    if (r.ok) { const prefs = await r.json(); lockersDone = Array.isArray(prefs) && prefs.length > 0; }
-                } catch (e) {}
-            }
-
-            // 3. Product sizes — prefer in-memory data; fetch once only if needed
-            let productsDone = false;
-            if (typeof productsData !== 'undefined' && Array.isArray(productsData) && productsData.length) {
-                productsDone = sgProductsConfigured(productsData);
-            } else if (_sgProductsCache !== null) {
-                productsDone = _sgProductsCache;
-            } else {
-                try {
-                    const r = await window.__nativeFetch(`/api/products/${shop}`);
-                    if (r.ok) { const d = await r.json(); productsDone = sgProductsConfigured(d.products || []); _sgProductsCache = productsDone; }
-                } catch (e) {}
-            }
-
-            const states = { carrier: carrierDone, lockers: lockersDone, products: productsDone };
-            let doneCount = 0;
-            Object.keys(states).forEach(k => {
-                const el = document.querySelector(`.setup-step[data-step="${k}"]`);
-                if (el) el.classList.toggle('done', states[k]);
-                if (states[k]) doneCount++;
-            });
+        // Toggle one step's checkmark and re-tally the header/progress.
+        function sgSetStep(key, done) {
+            const el = document.querySelector(`.setup-step[data-step="${key}"]`);
+            if (el) el.classList.toggle('done', !!done);
             const total = 3;
+            const doneCount = document.querySelectorAll('.setup-step.done').length;
             const countEl = document.getElementById('setup-guide-count');
             const barEl = document.getElementById('setup-guide-bar');
             const doneMsg = document.getElementById('setup-guide-done-msg');
             if (countEl) countEl.textContent = `${doneCount} of ${total}`;
             if (barEl) barEl.style.width = `${(doneCount / total) * 100}%`;
             if (doneMsg) doneMsg.style.display = doneCount === total ? '' : 'none';
+        }
+
+        // Fetch JSON with a timeout so one slow endpoint can't stall the guide.
+        function sgFetchJSON(url, ms) {
+            return Promise.race([
+                window.__nativeFetch(url).then(r => r.ok ? r.json() : null),
+                new Promise(res => setTimeout(() => res(null), ms || 8000))
+            ]).catch(() => null);
+        }
+
+        async function refreshSetupGuide() {
+            const g = document.getElementById('setup-guide');
+            if (!g || !shop) return;
+            try { if (localStorage.getItem(sgKey('dismissed')) === '1') { g.hidden = true; return; } } catch (e) {}
             g.hidden = false;
+
+            // Each check runs independently and updates its own checkmark as it
+            // resolves — a slow shipping-plan call can't block the others.
+
+            // 1. Shipping rate — from plan data the app already tracks
+            (async () => {
+                let plan = shopPlanData;
+                if (!plan || plan.carrierServiceRegistered === undefined) {
+                    const j = await sgFetchJSON(`/api/shop-plan/${shop}`);
+                    if (j) { plan = j; try { shopPlanData = j; } catch (e) {} }
+                }
+                sgSetStep('carrier', !!(plan && plan.carrierServiceRegistered));
+            })();
+
+            // 2. Lockers chosen — cheap DB endpoint
+            (async () => {
+                if (typeof savedPreferenceIds !== 'undefined' && savedPreferenceIds.length > 0) { sgSetStep('lockers', true); return; }
+                const prefs = await sgFetchJSON(`/api/locker-preferences/${shop}`);
+                sgSetStep('lockers', Array.isArray(prefs) && prefs.length > 0);
+            })();
+
+            // 3. Product sizes — prefer in-memory data; fetch once only if needed
+            (async () => {
+                if (typeof productsData !== 'undefined' && Array.isArray(productsData) && productsData.length) { sgSetStep('products', sgProductsConfigured(productsData)); return; }
+                if (_sgProductsCache !== null) { sgSetStep('products', _sgProductsCache); return; }
+                const d = await sgFetchJSON(`/api/products/${shop}`);
+                const done = d ? sgProductsConfigured(d.products || []) : false;
+                _sgProductsCache = done;
+                sgSetStep('products', done);
+            })();
         }
 
         function initSetupGuide() {
