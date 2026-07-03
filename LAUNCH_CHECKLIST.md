@@ -37,6 +37,9 @@ Full end-to-end QA against the dev-store matrix (basic / grow / advanced-ennanne
 2. **S1-6 remainder:** `SESSION_SECRET` rotated 2026-07-01 ✅; still rotate DB password, Shopify API secret, Twilio/Resend keys.
 3. **Sprint 3 App Store submission** — draft materials in `docs/APP_STORE_SUBMISSION.md`; needs Protected Customer Data approval + demo video + reviewer creds (reviewer-testability now solved via the simulate control).
 4. One full cycle on a **real** (non-dev) store once Harbor prod is live.
+5. 🧹 **Remove demo/screenshot data before launch:**
+   - `admin-dashboard.html` — the `DEMO_US_LOCKERS` block + its injection in `loadLockers()` (gated to `advanced-ennanne.myshopify.com`), added 2026-07-02 to show a nationwide map for App Store screenshots.
+   - Demo orders + locations in the DB (advanced-ennanne): `DELETE FROM orders WHERE shop='advanced-ennanne.myshopify.com' AND shopify_order_id LIKE '9900%';` and `DELETE FROM locker_preferences WHERE shop='advanced-ennanne.myshopify.com' AND location_id IN (501,502);`
 
 Distribution: app is already **public** (correct for App Store; can't be changed) — submit after blockers clear.
 
