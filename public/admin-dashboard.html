@@ -533,25 +533,140 @@
 
         /* === FILTER BUTTONS (Polaris SegmentedControl style) === */
         .filter-btn {
-            padding: var(--p-space-150) var(--p-space-300);
-            border: 1px solid var(--p-color-border-secondary);
-            background: var(--p-color-bg-surface);
+            padding: 6px 13px;
+            border: 1px solid #e6e6ea;
+            background: #ffffff;
             border-radius: var(--p-border-radius-full);
-            font-size: 12px;
+            font-size: 13px;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s;
-            color: #6d7175;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+            color: #4b4d57;
         }
 
         .filter-btn:hover {
-            border-color: var(--p-color-bg-fill-brand);
-            color: var(--p-color-bg-fill-brand);
+            background: #f4f4f6;
+            border-color: #d5d7dd;
+            color: #1a1a2e;
         }
 
         .filter-btn.active {
-            background: var(--p-color-bg-fill-brand);
-            color: white;
-            border-color: var(--p-color-bg-fill-brand);
+            background: rgba(254, 85, 53, 0.10);
+            color: #FE5535;
+            border-color: rgba(254, 85, 53, 0.35);
+            font-weight: 600;
+        }
+
+        /* === Setup guide widget (Stripe-style) === */
+        .setup-guide {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            width: 320px;
+            background: #ffffff;
+            border: 1px solid #e6e6ea;
+            border-radius: 14px;
+            box-shadow: 0 10px 30px rgba(16, 24, 40, 0.14);
+            z-index: 90;
+            overflow: hidden;
+            font-family: var(--p-font-family);
+        }
+        .setup-guide[hidden] { display: none; }
+        .setup-guide-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 14px 12px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .setup-guide-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--p-color-text);
+            flex: 1;
+        }
+        .setup-guide-count {
+            font-size: 12px;
+            font-weight: 600;
+            color: #FE5535;
+        }
+        .setup-guide-iconbtn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #9698a1;
+            font-size: 16px;
+            line-height: 1;
+            padding: 2px 4px;
+            border-radius: 6px;
+        }
+        .setup-guide-iconbtn:hover { background: #f4f4f6; color: #4b4d57; }
+        .setup-guide-progress {
+            height: 4px;
+            background: #ececed;
+            margin: 0 14px 4px;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .setup-guide-progress-bar {
+            height: 100%;
+            width: 0%;
+            background: #FE5535;
+            border-radius: 999px;
+            transition: width 0.3s ease;
+        }
+        .setup-guide-body { padding: 6px 8px 10px; }
+        .setup-guide.collapsed .setup-guide-body,
+        .setup-guide.collapsed .setup-guide-progress { display: none; }
+        .setup-step {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 9px 10px;
+            border: none;
+            background: none;
+            border-radius: 8px;
+            cursor: pointer;
+            text-align: left;
+            font-family: inherit;
+            font-size: 13px;
+            color: #3a3b45;
+            transition: background 0.15s;
+        }
+        .setup-step:hover { background: #f4f4f6; }
+        .setup-step-check {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 1.5px solid #cbd0d6;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 11px;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .setup-step.done .setup-step-check {
+            background: #22c55e;
+            border-color: #22c55e;
+        }
+        .setup-step.done .setup-step-label {
+            color: #9698a1;
+            text-decoration: line-through;
+        }
+        .setup-step-label { flex: 1; }
+        .setup-step-arrow { color: #c0c2ca; font-size: 14px; }
+        .setup-guide-done-msg {
+            padding: 4px 12px 12px;
+            font-size: 12px;
+            color: #16a34a;
+            font-weight: 500;
+        }
+        @media (max-width: 600px) {
+            .setup-guide { right: 12px; left: 12px; width: auto; bottom: 12px; }
         }
 
         /* === RESOURCE LIST / LOCKER SELECTOR === */
@@ -3160,6 +3275,7 @@
                         updateShippingSetupCard(planInfo);
                         updateOnboardingShippingStep(planInfo);
                     }
+                    if (typeof refreshSetupGuide === 'function') refreshSetupGuide();
                 } else {
                     notify(result.message || 'Could not register carrier service. Your plan may not support it.');
                 }
@@ -4653,6 +4769,7 @@
                     }, 2500);
                     // Also hide reminder banner if it was showing
                     hideSetupReminderBanner();
+                    if (typeof refreshSetupGuide === 'function') refreshSetupGuide();
                 } else {
                     notify(friendlyError(data, 'Save locker preferences'));
                     btn.textContent = originalText;
@@ -5223,6 +5340,9 @@
             // Check scopes for fulfillment permissions
             checkScopes();
 
+            // Setup guide widget (Stripe-style onboarding checklist)
+            initSetupGuide();
+
             // Add event listener for free pickup checkbox
             const freePickupCheckbox = document.getElementById('free-pickup');
             if (freePickupCheckbox) {
@@ -5252,6 +5372,103 @@
                 updateRefreshTime();
             }, 30000);
         })();
+
+        // === Setup guide widget (Stripe-style onboarding checklist) ===
+        function sgKey(name) { return `lockerdrop_setupguide_${name}_${shop || ''}`; }
+
+        function setupGuideGo(tab) {
+            showTab(tab);
+            try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) {}
+        }
+
+        function toggleSetupGuide() {
+            const g = document.getElementById('setup-guide');
+            if (!g) return;
+            const nowCollapsed = !g.classList.contains('collapsed');
+            g.classList.toggle('collapsed', nowCollapsed);
+            try { localStorage.setItem(sgKey('collapsed'), nowCollapsed ? '1' : '0'); } catch (e) {}
+            const btn = document.getElementById('setup-guide-collapse');
+            if (btn) btn.innerHTML = nowCollapsed ? '&#43;' : '&#8211;';
+            if (!nowCollapsed) refreshSetupGuide(); // re-check state when reopening
+        }
+
+        function dismissSetupGuide() {
+            const g = document.getElementById('setup-guide');
+            if (g) g.hidden = true;
+            try { localStorage.setItem(sgKey('dismissed'), '1'); } catch (e) {}
+        }
+
+        function sgProductsConfigured(list) {
+            return Array.isArray(list) && list.some(p =>
+                (p.variants || []).some(v =>
+                    Number(v.length) > 0 || Number(v.width) > 0 || Number(v.height) > 0 || v.excluded));
+        }
+
+        let _sgProductsCache = null; // remembers a positive Shopify products check
+        async function refreshSetupGuide() {
+            const g = document.getElementById('setup-guide');
+            if (!g || !shop) return;
+            try { if (localStorage.getItem(sgKey('dismissed')) === '1') { g.hidden = true; return; } } catch (e) {}
+
+            // 1. Shipping rate — from plan data the app already tracks
+            let carrierDone = false;
+            try {
+                const plan = shopPlanData || await fetchShopPlan();
+                carrierDone = !!(plan && plan.carrierServiceRegistered);
+            } catch (e) {}
+
+            // 2. Lockers chosen — cheap DB endpoint
+            let lockersDone = (typeof savedPreferenceIds !== 'undefined' && savedPreferenceIds.length > 0);
+            if (!lockersDone) {
+                try {
+                    const r = await window.__nativeFetch(`/api/locker-preferences/${shop}`);
+                    if (r.ok) { const prefs = await r.json(); lockersDone = Array.isArray(prefs) && prefs.length > 0; }
+                } catch (e) {}
+            }
+
+            // 3. Product sizes — prefer in-memory data; fetch once only if needed
+            let productsDone = false;
+            if (typeof productsData !== 'undefined' && Array.isArray(productsData) && productsData.length) {
+                productsDone = sgProductsConfigured(productsData);
+            } else if (_sgProductsCache !== null) {
+                productsDone = _sgProductsCache;
+            } else {
+                try {
+                    const r = await window.__nativeFetch(`/api/products/${shop}`);
+                    if (r.ok) { const d = await r.json(); productsDone = sgProductsConfigured(d.products || []); _sgProductsCache = productsDone; }
+                } catch (e) {}
+            }
+
+            const states = { carrier: carrierDone, lockers: lockersDone, products: productsDone };
+            let doneCount = 0;
+            Object.keys(states).forEach(k => {
+                const el = document.querySelector(`.setup-step[data-step="${k}"]`);
+                if (el) el.classList.toggle('done', states[k]);
+                if (states[k]) doneCount++;
+            });
+            const total = 3;
+            const countEl = document.getElementById('setup-guide-count');
+            const barEl = document.getElementById('setup-guide-bar');
+            const doneMsg = document.getElementById('setup-guide-done-msg');
+            if (countEl) countEl.textContent = `${doneCount} of ${total}`;
+            if (barEl) barEl.style.width = `${(doneCount / total) * 100}%`;
+            if (doneMsg) doneMsg.style.display = doneCount === total ? '' : 'none';
+            g.hidden = false;
+        }
+
+        function initSetupGuide() {
+            if (!shop) return;
+            const g = document.getElementById('setup-guide');
+            if (!g) return;
+            let collapsed = false;
+            try { collapsed = localStorage.getItem(sgKey('collapsed')) === '1'; } catch (e) {}
+            if (collapsed) {
+                g.classList.add('collapsed');
+                const btn = document.getElementById('setup-guide-collapse');
+                if (btn) btn.innerHTML = '&#43;';
+            }
+            refreshSetupGuide();
+        }
 
         // Close modal when clicking outside
         window.onclick = function(event) {
@@ -5754,6 +5971,8 @@
                 if (result.success) {
                     btn.textContent = `✓ ${products.length} product${products.length !== 1 ? 's' : ''} updated`;
                     btn.style.background = '#008060';
+                    _sgProductsCache = null; // force re-check on next refresh
+                    if (typeof refreshSetupGuide === 'function') refreshSetupGuide();
                     setTimeout(() => {
                         btn.textContent = originalText;
                         btn.style.background = '';
@@ -6550,6 +6769,35 @@
 
         </main><!-- end main-content -->
     </div><!-- end app-layout -->
+
+    <!-- Setup guide widget (Stripe-style) -->
+    <div class="setup-guide" id="setup-guide" hidden>
+        <div class="setup-guide-header" onclick="toggleSetupGuide()">
+            <span class="setup-guide-title">Setup guide</span>
+            <span class="setup-guide-count" id="setup-guide-count">0 of 3</span>
+            <button class="setup-guide-iconbtn" id="setup-guide-collapse" title="Collapse" onclick="event.stopPropagation(); toggleSetupGuide()">&#8211;</button>
+            <button class="setup-guide-iconbtn" title="Dismiss" onclick="event.stopPropagation(); dismissSetupGuide()">&times;</button>
+        </div>
+        <div class="setup-guide-progress"><div class="setup-guide-progress-bar" id="setup-guide-bar"></div></div>
+        <div class="setup-guide-body">
+            <button class="setup-step" data-step="carrier" onclick="setupGuideGo('settings')">
+                <span class="setup-step-check">&#10003;</span>
+                <span class="setup-step-label">Add LockerDrop as a shipping rate</span>
+                <span class="setup-step-arrow">&rsaquo;</span>
+            </button>
+            <button class="setup-step" data-step="lockers" onclick="setupGuideGo('lockers')">
+                <span class="setup-step-check">&#10003;</span>
+                <span class="setup-step-label">Choose your lockers</span>
+                <span class="setup-step-arrow">&rsaquo;</span>
+            </button>
+            <button class="setup-step" data-step="products" onclick="setupGuideGo('products')">
+                <span class="setup-step-check">&#10003;</span>
+                <span class="setup-step-label">Set product sizes</span>
+                <span class="setup-step-arrow">&rsaquo;</span>
+            </button>
+        </div>
+        <div class="setup-guide-done-msg" id="setup-guide-done-msg" style="display:none;">&#127881; You're all set &mdash; LockerDrop will appear at checkout.</div>
+    </div>
 
 </body>
 </html>
