@@ -2032,7 +2032,7 @@
                         <span style="color: #c9cccf;">·</span>
                         <a href="#learn-multi-item" style="color: #5c6ac4;">Multi-Item Orders</a>
                         <span style="color: #c9cccf;">·</span>
-                        <a href="#learn-checkout" style="color: #5c6ac4;">Shopify Plus Checkout</a>
+                        <a href="#learn-checkout" style="color: #5c6ac4;">Checkout</a>
                         <span style="color: #c9cccf;">·</span>
                         <a href="#learn-faq" style="color: #5c6ac4;">Common Questions</a>
                     </div>
@@ -2129,23 +2129,23 @@
                         </div>
                     </div>
 
-                    <!-- Shopify Plus Checkout -->
+                    <!-- How It Appears at Checkout -->
                     <div class="info-box" id="learn-checkout" style="background: white; border: 1px solid #e1e3e5; scroll-margin-top: 80px;">
-                        <h4 style="margin: 0 0 12px; color: #5c6ac4; font-size: 15px;">Shopify Plus Checkout</h4>
+                        <h4 style="margin: 0 0 12px; color: #5c6ac4; font-size: 15px;">How It Appears at Checkout</h4>
                         <div style="font-size: 14px; line-height: 1.6;">
-                            <p style="margin: 0 0 8px;"><strong>For Plus Stores Only</strong></p>
                             <p style="margin: 0 0 8px; color: #6d7175;">
-                                The checkout extension shows a locker selection widget directly in checkout.
+                                Once set up, LockerDrop shows up as a <strong>delivery option</strong> at checkout —
+                                nearby lockers appear alongside your shipping rates when the customer enters a
+                                U.S. address. No theme or checkout editing required.
                             </p>
-                            <p style="margin: 0 0 8px;"><strong>To Enable:</strong></p>
+                            <p style="margin: 8px 0 0;"><strong>To make it appear:</strong></p>
                             <ol style="margin: 0 0 0 16px; padding: 0; color: #6d7175;">
-                                <li>Go to Settings → Checkout → Customize</li>
-                                <li>Click Apps in the left sidebar</li>
-                                <li>Drag "LockerDrop Pickup" to checkout</li>
-                                <li>Place after Delivery Address section</li>
+                                <li>Add LockerDrop as a rate in <strong>Settings → Shipping and delivery</strong></li>
+                                <li>Select lockers in <strong>My Lockers</strong></li>
+                                <li>Give products a size in <strong>Product Sizes</strong></li>
                             </ol>
-                            <p style="margin: 10px 0 0; padding: 8px; background: #fff8e5; border-radius: 4px; font-size: 13px; color: #8a6d3b;">
-                                ⚠️ Requires extension deployment via Shopify CLI
+                            <p style="margin: 10px 0 0; padding: 8px; background: #f6f6f7; border-radius: 4px; font-size: 13px; color: #6d7175;">
+                                A native in-checkout locker picker for Shopify Plus is on the roadmap.
                             </p>
                         </div>
                     </div>
@@ -2161,7 +2161,7 @@
                             <p style="margin: 0 0 10px;"><strong>Door closed before I finished?</strong><br>
                             <span style="color: #6d7175;">Use the same drop-off link again to reopen</span></p>
                             <p style="margin: 0;"><strong>Not showing at checkout?</strong><br>
-                            <span style="color: #6d7175;">Check: 1) Address verified 2) Product has size 3) Locker has space 4) Extension deployed</span></p>
+                            <span style="color: #6d7175;">Check: 1) LockerDrop added as a shipping rate 2) Lockers selected 3) Product has a size 4) U.S. address with a locker that has space</span></p>
                         </div>
                     </div>
                 </div>
@@ -5404,8 +5404,10 @@
         }
 
         function sgProductsConfigured(list) {
+            // Configured = explicit dimensions, a chosen locker size, or excluded.
             return Array.isArray(list) && list.some(p =>
                 (p.variants || []).some(v =>
+                    (v.locker_size && v.locker_size !== '') ||
                     Number(v.length) > 0 || Number(v.width) > 0 || Number(v.height) > 0 || v.excluded));
         }
 
