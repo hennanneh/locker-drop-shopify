@@ -139,8 +139,15 @@ async function sendEmail(to, subject, html) {
             subject: subject,
             html: html
         });
-        logger.info(`✅ Email sent to ${to}: ${subject}`);
-        return { success: true, id: result.id };
+        // Resend's SDK does NOT throw on API errors — it returns { data, error }.
+        // Must inspect result.error, otherwise rejected sends look like successes.
+        if (result?.error) {
+            const msg = result.error.message || JSON.stringify(result.error);
+            logger.error(`❌ Email REJECTED for ${to} (${subject}): ${msg}`);
+            return { success: false, error: msg };
+        }
+        logger.info(`✅ Email sent to ${to}: ${subject} (id: ${result?.data?.id || 'n/a'})`);
+        return { success: true, id: result?.data?.id };
     } catch (error) {
         logger.error(`❌ Failed to send email to ${to}:`, error.message);
         return { success: false, error: error.message };
