@@ -4080,7 +4080,7 @@
             if (!await confirmAsync(`Resend ${typeLabel} notification for order #${orderNumber}?`)) return;
 
             try {
-                const response = await window.__nativeFetch(`/api/resend-notification/${orderNumber}`, {
+                const response = await window.__nativeFetch(`/api/resend-notification/${shop}/${orderNumber}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ type })
@@ -4261,7 +4261,7 @@
 
             try {
                 // Reuse the working resend-notification endpoint (email only).
-                const response = await window.__nativeFetch(`/api/resend-notification/${orderNumber}`, {
+                const response = await window.__nativeFetch(`/api/resend-notification/${shop}/${orderNumber}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ type: 'email' })

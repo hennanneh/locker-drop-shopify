@@ -2936,21 +2936,15 @@ app.post('/api/order-change-location/:shop/:orderNumber', requireApiAuth, async 
 });
 
 // Resend pickup notification to customer (SMS and/or Email)
-app.post('/api/resend-notification/:orderNumber', (req, res, next) => {
-    // Verify session is authenticated
-    if (req.session && req.session.authenticated) {
-        return next();
-    }
-    return res.status(401).json({ error: 'Unauthorized' });
-}, async (req, res) => {
+app.post('/api/resend-notification/:shop/:orderNumber', requireApiAuth, async (req, res) => {
     try {
-        const { orderNumber } = req.params;
+        const { shop, orderNumber } = req.params;
         const { type } = req.body; // 'sms', 'email', or 'both'
 
-        // Get order details
+        // Get order details (scoped to shop so order numbers can't collide across stores)
         const orderResult = await db.query(
-            "SELECT id, order_number, customer_email, customer_name, customer_phone, pickup_link, status FROM orders WHERE order_number = $1",
-            [orderNumber]
+            "SELECT id, order_number, customer_email, customer_name, customer_phone, pickup_link, status FROM orders WHERE order_number = $1 AND shop = $2",
+            [orderNumber, shop]
         );
 
         if (orderResult.rows.length === 0) {
