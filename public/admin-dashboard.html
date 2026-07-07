@@ -3823,34 +3823,9 @@
                     <td data-label="Status"><span class="status-badge status-${order.status}">${formatStatus(order.status, order.completedAt)}</span></td>
                     <td>
                         <button class="btn btn-primary btn-small" onclick="viewOrder('${order.orderNumber}')">View</button>
-                        ${shopPlanData?.partnerDevelopment && order.status === 'pending_dropoff' ? `<button class="btn btn-secondary btn-small" title="Reviewer only (development store): simulate the physical drop-off" onclick="simulateStep('${order.orderNumber}','dropoff')">Sim drop-off</button>` : ''}
-                        ${shopPlanData?.partnerDevelopment && order.status === 'ready_for_pickup' ? `<button class="btn btn-secondary btn-small" title="Reviewer only (development store): simulate the physical pickup" onclick="simulateStep('${order.orderNumber}','pickup')">Sim pickup</button>` : ''}
                     </td>
                 </tr>
             `).join('');
-        }
-
-        // Reviewer/dev-store only: simulate the physical locker drop-off/pickup so an
-        // App Store reviewer can complete the flow without visiting a Harbor locker.
-        // Backend hard-gates this to development stores; buttons only render there.
-        async function simulateStep(orderNumber, stage) {
-            const label = stage === 'dropoff' ? 'drop-off' : 'pickup';
-            if (!confirm(`Simulate ${label} for order #${orderNumber}? (development stores only)`)) return;
-            try {
-                const resp = await window.__nativeFetch(`/api/simulate/${shop}/${orderNumber}/${stage}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                const result = await resp.json().catch(() => ({}));
-                if (resp.ok && result.success !== false) {
-                    notify(`Simulated ${label} for #${orderNumber}.`);
-                    await loadOrders();
-                } else {
-                    notify(result.error || result.message || `Could not simulate ${label}.`);
-                }
-            } catch (e) {
-                notify(`Could not simulate ${label}: ${e.message}`);
-            }
         }
 
         // Single source of truth for status labels — reused across order badges,
@@ -4464,35 +4439,6 @@
         }
 
         // Load Lockers with search, filters, and pagination
-        // ===== DEMO SCREENSHOT DATA — remove before launch (see LAUNCH_CHECKLIST) =====
-        // Only used to render a nationwide locker network on the demo store's My Lockers
-        // map for App Store listing screenshots. Gated to the demo store handle below.
-        const DEMO_SCREENSHOT_SHOP = 'advanced-ennanne.myshopify.com';
-        const DEMO_US_LOCKERS = [
-            { id:10,   name:'Midtown Market',        address:'350 5th Ave',            city:'New York',        state:'NY', zip:'10118', latitude:40.7484, longitude:-73.9857, available_sizes:['S','M','L','XL'] },
-            { id:35,   name:'Sunset Grocer',         address:'6801 Hollywood Blvd',    city:'Los Angeles',     state:'CA', zip:'90028', latitude:34.1016, longitude:-118.3406, available_sizes:['S','M','L','XL'] },
-            { id:329,  name:'Loop Pharmacy',         address:'233 S Wacker Dr',        city:'Chicago',         state:'IL', zip:'60606', latitude:41.8789, longitude:-87.6359, available_sizes:['S','M','L'] },
-            { id:501,  name:'Downtown Dallas Hub',   address:'1401 Elm St',            city:'Dallas',          state:'TX', zip:'75202', latitude:32.7810, longitude:-96.7970, available_sizes:['S','M','L','XL'] },
-            { id:502,  name:'SeaTac Center',         address:'17801 International Blvd',city:'Seattle',         state:'WA', zip:'98158', latitude:47.4436, longitude:-122.2969, available_sizes:['S','M','L','XL'] },
-            { id:9001, name:'Bayview Corner Store',  address:'1 Market St',            city:'San Francisco',   state:'CA', zip:'94105', latitude:37.7936, longitude:-122.3965, available_sizes:['S','M','L','XL'] },
-            { id:9002, name:'Heights Pharmacy',      address:'1200 Westheimer Rd',     city:'Houston',         state:'TX', zip:'77006', latitude:29.7423, longitude:-95.3908, available_sizes:['S','M','L'] },
-            { id:9003, name:'Camelback Market',      address:'2400 E Camelback Rd',    city:'Phoenix',         state:'AZ', zip:'85016', latitude:33.5092, longitude:-112.0290, available_sizes:['S','M','L','XL'] },
-            { id:9004, name:'Center City Grocer',    address:'1500 Market St',         city:'Philadelphia',    state:'PA', zip:'19102', latitude:39.9526, longitude:-75.1652, available_sizes:['S','M','L'] },
-            { id:9005, name:'Gaslamp Pickup',        address:'500 Fifth Ave',          city:'San Diego',       state:'CA', zip:'92101', latitude:32.7118, longitude:-117.1601, available_sizes:['S','M','L','XL'] },
-            { id:9006, name:'South Congress Market', address:'1600 S Congress Ave',    city:'Austin',          state:'TX', zip:'78704', latitude:30.2500, longitude:-97.7500, available_sizes:['S','M','L','XL'] },
-            { id:9007, name:'Riverside Pharmacy',    address:'1 Riverside Ave',        city:'Jacksonville',    state:'FL', zip:'32202', latitude:30.3242, longitude:-81.6773, available_sizes:['S','M','L'] },
-            { id:9008, name:'LoDo Corner Store',     address:'1701 Wynkoop St',        city:'Denver',          state:'CO', zip:'80202', latitude:39.7525, longitude:-105.0009, available_sizes:['S','M','L','XL'] },
-            { id:9009, name:'Back Bay Market',       address:'800 Boylston St',        city:'Boston',          state:'MA', zip:'02199', latitude:42.3479, longitude:-71.0826, available_sizes:['S','M','L','XL'] },
-            { id:9010, name:'Broadway Grocer',       address:'222 5th Ave S',          city:'Nashville',       state:'TN', zip:'37203', latitude:36.1560, longitude:-86.7760, available_sizes:['S','M','L'] },
-            { id:9011, name:'Pearl District Pickup', address:'1000 NW Lovejoy St',     city:'Portland',        state:'OR', zip:'97209', latitude:45.5300, longitude:-122.6830, available_sizes:['S','M','L','XL'] },
-            { id:9012, name:'Brickell Market',       address:'900 S Miami Ave',        city:'Miami',           state:'FL', zip:'33130', latitude:25.7650, longitude:-80.1936, available_sizes:['S','M','L','XL'] },
-            { id:9013, name:'North Loop Grocer',     address:'700 Washington Ave N',   city:'Minneapolis',     state:'MN', zip:'55401', latitude:44.9880, longitude:-93.2730, available_sizes:['S','M','L'] },
-            { id:9014, name:'Midtown ATL Pickup',    address:'1075 Peachtree St NE',   city:'Atlanta',         state:'GA', zip:'30309', latitude:33.7860, longitude:-84.3830, available_sizes:['S','M','L','XL'] },
-            { id:9015, name:'Crossroads Market',     address:'1815 Wyandotte St',      city:'Kansas City',     state:'MO', zip:'64108', latitude:39.0862, longitude:-94.5844, available_sizes:['S','M','L'] },
-            { id:9016, name:'Downtown SLC Hub',      address:'50 S Main St',           city:'Salt Lake City',  state:'UT', zip:'84101', latitude:40.7686, longitude:-111.8910, available_sizes:['S','M','L','XL'] },
-            { id:9017, name:'Harbor East Grocer',    address:'1000 Fleet St',          city:'Baltimore',       state:'MD', zip:'21202', latitude:39.2820, longitude:-76.6010, available_sizes:['S','M','L'] },
-        ];
-        // ===== END DEMO SCREENSHOT DATA =====
 
         async function loadLockers(page = 1) {
             const lockerList = document.getElementById('locker-list');
@@ -4582,15 +4528,6 @@
                 // Handle both old format (array) and new format (object with lockers and pagination)
                 let lockers = Array.isArray(data) ? data : data.lockers;
                 const pagination = data.pagination || { page: 1, totalCount: lockers.length, totalPages: 1 };
-
-                // DEMO SCREENSHOT DATA — remove before launch. Nationwide network for the
-                // demo store's My Lockers map (only when browsing, not "my lockers only").
-                if (shop === DEMO_SCREENSHOT_SHOP && !myLockersOnly) {
-                    lockers = DEMO_US_LOCKERS;
-                    pagination.page = 1;
-                    pagination.totalPages = 1;
-                    pagination.totalCount = DEMO_US_LOCKERS.length;
-                }
 
                 // Server handles filtering via saved_only param, just use the results
                 let filteredLockers = lockers;

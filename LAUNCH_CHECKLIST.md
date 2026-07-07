@@ -35,11 +35,12 @@ Full end-to-end QA against the dev-store matrix (basic / grow / advanced-ennanne
 **Remaining launch blockers:**
 1. **S2-5 Harbor → production** + finalize per-order pricing with Harbor → set `USAGE_BILLING` → verify one live usage charge. (All above validated on sandbox only.)
 2. **S1-6 remainder:** `SESSION_SECRET` rotated 2026-07-01 ✅; still rotate DB password, Shopify API secret, Twilio/Resend keys.
-3. **Sprint 3 App Store submission** — draft materials in `docs/APP_STORE_SUBMISSION.md`; needs Protected Customer Data approval + demo video + reviewer creds (reviewer-testability now solved via the simulate control).
+3. **Sprint 3 App Store submission** — draft materials in `docs/APP_STORE_SUBMISSION.md`; needs Protected Customer Data approval + demo video + reviewer creds. **Reviewer-testability now relies on the demo video** — the simulate control was removed 2026-07-02 (see below). Fallback if reviewers reject an un-testable flow: re-add the guarded `partner_development`-only simulate control.
 4. One full cycle on a **real** (non-dev) store once Harbor prod is live.
-5. 🧹 **Remove demo/screenshot data before launch:**
-   - `admin-dashboard.html` — the `DEMO_US_LOCKERS` block + its injection in `loadLockers()` (gated to `advanced-ennanne.myshopify.com`), added 2026-07-02 to show a nationwide map for App Store screenshots.
-   - Demo orders + locations in the DB (advanced-ennanne): `DELETE FROM orders WHERE shop='advanced-ennanne.myshopify.com' AND shopify_order_id LIKE '9900%';` and `DELETE FROM locker_preferences WHERE shop='advanced-ennanne.myshopify.com' AND location_id IN (501,502);`
+5. ✅ **Demo/test features removed 2026-07-02 (customer-ready):**
+   - `admin-dashboard.html` — removed the `DEMO_US_LOCKERS` block + its `loadLockers()` injection (nationwide screenshot map).
+   - Removed the **Sim drop-off / Sim pickup** feature: buttons + `simulateStep()` in `admin-dashboard.html`, and `simulateLockerStep()` + `/api/simulate/*` endpoints in `server.js`.
+   - Deleted the seeded demo data from the DB (advanced-ennanne): 6 demo orders (`shopify_order_id LIKE '9900%'`, incl. the `demo1042` placeholder drop-off link that errored at the Harbor demo) + 2 demo locker prefs (location_id 501/502). Verified 0 orders with `demo` links remain.
 
 Distribution: app is already **public** (correct for App Store; can't be changed) — submit after blockers clear.
 

@@ -119,16 +119,18 @@ locker order, capped at $Y/month. Billed via Shopify.
 5. In the app dashboard, confirm the order appears as **Pending drop-off** with an
    assigned locker.
 6. **Drop-off / pickup:** these open a physical Harbor locker and require a phone at
-   the locker. Because a reviewer can't visit a locker, see the **demo video** for
-   the physical steps, OR use the reviewer **demo/sandbox mode** (see note below).
+   the locker. Because a reviewer can't visit a locker, the **demo video** shows the
+   full physical drop-off → pickup flow end to end.
 7. After pickup, confirm the Shopify order shows **Fulfilled** and the dashboard
    shows **Completed**.
 
-> ⚠️ **Review-testability gap to solve before submitting:** drop-off/pickup require
-> a physical locker + phone, which a remote reviewer cannot do. Provide EITHER a
-> reviewer-only "simulate drop-off / simulate pickup" control (guarded, test stores
-> only) OR a clear demo video covering those steps. Recommend building the simulate
-> control — reviewers routinely reject flows they can't complete themselves.
+> ⚠️ **Review-testability note:** drop-off/pickup require a physical locker + phone,
+> which a remote reviewer cannot do. The reviewer-only "Sim drop-off / Sim pickup"
+> control was **removed 2026-07-02** (owner decision — customer-ready app, no test
+> shortcuts in production). The **demo video is now the sole way reviewers see those
+> steps.** Ensure the video clearly shows the real locker opening for both drop-off
+> and pickup. Fallback if Shopify rejects for an un-testable flow: re-add the guarded
+> `partner_development`-only simulate control (removed in commit — easy to restore).
 
 ---
 
