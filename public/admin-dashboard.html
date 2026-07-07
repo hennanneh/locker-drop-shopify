@@ -4257,19 +4257,22 @@
         // Resend Customer Email
         async function resendCustomerEmail() {
             const orderId = document.getElementById('modal-order-number').textContent;
-            const encodedOrderId = encodeURIComponent(orderId);
+            const orderNumber = String(orderId).replace(/^#/, '');
 
             try {
-                const response = await window.__nativeFetch(`/api/order/${shop}/${encodedOrderId}/resend-email`, {
-                    method: 'POST'
+                // Reuse the working resend-notification endpoint (email only).
+                const response = await window.__nativeFetch(`/api/resend-notification/${orderNumber}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'email' })
                 });
 
                 const result = await response.json();
 
-                if (result.success) {
+                if (result.emailSent) {
                     notify('Pickup email resent to customer!');
                 } else {
-                    notify(friendlyError(result, 'Resend notification'));
+                    notify(result.error || result.message || 'Email could not be sent — check email delivery setup.');
                 }
             } catch (error) {
                 console.error('Error resending email:', error);

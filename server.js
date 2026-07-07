@@ -2979,7 +2979,7 @@ app.post('/api/resend-notification/:orderNumber', (req, res, next) => {
                 .substring(0, 16);
             const changeDateLink = `https://app.lockerdrop.it/change-pickup/${orderNumber}?token=${changeDateToken}`;
 
-            await sendEmail(
+            const emailResult = await sendEmail(
                 order.customer_email,
                 `Reminder: Your order #${orderNumber} is ready for pickup! 📦`,
                 `
@@ -3008,8 +3008,12 @@ app.post('/api/resend-notification/:orderNumber', (req, res, next) => {
                 </div>
                 `
             );
-            emailSent = true;
-            logger.info(`📧 Resent pickup email to ${order.customer_email} for order #${orderNumber}`);
+            emailSent = !!(emailResult && emailResult.success);
+            if (emailSent) {
+                logger.info(`📧 Resent pickup email to ${order.customer_email} for order #${orderNumber}`);
+            } else {
+                logger.error(`❌ Resend pickup email FAILED for order #${orderNumber}: ${emailResult && emailResult.error}`);
+            }
         }
 
         // Send SMS
