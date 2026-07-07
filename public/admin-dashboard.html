@@ -1494,7 +1494,10 @@
 
         @media (max-width: 480px) {
             .stats-grid {
-                grid-template-columns: 1fr;
+                /* Keep a 2x2 grid on phones so the four cards don't become a tall stack
+                   that pushes the orders table off-screen. */
+                grid-template-columns: repeat(2, 1fr);
+                gap: var(--p-space-300);
             }
 
             .container {
@@ -3391,6 +3394,14 @@
             showTab('orders');
             // Apply the filter
             filterOrders(status);
+            // On mobile the stat cards stack tall, so the filtered table renders below the
+            // fold and the click looks like it did nothing. Scroll the Orders card into view.
+            setTimeout(() => {
+                const anchor = document.querySelector('#orders > .card') || document.getElementById('orders');
+                if (anchor && anchor.scrollIntoView) {
+                    anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 60);
         }
 
         // Navigate to a specific tab
