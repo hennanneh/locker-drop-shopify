@@ -17,3 +17,7 @@ target = "purchase.thank-you.block.render"
 [[extensions.targeting]]
 module = "./src/OrderStatus.js"
 target = "customer-account.order-status.block.render"
+
+[[extensions.targeting]]
+module = "./src/OrderIndex.js"
+target = "customer-account.order-index.block.render"
