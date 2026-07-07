@@ -2418,7 +2418,9 @@ app.get('/api/order-dropoff-info/:orderNumber', async (req, res) => {
                     COALESCE(lp.location_name, 'Location ' || o.location_id) as location_name
              FROM orders o
              LEFT JOIN locker_preferences lp ON o.location_id = lp.location_id AND o.shop = lp.shop
-             WHERE o.order_number = $1`,
+             WHERE o.order_number = $1
+             ORDER BY (o.status = 'cancelled'), o.created_at DESC
+             LIMIT 1`,
             [orderNumber]
         );
 
