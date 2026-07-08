@@ -2209,7 +2209,38 @@ app.post('/api/order/:shop/:orderId/status', requireApiAuth, async (req, res) =>
             }
         }
 
-        res.json({ success: true, message: `Order ${orderNumber} marked as ${dbStatus}` });
+        // If the seller marked the order picked up/completed from the dashboard,
+        // fulfill it in Shopify too. The pickup-success callback path does this,
+        // but this manual path previously updated status without ever fulfilling.
+        let fulfillmentWarning = null;
+        if (dbStatus === 'completed') {
+            const fo = await db.query(
+                'SELECT id, shop, shopify_order_id FROM orders WHERE shop = $1 AND order_number = $2',
+                [shop, orderNumber]
+            );
+            if (fo.rows.length > 0 && fo.rows[0].shopify_order_id) {
+                logger.info(`🛍️ Fulfilling order ${fo.rows[0].shopify_order_id} in Shopify (dashboard mark)...`);
+                const fulfillResult = await attemptFulfillment(fo.rows[0]);
+                if (fulfillResult.success) {
+                    logger.info(`✅ Order fulfilled in Shopify: ${fulfillResult.message}`);
+                } else {
+                    logger.info(`⚠️ Shopify fulfillment issue: ${fulfillResult.message}`);
+                    if (fulfillResult.needsReauth) {
+                        fulfillmentWarning = {
+                            type: 'reauth_required',
+                            message: 'Auto-fulfillment failed: App needs re-authorization to access fulfillment permissions.',
+                            reauthUrl: fulfillResult.reauthUrl
+                        };
+                    } else {
+                        fulfillmentWarning = { type: 'fulfillment_failed', message: fulfillResult.message };
+                    }
+                }
+            }
+        }
+
+        const statusResponse = { success: true, message: `Order ${orderNumber} marked as ${dbStatus}` };
+        if (fulfillmentWarning) statusResponse.warning = fulfillmentWarning;
+        res.json(statusResponse);
     } catch (error) {
         logger.error('Error updating order status:', error);
         res.status(500).json({ error: 'Failed to update order status' });
@@ -2227,22 +2258,44 @@ app.post('/api/pickup-complete', requireOrderToken, async (req, res) => {
             return res.status(400).json({ error: 'Order number required' });
         }
 
-        // Find the order and update status to completed - include locker_id and tower_id for release
+        // Move the order to completed. include locker_id and tower_id for release.
+        // fulfillment_status lets us tell "already completed AND fulfilled"
+        // (nothing to do) from "completed but fulfillment failed" (retry below).
         const result = await db.query(
-            "UPDATE orders SET status = 'completed', updated_at = NOW() WHERE order_number = $1 AND status = 'ready_for_pickup' RETURNING id, shop, shopify_order_id, order_number, customer_name, locker_id, tower_id",
+            "UPDATE orders SET status = 'completed', updated_at = NOW() WHERE order_number = $1 AND status = 'ready_for_pickup' RETURNING id, shop, shopify_order_id, order_number, customer_name, locker_id, tower_id, fulfillment_status",
             [orderNumber]
         );
 
-        if (result.rows.length === 0) {
-            logger.info(`⚠️ Order ${orderNumber} not found or already completed`);
-            return res.json({ success: true, message: 'Order already processed or not found' });
+        let order;
+        let justCompleted = false;
+
+        if (result.rows.length > 0) {
+            order = result.rows[0];
+            justCompleted = true;
+            logger.info(`✅ Order #${orderNumber} marked as completed (picked up by customer)`);
+        } else {
+            // Already completed (or never reached ready_for_pickup). Recover the
+            // common failure case: order is completed but Shopify fulfillment
+            // never succeeded — retry it instead of silently returning.
+            const existing = await db.query(
+                "SELECT id, shop, shopify_order_id, order_number, customer_name, locker_id, tower_id, status, fulfillment_status FROM orders WHERE order_number = $1",
+                [orderNumber]
+            );
+            if (existing.rows.length === 0) {
+                logger.info(`⚠️ Order ${orderNumber} not found`);
+                return res.json({ success: true, message: 'Order not found' });
+            }
+            order = existing.rows[0];
+            if (order.status === 'completed' && order.fulfillment_status === 'fulfilled') {
+                logger.info(`ℹ️ Order #${orderNumber} already completed and fulfilled`);
+                return res.json({ success: true, message: 'Order already processed' });
+            }
+            logger.info(`🔁 Order #${orderNumber} already completed but not fulfilled — retrying fulfillment`);
         }
 
-        const order = result.rows[0];
-        logger.info(`✅ Order #${orderNumber} marked as completed (picked up by customer)`);
-
-        // Release the locker in Harbor
-        if (order.tower_id && order.locker_id) {
+        // Release the locker in Harbor (only on the first completion transition;
+        // on a retry it was already released).
+        if (justCompleted && order.tower_id && order.locker_id) {
             try {
                 logger.info(`🔓 Releasing locker ${order.locker_id} in tower ${order.tower_id}...`);
                 const tokenResponse = await axios.post(
@@ -2261,15 +2314,15 @@ app.post('/api/pickup-complete', requireOrderToken, async (req, res) => {
             } catch (releaseError) {
                 logger.info(`⚠️ Could not release locker: ${releaseError.response?.data?.detail || releaseError.message}`);
             }
-        } else {
+        } else if (justCompleted) {
             logger.info(`⚠️ Cannot release locker - missing tower_id (${order.tower_id}) or locker_id (${order.locker_id})`);
         }
 
-        // Fulfill the order in Shopify
+        // Fulfill the order in Shopify (records fulfillment_status on the order).
         let fulfillmentWarning = null;
         if (order.shop && order.shopify_order_id) {
             logger.info(`🛍️ Fulfilling order ${order.shopify_order_id} in Shopify...`);
-            const fulfillResult = await fulfillShopifyOrder(order.shop, order.shopify_order_id);
+            const fulfillResult = await attemptFulfillment(order);
             if (fulfillResult.success) {
                 logger.info(`✅ Order fulfilled in Shopify: ${fulfillResult.message}`);
             } else {
@@ -2298,6 +2351,42 @@ app.post('/api/pickup-complete', requireOrderToken, async (req, res) => {
     } catch (error) {
         logger.error('Error processing pickup complete:', error);
         res.status(500).json({ error: 'Failed to process pickup completion' });
+    }
+});
+
+// Manually (re)fulfill a locker order in Shopify. Powers the dashboard "Retry
+// fulfillment" action and general recovery of completed-but-unfulfilled orders.
+// Idempotent — safe to call more than once.
+app.post('/api/order/:shop/:orderId/fulfill', requireApiAuth, async (req, res) => {
+    try {
+        const { shop } = req.params;
+        const orderNumber = req.params.orderId.replace(/^#/, '');
+
+        const lookup = await db.query(
+            'SELECT id, shop, shopify_order_id, order_number FROM orders WHERE shop = $1 AND order_number = $2',
+            [shop, orderNumber]
+        );
+        if (lookup.rows.length === 0) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+        const order = lookup.rows[0];
+        if (!order.shopify_order_id) {
+            return res.status(400).json({ error: 'Order has no linked Shopify order' });
+        }
+
+        const result = await attemptFulfillment(order);
+        if (result.success) {
+            return res.json({ success: true, message: result.message });
+        }
+        return res.status(result.needsReauth ? 403 : 502).json({
+            success: false,
+            message: result.message,
+            needsReauth: result.needsReauth || false,
+            reauthUrl: result.reauthUrl
+        });
+    } catch (error) {
+        logger.error({ err: error }, 'Manual fulfillment failed');
+        res.status(500).json({ error: 'Failed to fulfill order' });
     }
 });
 
@@ -7355,6 +7444,53 @@ function scheduleStuckOrderCheck() {
 }
 
 // ============================================
+// FULFILLMENT RECONCILIATION
+// ============================================
+// Backstop for orders that were picked up (status = completed) but whose Shopify
+// fulfillment never succeeded — e.g. the customer closed the pickup-success tab
+// before the callback fired, or a transient Shopify error. fulfillShopifyOrder is
+// idempotent, so re-attempting is safe (it only fulfills OPEN fulfillment orders).
+async function reconcileUnfulfilledOrders() {
+    try {
+        const pending = await db.query(`
+            SELECT id, shop, shopify_order_id, order_number
+            FROM orders
+            WHERE status = 'completed'
+              AND shopify_order_id IS NOT NULL
+              AND (fulfillment_status IS NULL OR fulfillment_status = 'failed')
+              AND updated_at > NOW() - INTERVAL '30 days'
+            ORDER BY updated_at DESC
+            LIMIT 100
+        `);
+
+        if (pending.rows.length === 0) return;
+        logger.info(`🔁 Reconciling ${pending.rows.length} completed-but-unfulfilled order(s)`);
+
+        for (const order of pending.rows) {
+            const result = await attemptFulfillment(order);
+            if (result.success) {
+                logger.info({ orderNumber: order.order_number }, '✅ Reconciled: order fulfilled in Shopify');
+            } else {
+                logger.warn({ orderNumber: order.order_number, reason: result.message }, '⚠️ Reconcile: fulfillment still failing');
+            }
+        }
+    } catch (error) {
+        logger.error({ err: error }, 'Error in fulfillment reconciliation');
+    }
+}
+
+function scheduleFulfillmentReconciliation() {
+    // Every 15 minutes
+    cron.schedule('*/15 * * * *', () => {
+        logger.info('Running scheduled fulfillment reconciliation');
+        reconcileUnfulfilledOrders();
+    });
+    // Also once on startup after a short delay (after migrations have run)
+    setTimeout(reconcileUnfulfilledOrders, 45000);
+    logger.info('Fulfillment reconciliation scheduled (every 15 minutes)');
+}
+
+// ============================================
 // BRANDING SETTINGS (Enterprise Feature)
 // ============================================
 // Schema for `branding_settings` lives in migrations/20260504000000_baseline_schema.js
@@ -8270,7 +8406,11 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
             return { success: true, message: 'Order already fulfilled' };
         }
 
-        // Create fulfillment via GraphQL
+        // Create fulfillment via GraphQL. Collect per-fulfillment-order userErrors
+        // — previously these were logged but the function still returned
+        // success:true, so a rejected fulfillment looked like it worked (order
+        // marked completed in LockerDrop, but never fulfilled in Shopify).
+        const failures = [];
         for (const fo of openFulfillmentOrders) {
             const fulfillResult = await shopifyGraphQL(shop, accessToken, `
                 mutation fulfillmentCreateV2($fulfillment: FulfillmentV2Input!) {
@@ -8301,10 +8441,16 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
 
             const errors = fulfillResult.fulfillmentCreateV2?.userErrors;
             if (errors && errors.length > 0) {
-                logger.error(`❌ Fulfillment error for order ${shopifyOrderId}:`, errors);
+                const msg = errors.map(e => (e.field ? `${e.field.join('.')}: ` : '') + e.message).join('; ');
+                logger.error(`❌ Fulfillment error for order ${shopifyOrderId} (FO ${fo.id}): ${msg}`);
+                failures.push(msg);
             } else {
                 logger.info(`✅ Fulfillment created for order ${shopifyOrderId}:`, fulfillResult.fulfillmentCreateV2?.fulfillment?.id);
             }
+        }
+
+        if (failures.length > 0) {
+            return { success: false, message: `Shopify rejected fulfillment: ${failures.join(' | ')}` };
         }
 
         return { success: true, message: 'Order fulfilled in Shopify' };
@@ -8332,6 +8478,36 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
     }
 }
 
+
+// Fulfill a locker order in Shopify and persist the outcome on the order row.
+// Safe to call repeatedly: fulfillShopifyOrder is idempotent (it only creates
+// fulfillments for OPEN fulfillment orders), so retries and the reconciliation
+// cron will not double-fulfill. Records fulfillment_status / fulfillment_error
+// so failures are visible (dashboard / logs) instead of being swallowed.
+async function attemptFulfillment(order) {
+    if (!order || !order.shop || !order.shopify_order_id) {
+        return { success: false, message: 'Missing shop or shopify_order_id' };
+    }
+
+    const result = await fulfillShopifyOrder(order.shop, order.shopify_order_id);
+
+    if (order.id) {
+        try {
+            await db.query(
+                `UPDATE orders SET fulfillment_status = $1, fulfillment_error = $2, updated_at = NOW() WHERE id = $3`,
+                [
+                    result.success ? 'fulfilled' : 'failed',
+                    result.success ? null : (result.message || 'Unknown fulfillment error'),
+                    order.id
+                ]
+            );
+        } catch (e) {
+            logger.error({ err: e, orderId: order.id }, 'Failed to persist fulfillment_status');
+        }
+    }
+
+    return result;
+}
 
 // ============================================
 // CARRIER SERVICE - SHIPPING RATES
@@ -8771,6 +8947,9 @@ app.listen(PORT, async () => {
 
     // Schedule stuck order detection
     scheduleStuckOrderCheck();
+
+    // Backstop: retry Shopify fulfillment for completed-but-unfulfilled orders
+    scheduleFulfillmentReconciliation();
 
     logger.info({
         port: PORT,

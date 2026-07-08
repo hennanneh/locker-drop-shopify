@@ -2706,6 +2706,7 @@
             <div style="margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
                 <button id="btn-mark-dropped" class="btn btn-primary" onclick="markAsDroppedOff()">Mark as Dropped Off</button>
                 <button class="btn btn-secondary" onclick="resendCustomerEmail()">Resend Pickup Email</button>
+                <button id="btn-retry-fulfillment" class="btn btn-secondary" onclick="retryFulfillment()" style="display: none;">Retry Shopify Fulfillment</button>
                 <button id="btn-cancel-locker" class="btn btn-danger" onclick="cancelLockerRequest()" style="background: #d72c0d; color: white;">Cancel Locker</button>
             </div>
         </div>
@@ -3903,6 +3904,11 @@
                 document.getElementById('btn-change-location').style.display = canChangeLocation ? 'inline-block' : 'none';
                 document.getElementById('location-picker-row').style.display = 'none';
 
+                // Retry Shopify fulfillment — available once the order is completed
+                // (picked up). Idempotent, so safe to offer whenever completed.
+                document.getElementById('btn-retry-fulfillment').style.display =
+                    order.status === 'completed' ? 'inline-block' : 'none';
+
                 // Dropoff link section
                 const dropoffContent = document.getElementById('dropoff-content');
                 const dropoffPending = order.status === 'pending_dropoff';
@@ -4251,6 +4257,41 @@
             } catch (error) {
                 console.error('Error updating order:', error);
                 notify(friendlyError({ error: error.message }, 'Update order status'));
+            }
+        }
+
+        // Retry Shopify fulfillment for a completed order (recovery for orders
+        // that were picked up but whose auto-fulfillment failed or was missed).
+        async function retryFulfillment() {
+            const orderId = document.getElementById('modal-order-number').textContent;
+            const encodedOrderId = encodeURIComponent(String(orderId).replace(/^#/, ''));
+            const btn = document.getElementById('btn-retry-fulfillment');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Fulfilling...';
+            btn.disabled = true;
+
+            try {
+                const response = await window.__nativeFetch(`/api/order/${shop}/${encodedOrderId}/fulfill`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    notify('✓ Order fulfilled in Shopify.');
+                    loadOrders();
+                } else if (result.needsReauth) {
+                    notify('Auto-fulfillment needs permission. Reconnecting to Shopify…');
+                    reconnectToShopify();
+                } else {
+                    notify(friendlyError(result, 'Fulfill order'));
+                }
+            } catch (error) {
+                console.error('Error retrying fulfillment:', error);
+                notify(friendlyError({ error: error.message }, 'Fulfill order'));
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
             }
         }
 
