@@ -6,18 +6,10 @@ type = "ui_extension"
 name = "LockerDrop Pickup Info"
 handle = "lockerdrop-thankyou"
 
-[extensions.capabilities]
-network_access = true
-api_access = true
-
+# NO capabilities: no network_access / api_access. Testing whether requesting
+# those capabilities was preventing the extension from mounting. This build
+# reads everything client-side (no backend fetch). OrderStatus/OrderIndex
+# targets temporarily removed while we confirm the Thank You block mounts.
 [[extensions.targeting]]
 module = "./src/ThankYou.jsx"
 target = "purchase.thank-you.block.render"
-
-[[extensions.targeting]]
-module = "./src/OrderStatus.jsx"
-target = "customer-account.order-status.block.render"
-
-[[extensions.targeting]]
-module = "./src/OrderIndex.jsx"
-target = "customer-account.order-index.block.render"
