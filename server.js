@@ -175,6 +175,51 @@ async function getBrandingForEmail(shop) {
     return { logoUrl: null, primaryColor: '#5c6ac4', secondaryColor: '#202223' };
 }
 
+// Resolve a customer-facing locker location (name + street address) for pickup
+// emails. Name comes from the order, else locker_preferences, else Harbor, else
+// "Location <id>". Address is fetched best-effort from Harbor. Never throws —
+// returns whatever it can so the email always tells the customer where to go.
+async function resolveLockerLocation(shop, order) {
+    let name = order.location_name || null;
+    let address = null;
+    const locationId = order.location_id;
+
+    if (!name && shop && locationId != null) {
+        try {
+            const r = await db.query(
+                'SELECT location_name FROM locker_preferences WHERE shop = $1 AND location_id = $2',
+                [shop, locationId]
+            );
+            if (r.rows.length > 0 && r.rows[0].location_name) name = r.rows[0].location_name;
+        } catch (e) { /* fall through */ }
+    }
+
+    if (locationId != null) {
+        try {
+            const tokenResponse = await axios.post(
+                `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
+                `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
+                { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+            );
+            const harborToken = tokenResponse.data.access_token;
+            const locResp = await axios.get(
+                `${HARBOR_API_URL}/api/v1/locations/${locationId}/`,
+                { headers: { 'Authorization': `Bearer ${harborToken}` } }
+            );
+            const loc = locResp.data;
+            if (loc) {
+                if (!name) name = loc.name || loc.location_name || null;
+                address = [loc.address1, loc.city, loc.state, loc.zip].filter(Boolean).join(', ') || null;
+            }
+        } catch (e) {
+            logger.info('Could not fetch Harbor location for email:', e.message);
+        }
+    }
+
+    if (!name && locationId != null) name = `Location ${locationId}`;
+    return { name, address };
+}
+
 // Human-readable store name from a myshopify domain, e.g.
 // "locker-plus.myshopify.com" -> "Locker Plus". Used as an email header
 // fallback when the shop hasn't uploaded a logo.
@@ -203,7 +248,7 @@ function formatPickupDateText(d) {
 // Build the branded "ready for pickup" customer email. Shared by the
 // dropoff-complete, mark-ready, and reminder paths so the customer always gets
 // one consistent, on-brand email that contains the actual pickup link.
-function buildPickupEmailHtml({ shop, orderNumber, customerName, pickupLink, locationName, pickupDateText, changeDateLink, branding, reminder }) {
+function buildPickupEmailHtml({ shop, orderNumber, customerName, pickupLink, locationName, locationAddress, pickupDateText, changeDateLink, branding, reminder }) {
     const b = branding || {};
     const primary = b.primaryColor || '#5c6ac4';
     const storeName = prettyStoreName(shop);
@@ -215,10 +260,11 @@ function buildPickupEmailHtml({ shop, orderNumber, customerName, pickupLink, loc
         ? 'Your order is still in the locker'
         : 'Your order has been dropped off at the locker';
 
-    const locationBlock = (locationName || pickupDateText) ? `
+    const locationBlock = (locationName || locationAddress || pickupDateText) ? `
             <div style="background:${primary};border-radius:10px;padding:22px 24px;margin:24px 0;text-align:center;">
                 <p style="margin:0 0 6px;color:rgba(255,255,255,0.85);font-size:12px;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;">Pickup Location</p>
                 ${locationName ? `<p style="margin:0;color:#ffffff;font-size:18px;font-weight:600;line-height:1.4;">${locationName}</p>` : ''}
+                ${locationAddress ? `<p style="margin:6px 0 0;color:rgba(255,255,255,0.9);font-size:14px;">${locationAddress}</p>` : ''}
                 ${pickupDateText ? `<p style="margin:8px 0 0;color:rgba(255,255,255,0.9);font-size:14px;">Pickup by ${pickupDateText}</p>` : ''}
             </div>` : '';
 
@@ -2271,6 +2317,7 @@ app.post('/api/order/:shop/:orderId/status', requireApiAuth, async (req, res) =>
                 // Send email to customer
                 if (order.customer_email && pickupUrl) {
                     const branding = await getBrandingForEmail(shop);
+                    const loc = await resolveLockerLocation(shop, order);
                     await sendEmail(
                         order.customer_email,
                         `Your order #${orderNumber} is ready for pickup! 📦`,
@@ -2279,7 +2326,8 @@ app.post('/api/order/:shop/:orderId/status', requireApiAuth, async (req, res) =>
                             orderNumber,
                             customerName: order.customer_name,
                             pickupLink: pickupUrl,
-                            locationName: order.location_name,
+                            locationName: loc.name,
+                            locationAddress: loc.address,
                             pickupDateText: formatPickupDateText(order.preferred_pickup_date),
                             changeDateLink: null,
                             branding
@@ -2750,7 +2798,7 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
 
         // Find the order
         const orderResult = await db.query(
-            "SELECT id, shop, shopify_order_id, customer_email, customer_name, customer_phone, locker_id, location_id FROM orders WHERE order_number = $1",
+            "SELECT id, shop, shopify_order_id, customer_email, customer_name, customer_phone, locker_id, location_id, location_name, preferred_pickup_date FROM orders WHERE order_number = $1",
             [orderNumber]
         );
 
@@ -2847,6 +2895,7 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
             const changeDateLink = `https://app.lockerdrop.it/change-pickup/${orderNumber}?token=${changeDateToken}`;
 
             const branding = await getBrandingForEmail(order.shop);
+            const loc = await resolveLockerLocation(order.shop, order);
             await sendEmail(
                 order.customer_email,
                 `Your order #${orderNumber} is ready for pickup! 📦`,
@@ -2855,7 +2904,8 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
                     orderNumber,
                     customerName: order.customer_name,
                     pickupLink,
-                    locationName: order.location_name,
+                    locationName: loc.name,
+                    locationAddress: loc.address,
                     pickupDateText: formatPickupDateText(order.preferred_pickup_date),
                     changeDateLink,
                     branding
@@ -3099,7 +3149,7 @@ app.post('/api/resend-notification/:shop/:orderNumber', requireApiAuth, async (r
 
         // Get order details (scoped to shop so order numbers can't collide across stores)
         const orderResult = await db.query(
-            "SELECT id, order_number, customer_email, customer_name, customer_phone, pickup_link, status FROM orders WHERE order_number = $1 AND shop = $2",
+            "SELECT id, order_number, customer_email, customer_name, customer_phone, pickup_link, status, location_id, location_name, preferred_pickup_date FROM orders WHERE order_number = $1 AND shop = $2",
             [orderNumber, shop]
         );
 
@@ -3130,6 +3180,7 @@ app.post('/api/resend-notification/:shop/:orderNumber', requireApiAuth, async (r
             const changeDateLink = `https://app.lockerdrop.it/change-pickup/${orderNumber}?token=${changeDateToken}`;
 
             const branding = await getBrandingForEmail(shop);
+            const loc = await resolveLockerLocation(shop, order);
             const emailResult = await sendEmail(
                 order.customer_email,
                 `Reminder: Your order #${orderNumber} is ready for pickup! 📦`,
@@ -3138,7 +3189,8 @@ app.post('/api/resend-notification/:shop/:orderNumber', requireApiAuth, async (r
                     orderNumber,
                     customerName: order.customer_name,
                     pickupLink: order.pickup_link,
-                    locationName: order.location_name,
+                    locationName: loc.name,
+                    locationAddress: loc.address,
                     pickupDateText: formatPickupDateText(order.preferred_pickup_date),
                     changeDateLink,
                     reminder: true,
