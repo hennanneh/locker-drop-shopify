@@ -1,162 +1,128 @@
-import { useState, useEffect } from 'react';
-import {
-  reactExtension,
-  useApi,
-  AdminBlock,
-  BlockStack,
-  Text,
-  Link,
-  Badge,
-  InlineStack,
-  Divider,
-} from '@shopify/ui-extensions-react/admin';
+import '@shopify/ui-extensions/preact';
+import { render } from 'preact';
+import { useEffect, useState } from 'preact/hooks';
 
-// Report frontend errors to backend
-function reportError(message, error, context = {}) {
-  try {
-    fetch('https://app.lockerdrop.it/api/errors', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message,
-        stack: error?.stack || null,
-        source: 'order-block-extension',
-        context
-      })
-    }).catch(() => {});
-  } catch(e) {}
+// Admin order-details block — migrated to the 2025-10 Preact + Polaris web
+// components API (the old imperative extension()/AdminBlock API was removed in
+// 2025-10). Shows the seller LockerDrop status, location, and links on the
+// Shopify admin order page.
+export default function extension() {
+  render(<OrderBlock />, document.body);
 }
 
-// The target for the order details page block
-export default reactExtension('admin.order-details.block.render', () => <OrderDetailsBlock />);
+const STATUS = {
+  pending: { tone: 'warning', label: 'Pending dropoff' },
+  pending_dropoff: { tone: 'warning', label: 'Pending dropoff' },
+  dropped_off: { tone: 'info', label: 'In locker' },
+  ready_for_pickup: { tone: 'info', label: 'Ready for pickup' },
+  completed: { tone: 'success', label: 'Picked up' },
+  cancelled: { tone: 'critical', label: 'Cancelled' }
+};
 
-function OrderDetailsBlock() {
-  const { data: orderData } = useApi('admin.order-details.block.render');
+function OrderBlock() {
+  // phase: 'loading' | 'none' | 'sync' | 'data'
+  const [phase, setPhase] = useState('loading');
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
-    async function fetchLockerData() {
+    let cancelled = false;
+    (async () => {
       try {
-        // Get the order ID from the current context
-        const orderId = orderData?.selected?.[0]?.id;
-        if (!orderId) {
-          setLoading(false);
+        const orderId = shopify?.data?.selected?.[0]?.id;
+        if (!orderId) { if (!cancelled) setPhase('none'); return; }
+        const numericId = orderId.toString().split('/').pop();
+
+        const res = await fetch(`https://app.lockerdrop.it/api/order-locker-data/${numericId}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const body = await res.json();
+
+        if (!res.ok || body.error || body.isLockerDropOrder === false) {
+          if (!cancelled) setPhase('none');
           return;
         }
-
-        // Extract numeric ID from gid://shopify/Order/123456
-        const numericId = orderId.split('/').pop();
-
-        // Fetch locker data from our API
-        const response = await fetch(
-          `https://lockerdrop.it/api/order-locker-data/${numericId}`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            // No locker data for this order - this is fine
-            setLoading(false);
-            return;
-          }
-          throw new Error('Failed to fetch locker data');
+        if (body.needsSync) {
+          if (!cancelled) { setData(body); setPhase('sync'); }
+          return;
         }
-
-        const lockerData = await response.json();
-        setData(lockerData);
-      } catch (err) {
-        reportError('Error fetching locker data for order', err);
-        setError(err);
-      } finally {
-        setLoading(false);
+        if (!cancelled) { setData(body); setPhase('data'); }
+      } catch (e) {
+        if (!cancelled) setPhase('none');
       }
-    }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
-    fetchLockerData();
-  }, [orderData?.selected]);
-
-  if (loading) {
+  if (phase === 'loading') {
     return (
-      <AdminBlock title="LockerDrop">
-        <Text>Loading locker details...</Text>
-      </AdminBlock>
+      <s-admin-block heading="LockerDrop Pickup">
+        <s-spinner size="base"></s-spinner>
+      </s-admin-block>
     );
   }
 
-  if (error || !data) {
+  if (phase === 'none') {
     return (
-      <AdminBlock title="LockerDrop">
-        <Text appearance="subdued">No locker pickup for this order</Text>
-      </AdminBlock>
+      <s-admin-block heading="LockerDrop">
+        <s-text color="subdued">No LockerDrop data for this order.</s-text>
+      </s-admin-block>
     );
   }
 
-  const statusConfig = {
-    pending: { tone: 'warning', label: 'Pending Dropoff' },
-    dropped_off: { tone: 'info', label: 'In Locker' },
-    ready_for_pickup: { tone: 'info', label: 'Ready for Pickup' },
-    completed: { tone: 'success', label: 'Picked Up' },
-    cancelled: { tone: 'critical', label: 'Cancelled' },
-  };
+  if (phase === 'sync') {
+    return (
+      <s-admin-block heading="LockerDrop Pickup">
+        <s-stack gap="base">
+          <s-stack direction="inline" gap="small-200" alignItems="center">
+            <s-text type="strong">Status</s-text>
+            <s-badge tone="warning">Needs setup</s-badge>
+          </s-stack>
+          <s-divider></s-divider>
+          <s-text>This order uses LockerDrop shipping but needs to be synced.</s-text>
+          <s-link href="https://app.lockerdrop.it/admin/dashboard" target="_blank">Open dashboard to sync</s-link>
+        </s-stack>
+      </s-admin-block>
+    );
+  }
 
-  const config = statusConfig[data.status] || { tone: 'subdued', label: data.status };
+  // phase === 'data'
+  const status = data?.status;
+  const cfg = STATUS[status] || { tone: 'auto', label: status || 'Unknown' };
+  const locationDisplay = data?.locationName || (data?.locationId ? `Location ${data.locationId}` : null);
+  const showDropoff = data?.dropoffLink && (status === 'pending' || status === 'pending_dropoff');
+  const showPickup = data?.pickupLink && (status === 'ready_for_pickup' || status === 'dropped_off');
+  const completedAt = status === 'completed' && data?.completedAt
+    ? (() => { try { return new Date(data.completedAt).toLocaleString(); } catch (e) { return null; } })()
+    : null;
 
   return (
-    <AdminBlock title="LockerDrop Pickup">
-      <BlockStack gap="base">
-        {/* Status Badge */}
-        <InlineStack gap="small" blockAlignment="center">
-          <Text fontWeight="bold">Status:</Text>
-          <Badge tone={config.tone}>{config.label}</Badge>
-        </InlineStack>
+    <s-admin-block heading="LockerDrop Pickup">
+      <s-stack gap="base">
+        <s-stack direction="inline" gap="small-200" alignItems="center">
+          <s-text type="strong">Status</s-text>
+          <s-badge tone={cfg.tone}>{cfg.label}</s-badge>
+        </s-stack>
 
-        <Divider />
+        <s-divider></s-divider>
 
-        {/* Locker Location */}
-        {data.locationName && (
-          <BlockStack gap="extraTight">
-            <Text fontWeight="bold">Locker Location</Text>
-            <Text>{data.locationName}</Text>
-          </BlockStack>
-        )}
+        {locationDisplay ? (
+          <s-stack gap="small-200">
+            <s-text type="strong">Locker location</s-text>
+            <s-text>{locationDisplay}</s-text>
+          </s-stack>
+        ) : null}
 
-        {/* Links Section */}
-        <BlockStack gap="tight">
-          {data.dropoffLink && data.status === 'pending' && (
-            <Link href={data.dropoffLink} target="_blank">
-              Open Dropoff Link
-            </Link>
-          )}
+        <s-stack gap="small-200">
+          {showDropoff ? <s-link href={data.dropoffLink} target="_blank">Open dropoff link</s-link> : null}
+          {showPickup ? <s-link href={data.pickupLink} target="_blank">View customer pickup link</s-link> : null}
+          <s-link href={`https://app.lockerdrop.it/admin/dashboard?shop=${data?.shop || ''}`} target="_blank">Open LockerDrop dashboard</s-link>
+        </s-stack>
 
-          {data.pickupLink && (data.status === 'ready_for_pickup' || data.status === 'dropped_off') && (
-            <Link href={data.pickupLink} target="_blank">
-              View Customer Pickup Link
-            </Link>
-          )}
-
-          {/* Always show link to LockerDrop dashboard */}
-          <Link href={`https://lockerdrop.it/admin/dashboard?shop=${data.shop}`} target="_blank">
-            Open LockerDrop Dashboard
-          </Link>
-        </BlockStack>
-
-        {/* Timestamps */}
-        {data.status === 'completed' && data.completedAt && (
-          <>
-            <Divider />
-            <Text appearance="subdued">
-              Picked up: {new Date(data.completedAt).toLocaleString()}
-            </Text>
-          </>
-        )}
-      </BlockStack>
-    </AdminBlock>
+        {completedAt ? (
+          <s-text color="subdued">Picked up: {completedAt}</s-text>
+        ) : null}
+      </s-stack>
+    </s-admin-block>
   );
 }

@@ -11,5 +11,5 @@ network_access = true
 api_access = true
 
 [[extensions.targeting]]
-module = "./src/OrderDetailsBlock.js"
+module = "./src/OrderDetailsBlock.jsx"
 target = "admin.order-details.block.render"

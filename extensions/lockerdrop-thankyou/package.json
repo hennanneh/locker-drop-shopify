@@ -7,6 +7,8 @@
     "dev": "shopify app dev --extension"
   },
   "dependencies": {
-    "@shopify/ui-extensions": "2025.10.15"
+    "@preact/signals": "^2.9.3",
+    "@shopify/ui-extensions": "2025.10.15",
+    "preact": "^10.29.7"
   }
 }
