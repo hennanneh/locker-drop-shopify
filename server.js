@@ -154,6 +154,110 @@ async function sendEmail(to, subject, html) {
     }
 }
 
+// Load a shop's pickup-page branding for use in customer emails. Falls back to
+// LockerDrop defaults if unset or the table isn't available.
+async function getBrandingForEmail(shop) {
+    try {
+        const r = await db.query(
+            'SELECT logo_url, primary_color, secondary_color FROM branding_settings WHERE shop = $1',
+            [shop]
+        );
+        if (r.rows.length > 0) {
+            return {
+                logoUrl: r.rows[0].logo_url || null,
+                primaryColor: r.rows[0].primary_color || '#5c6ac4',
+                secondaryColor: r.rows[0].secondary_color || '#202223'
+            };
+        }
+    } catch (e) {
+        logger.info('Could not load branding for email:', e.message);
+    }
+    return { logoUrl: null, primaryColor: '#5c6ac4', secondaryColor: '#202223' };
+}
+
+// Human-readable store name from a myshopify domain, e.g.
+// "locker-plus.myshopify.com" -> "Locker Plus". Used as an email header
+// fallback when the shop hasn't uploaded a logo.
+function prettyStoreName(shop) {
+    if (!shop) return 'LockerDrop';
+    return shop.replace(/\.myshopify\.com$/, '')
+        .split(/[-.]/)
+        .filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ') || 'LockerDrop';
+}
+
+// Format a stored pickup date (DATE column or ISO string) as e.g.
+// "Thursday, Jul 9" for customer emails. Returns null if unset/invalid.
+function formatPickupDateText(d) {
+    if (!d) return null;
+    try {
+        const date = (d instanceof Date) ? d : new Date(d);
+        if (isNaN(date.getTime())) return null;
+        return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' });
+    } catch (e) {
+        return null;
+    }
+}
+
+// Build the branded "ready for pickup" customer email. Shared by the
+// dropoff-complete, mark-ready, and reminder paths so the customer always gets
+// one consistent, on-brand email that contains the actual pickup link.
+function buildPickupEmailHtml({ shop, orderNumber, customerName, pickupLink, locationName, pickupDateText, changeDateLink, branding, reminder }) {
+    const b = branding || {};
+    const primary = b.primaryColor || '#5c6ac4';
+    const storeName = prettyStoreName(shop);
+    const logo = b.logoUrl
+        ? (b.logoUrl.startsWith('http') ? b.logoUrl : `https://app.lockerdrop.it${b.logoUrl}`)
+        : null;
+    const heading = reminder ? 'Still Waiting for You! 🔔' : 'Ready for Pickup! 🎉';
+    const subheading = reminder
+        ? 'Your order is still in the locker'
+        : 'Your order has been dropped off at the locker';
+
+    const locationBlock = (locationName || pickupDateText) ? `
+            <div style="background:${primary};border-radius:10px;padding:22px 24px;margin:24px 0;text-align:center;">
+                <p style="margin:0 0 6px;color:rgba(255,255,255,0.85);font-size:12px;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;">Pickup Location</p>
+                ${locationName ? `<p style="margin:0;color:#ffffff;font-size:18px;font-weight:600;line-height:1.4;">${locationName}</p>` : ''}
+                ${pickupDateText ? `<p style="margin:8px 0 0;color:rgba(255,255,255,0.9);font-size:14px;">Pickup by ${pickupDateText}</p>` : ''}
+            </div>` : '';
+
+    return `
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;">
+            <div style="background:${primary};padding:28px 24px;text-align:center;border-radius:10px 10px 0 0;">
+                ${logo ? `<img src="${logo}" alt="${storeName}" style="max-height:52px;max-width:200px;">` : `<h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;">${storeName}</h1>`}
+            </div>
+            <div style="padding:32px 28px;">
+                <h2 style="margin:0 0 6px;color:#1a1a1a;font-size:24px;text-align:center;">${heading}</h2>
+                <p style="margin:0 0 4px;color:#6d7175;font-size:15px;text-align:center;">${subheading}</p>
+                <p style="margin:0 0 20px;color:#8c9196;font-size:13px;text-align:center;">Order #${orderNumber}</p>
+
+                <p style="color:#202223;font-size:15px;">Hi ${customerName || 'there'},</p>
+                <p style="color:#202223;font-size:15px;">Your order <strong>#${orderNumber}</strong> is ready. Tap the button below at the locker to open it and grab your package.</p>
+
+                ${locationBlock}
+
+                <div style="text-align:center;margin:28px 0;">
+                    <a href="${pickupLink}" style="display:inline-block;background:${primary};color:#ffffff;padding:15px 34px;text-decoration:none;border-radius:8px;font-weight:600;font-size:16px;">🔓 Open Locker &amp; Pickup</a>
+                </div>
+
+                <div style="background:#f6f6f7;border-radius:8px;padding:18px 20px;margin:20px 0;">
+                    <p style="margin:0 0 8px;color:#202223;font-weight:600;font-size:14px;">How to pick up:</p>
+                    <ol style="margin:0;padding-left:20px;color:#6d7175;font-size:14px;line-height:1.6;">
+                        <li>Go to the locker location${locationName ? ' above' : ''}</li>
+                        <li>Tap the button on your phone</li>
+                        <li>Grab your package — done!</li>
+                    </ol>
+                </div>
+
+                <p style="color:#8c9196;font-size:13px;">Please pick up within 5 days.${changeDateLink ? ` Need a different day? <a href="${changeDateLink}" style="color:${primary};">Change pickup date</a>.` : ''}</p>
+            </div>
+            <div style="padding:18px 24px;border-top:1px solid #e1e3e5;text-align:center;">
+                <p style="margin:0;color:#8c9196;font-size:12px;">Locker pickup powered by LockerDrop.it</p>
+            </div>
+        </div>`;
+}
+
 // Shopify GraphQL Admin API helper
 const SHOPIFY_API_VERSION = '2025-10';
 
@@ -2166,36 +2270,20 @@ app.post('/api/order/:shop/:orderId/status', requireApiAuth, async (req, res) =>
 
                 // Send email to customer
                 if (order.customer_email && pickupUrl) {
+                    const branding = await getBrandingForEmail(shop);
                     await sendEmail(
                         order.customer_email,
                         `Your order #${orderNumber} is ready for pickup! 📦`,
-                        `
-                        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-                            <h1 style="color: #5c6ac4;">Your Order is Ready! 🎉</h1>
-                            <p>Hi ${order.customer_name || 'there'},</p>
-                            <p>Great news! Your order <strong>#${orderNumber}</strong> has been dropped off at the locker and is ready for pickup.</p>
-
-                            <div style="background: #f6f6f7; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                                <h3 style="margin-top: 0;">Pickup Instructions:</h3>
-                                <ol>
-                                    <li>Go to the locker location</li>
-                                    <li>Click the button below to open your locker</li>
-                                    <li>Retrieve your package</li>
-                                </ol>
-                            </div>
-
-                            <a href="${pickupUrl}" style="display: inline-block; background: #5c6ac4; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600;">
-                                🔓 Open Locker & Pickup
-                            </a>
-
-                            <p style="margin-top: 20px; color: #6d7175; font-size: 14px;">
-                                Please pick up your order within 5 days. If you have any questions, contact the seller.
-                            </p>
-
-                            <hr style="border: none; border-top: 1px solid #e1e3e5; margin: 30px 0;">
-                            <p style="color: #6d7175; font-size: 12px;">Powered by LockerDrop.it</p>
-                        </div>
-                        `
+                        buildPickupEmailHtml({
+                            shop,
+                            orderNumber,
+                            customerName: order.customer_name,
+                            pickupLink: pickupUrl,
+                            locationName: order.location_name,
+                            pickupDateText: formatPickupDateText(order.preferred_pickup_date),
+                            changeDateLink: null,
+                            branding
+                        })
                     );
                 }
 
@@ -2758,43 +2846,20 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
                 .substring(0, 16);
             const changeDateLink = `https://app.lockerdrop.it/change-pickup/${orderNumber}?token=${changeDateToken}`;
 
+            const branding = await getBrandingForEmail(order.shop);
             await sendEmail(
                 order.customer_email,
                 `Your order #${orderNumber} is ready for pickup! 📦`,
-                `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h1 style="color: #5c6ac4;">Your Order is Ready! 🎉</h1>
-                    <p>Hi ${order.customer_name || 'there'},</p>
-                    <p>Great news! Your order <strong>#${orderNumber}</strong> has been dropped off at the locker and is ready for pickup.</p>
-
-                    <div style="background: #f6f6f7; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                        <h3 style="margin-top: 0;">Pickup Instructions:</h3>
-                        <ol>
-                            <li>Go to the locker location</li>
-                            <li>Click the button below to open your locker</li>
-                            <li>Retrieve your package</li>
-                        </ol>
-                    </div>
-
-                    <a href="${pickupLink}" style="display: inline-block; background: #5c6ac4; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600;">
-                        🔓 Open Locker & Pickup
-                    </a>
-
-                    <p style="margin-top: 20px; color: #6d7175; font-size: 14px;">
-                        Please pick up your order within 5 days.
-                    </p>
-
-                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e1e3e5;">
-                        <p style="color: #6d7175; font-size: 14px; margin: 0;">
-                            Need to change your pickup date?
-                            <a href="${changeDateLink}" style="color: #5c6ac4;">Change pickup date</a>
-                        </p>
-                    </div>
-
-                    <hr style="border: none; border-top: 1px solid #e1e3e5; margin: 30px 0;">
-                    <p style="color: #6d7175; font-size: 12px;">Powered by LockerDrop.it</p>
-                </div>
-                `
+                buildPickupEmailHtml({
+                    shop: order.shop,
+                    orderNumber,
+                    customerName: order.customer_name,
+                    pickupLink,
+                    locationName: order.location_name,
+                    pickupDateText: formatPickupDateText(order.preferred_pickup_date),
+                    changeDateLink,
+                    branding
+                })
             );
             logger.info(`📧 Pickup email sent to ${order.customer_email}`);
         }
@@ -3064,34 +3129,21 @@ app.post('/api/resend-notification/:shop/:orderNumber', requireApiAuth, async (r
                 .substring(0, 16);
             const changeDateLink = `https://app.lockerdrop.it/change-pickup/${orderNumber}?token=${changeDateToken}`;
 
+            const branding = await getBrandingForEmail(shop);
             const emailResult = await sendEmail(
                 order.customer_email,
                 `Reminder: Your order #${orderNumber} is ready for pickup! 📦`,
-                `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h1 style="color: #5c6ac4;">Pickup Reminder 🔔</h1>
-                    <p>Hi ${order.customer_name || 'there'},</p>
-                    <p>Just a reminder that your order <strong>#${orderNumber}</strong> is waiting for you at the locker!</p>
-
-                    <a href="${order.pickup_link}" style="display: inline-block; background: #5c6ac4; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600;">
-                        🔓 Open Locker & Pickup
-                    </a>
-
-                    <p style="margin-top: 20px; color: #6d7175; font-size: 14px;">
-                        Please pick up your order soon. If you have any questions, contact the seller.
-                    </p>
-
-                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e1e3e5;">
-                        <p style="color: #6d7175; font-size: 14px; margin: 0;">
-                            Need to change your pickup date?
-                            <a href="${changeDateLink}" style="color: #5c6ac4;">Change pickup date</a>
-                        </p>
-                    </div>
-
-                    <hr style="border: none; border-top: 1px solid #e1e3e5; margin: 30px 0;">
-                    <p style="color: #6d7175; font-size: 12px;">Powered by LockerDrop.it</p>
-                </div>
-                `
+                buildPickupEmailHtml({
+                    shop,
+                    orderNumber,
+                    customerName: order.customer_name,
+                    pickupLink: order.pickup_link,
+                    locationName: order.location_name,
+                    pickupDateText: formatPickupDateText(order.preferred_pickup_date),
+                    changeDateLink,
+                    reminder: true,
+                    branding
+                })
             );
             emailSent = !!(emailResult && emailResult.success);
             if (emailSent) {
@@ -8430,7 +8482,13 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
                     lineItemsByFulfillmentOrder: [
                         { fulfillmentOrderId: fo.id }
                     ],
-                    notifyCustomer: true,
+                    // LockerDrop sends its own branded "ready for pickup" email
+                    // (with the actual pickup link) at drop-off. Suppress Shopify's
+                    // shipping-confirmation email so the customer doesn't also get a
+                    // mistimed, linkless "check your previous email" message at
+                    // pickup/fulfillment time (and so the reconcile backstop doesn't
+                    // email customers of old already-picked-up orders).
+                    notifyCustomer: false,
                     trackingInfo: {
                         company: 'LockerDrop',
                         number: `LOCKER-${shopifyOrderId}`,
