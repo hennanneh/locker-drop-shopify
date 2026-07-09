@@ -53,10 +53,14 @@ function ThankYouBlock() {
       }
 
       try {
-        const token = await shopify.sessionToken.get();
-        const res = await fetch(`${API_BASE}/api/customer/order-status/${orderNumber}`, {
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-        });
+        // Session token is optional — the endpoint works without it (it only
+        // uses the token to scope by shop). Never let token retrieval block or
+        // crash the fetch.
+        let token = null;
+        try { token = await shopify.sessionToken.get(); } catch (e) { /* proceed unauthenticated */ }
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch(`${API_BASE}/api/customer/order-status/${orderNumber}`, { headers });
 
         if (!res.ok) throw new Error(`status ${res.status}`);
 

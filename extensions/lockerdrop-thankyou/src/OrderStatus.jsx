@@ -58,10 +58,11 @@ function OrderStatusBlock() {
       const orderNumber = getOrderNumber();
       if (!orderNumber) { if (!cancelled) setState({ phase: 'hidden' }); return; }
       try {
-        const token = await shopify.sessionToken.get();
-        const res = await fetch(`${API_BASE}/api/customer/order-status/${orderNumber}`, {
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-        });
+        let token = null;
+        try { token = await shopify.sessionToken.get(); } catch (e) { /* proceed unauthenticated */ }
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers.Authorization = `Bearer ${token}`;
+        const res = await fetch(`${API_BASE}/api/customer/order-status/${orderNumber}`, { headers });
         if (!res.ok) throw new Error(`status ${res.status}`);
         const body = await res.json();
         if (body && body.isLockerDropOrder) {

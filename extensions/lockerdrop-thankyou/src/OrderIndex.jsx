@@ -47,15 +47,16 @@ function OrderIndexBlock() {
         const edges = result?.data?.customer?.orders?.edges || [];
         if (edges.length === 0) { if (!cancelled) setPickups([]); return; }
 
-        const token = await shopify.sessionToken.get();
+        let token = null;
+        try { token = await shopify.sessionToken.get(); } catch (e) { /* proceed unauthenticated */ }
         const checks = await Promise.all(edges.map(async (e) => {
           try {
             const node = e?.node || {};
             const orderNumber = node.id?.split('/')?.pop() || node.name?.replace('#', '');
             if (!orderNumber) return null;
-            const resp = await fetch(`${API_BASE}/api/customer/order-status/${orderNumber}`, {
-              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-            });
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers.Authorization = `Bearer ${token}`;
+            const resp = await fetch(`${API_BASE}/api/customer/order-status/${orderNumber}`, { headers });
             if (!resp.ok) return null;
             const data = await resp.json();
             if (!data || !data.isLockerDropOrder) return null;
