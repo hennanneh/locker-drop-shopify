@@ -615,8 +615,10 @@ shopify app deploy   # Deploy Shopify extensions
 ```
 
 ### Server Environment
-- **Server:** root@138.197.216.202 (DigitalOcean)
+- **Server:** root@134.209.61.182 (DigitalOcean, SFO2)
+- **App directory:** `/root/locker-drop-shopify`
 - **Process manager:** PM2 (`pm2 restart lockerdrop`, `pm2 logs lockerdrop --lines 100`)
+- **Deploy:** `ssh root@134.209.61.182 'cd /root/locker-drop-shopify && git pull origin main && pm2 restart lockerdrop'` (DB migrations auto-run on startup)
 - **Harbor sandbox tower:** `0100000000000175`
 - **Test store:** `enna-test.myshopify.com`
 
