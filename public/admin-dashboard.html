@@ -5832,12 +5832,12 @@
                 const data = await response.json();
 
                 if (!response.ok) {
-                    if (data.needsReauth) {
+                    if (response.status === 401 || data.needsReauth) {
                         container.innerHTML = `
                             <div style="text-align: center; padding: 40px;">
-                                <p style="color: #bf0711; margin-bottom: 16px;">Access token expired or revoked.</p>
-                                <p style="color: #6d7175; margin-bottom: 20px;">Please reinstall the LockerDrop app from Shopify to reconnect.</p>
-                                <a href="/auth/install?shop=${shop}" class="btn btn-primary">Reconnect App</a>
+                                <p style="color: #202223; font-weight: 600; font-size: 16px; margin-bottom: 8px;">Connect to Shopify to load your products</p>
+                                <p style="color: #6d7175; margin-bottom: 20px;">LockerDrop needs permission to read your products so you can assign locker sizes.</p>
+                                <button class="btn btn-primary" onclick="reconnectToShopify()">Connect to Shopify</button>
                             </div>
                         `;
                     } else {

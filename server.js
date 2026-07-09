@@ -4250,7 +4250,7 @@ app.get('/api/products/:shop', requireApiAuth, async (req, res) => {
         }
 
         if (!accessToken) {
-            return res.status(401).json({ error: 'Not authenticated. Please reinstall the app.' });
+            return res.status(401).json({ error: 'Not connected to Shopify. Connect to load your products.', needsReauth: true });
         }
 
         // Fetch products from Shopify (using GraphQL API)
