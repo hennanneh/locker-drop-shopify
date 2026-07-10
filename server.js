@@ -1658,6 +1658,7 @@ app.get('/api/order-locker-data/:shopifyOrderId', async (req, res) => {
     try {
         const { shopifyOrderId } = req.params;
         const shop = req.query.shop; // Shop passed from the block
+        logger.info(`🧩 Admin block requested order-locker-data for ${shopifyOrderId}`);
 
         // First, check if order exists in our database
         const result = await db.query(
