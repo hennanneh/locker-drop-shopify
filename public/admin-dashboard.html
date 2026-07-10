@@ -1820,7 +1820,7 @@
                     </span>
                     <button class="btn btn-primary" onclick="openManualOrderModal()">+ Add Manual Order</button>
                 </div>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; align-items: center;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; background: #f4f5f7; border: 1px solid #e3e5e8; padding: 10px 12px; border-radius: 10px;">
                     <button class="filter-btn active" data-status="active" onclick="filterOrders('active')">Open</button>
                     <button class="filter-btn" data-status="pending_dropoff" onclick="filterOrders('pending_dropoff')">Pending Drop-off</button>
                     <button class="filter-btn" data-status="future_dropoff" onclick="filterOrders('future_dropoff')">Future Drop-off</button>
@@ -2638,7 +2638,7 @@
                                 <div id="selected-upsell-products" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;"></div>
                                 <div id="upsell-product-search-container" style="position: relative;">
                                     <input type="text" id="upsell-product-search" placeholder="Search products..." class="form-input" oninput="searchUpsellProducts(this.value)" onfocus="showProductDropdown()">
-                                    <div id="upsell-product-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #c4cdd5; border-top: none; border-radius: 0 0 6px 6px; max-height: 200px; overflow-y: auto; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"></div>
+                                    <div id="upsell-product-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #c4cdd5; border-top: none; border-radius: 0 0 6px 6px; max-height: 200px; overflow-y: auto; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"></div>
                                 </div>
                                 <input type="hidden" id="branding-upsell-products" value="">
                             </div>
