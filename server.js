@@ -8475,6 +8475,38 @@ async function registerCarrierService(shop, accessToken) {
 }
 
 // Fulfill order in Shopify when customer picks up from locker
+// Add a "Delivered" fulfillment event to any of the order's fulfillments that
+// aren't already delivered. Used for orders that were fulfilled before we
+// started marking delivered at pickup. Non-fatal on error.
+async function ensureDelivered(shop, accessToken, shopifyOrderId) {
+    try {
+        const data = await shopifyGraphQL(shop, accessToken, `{
+            order(id: "gid://shopify/Order/${shopifyOrderId}") {
+                fulfillments(first: 10) { id displayStatus }
+            }
+        }`);
+        const fulfillments = data.order?.fulfillments || [];
+        for (const f of fulfillments) {
+            if (!f?.id || f.displayStatus === 'DELIVERED') continue;
+            try {
+                await shopifyGraphQL(shop, accessToken, `
+                    mutation fulfillmentEventCreate($fulfillmentEvent: FulfillmentEventInput!) {
+                        fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
+                            fulfillmentEvent { id status }
+                            userErrors { field message }
+                        }
+                    }
+                `, { fulfillmentEvent: { fulfillmentId: f.id, status: 'DELIVERED' } });
+                logger.info(`📬 Marked existing fulfillment Delivered (order ${shopifyOrderId})`);
+            } catch (e) {
+                logger.info(`⚠️ ensureDelivered event failed for ${shopifyOrderId}: ${e.message}`);
+            }
+        }
+    } catch (e) {
+        logger.info(`⚠️ ensureDelivered lookup failed for ${shopifyOrderId}: ${e.message}`);
+    }
+}
+
 async function fulfillShopifyOrder(shop, shopifyOrderId) {
     try {
         // Get the shop's access token
@@ -8517,6 +8549,9 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
 
         if (openFulfillmentOrders.length === 0) {
             logger.info(`ℹ️ Order ${shopifyOrderId} already fulfilled or no open fulfillment orders`);
+            // Already fulfilled (possibly before we started marking delivered) —
+            // ensure it shows Delivered so the seller needn't do it manually.
+            await ensureDelivered(shop, accessToken, shopifyOrderId);
             return { success: true, message: 'Order already fulfilled' };
         }
 
@@ -8565,7 +8600,31 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
                 logger.error(`❌ Fulfillment error for order ${shopifyOrderId} (FO ${fo.id}): ${msg}`);
                 failures.push(msg);
             } else {
-                logger.info(`✅ Fulfillment created for order ${shopifyOrderId}:`, fulfillResult.fulfillmentCreateV2?.fulfillment?.id);
+                const fulfillmentId = fulfillResult.fulfillmentCreateV2?.fulfillment?.id;
+                logger.info(`✅ Fulfillment created for order ${shopifyOrderId}:`, fulfillmentId);
+                // Locker pickup == delivered. Add a "Delivered" fulfillment event so
+                // the order shows Delivered (not just Fulfilled) and the seller
+                // doesn't have to click "Mark as delivered". Non-fatal on error.
+                if (fulfillmentId) {
+                    try {
+                        const evt = await shopifyGraphQL(shop, accessToken, `
+                            mutation fulfillmentEventCreate($fulfillmentEvent: FulfillmentEventInput!) {
+                                fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
+                                    fulfillmentEvent { id status }
+                                    userErrors { field message }
+                                }
+                            }
+                        `, { fulfillmentEvent: { fulfillmentId, status: 'DELIVERED' } });
+                        const evtErrors = evt.fulfillmentEventCreate?.userErrors;
+                        if (evtErrors && evtErrors.length > 0) {
+                            logger.info(`⚠️ Could not mark delivered for order ${shopifyOrderId}: ${evtErrors.map(e => e.message).join('; ')}`);
+                        } else {
+                            logger.info(`📬 Marked order ${shopifyOrderId} as Delivered`);
+                        }
+                    } catch (evtErr) {
+                        logger.info(`⚠️ Delivered event failed for order ${shopifyOrderId}: ${evtErr.message}`);
+                    }
+                }
             }
         }
 
