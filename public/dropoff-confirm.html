@@ -302,6 +302,7 @@
         const orderNumber = urlParams.get('order');
 
         let orderData = null;
+        let orderToken = urlParams.get('t') || null;
         let selectedSize = null;
         let originalSize = null;
 
@@ -325,6 +326,7 @@
                 }
 
                 orderData = result;
+                if (result.t) orderToken = result.t;
 
                 document.getElementById('order-number').textContent = '#' + orderNumber;
 
@@ -387,7 +389,8 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             orderNumber: orderNumber,
-                            newSize: selectedSize
+                            newSize: selectedSize,
+                            t: orderToken
                         })
                     });
 

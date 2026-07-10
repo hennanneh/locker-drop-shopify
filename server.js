@@ -2476,6 +2476,9 @@ app.post('/api/pickup-complete', requireOrderToken, async (req, res) => {
             logger.info(`⚠️ Cannot fulfill in Shopify - missing shop (${order.shop}) or shopify_order_id (${order.shopify_order_id})`);
         }
 
+        // Update the Shopify order tag to reflect pickup.
+        setLockerOrderTag(order.shop, order.shopify_order_id, 'Picked up').catch(() => {});
+
         // Log for seller notification (in production, you might send an email or push notification)
         logger.info(`📧 Notify seller: Customer picked up order #${orderNumber}`);
 
@@ -2678,7 +2681,10 @@ app.get('/api/order-dropoff-info/:orderNumber', async (req, res) => {
             locationName: order.location_name,
             lockerSize: lockerSize,
             dropoffLink: order.dropoff_link,
-            status: order.status
+            status: order.status,
+            // Signed token so the page can call the token-protected change-size
+            // endpoint (the dropoff-confirm link doesn't carry a token).
+            t: signOrderToken(order.order_number)
         });
     } catch (error) {
         logger.error('Error fetching order dropoff info:', error);
@@ -2884,6 +2890,9 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
         );
 
         logger.info(`✅ Order #${orderNumber} marked as ready_for_pickup`);
+
+        // Surface the status on the Shopify order (tag) so it's visible while awaiting pickup.
+        setLockerOrderTag(order.shop, order.shopify_order_id, 'Ready for pickup').catch(() => {});
 
         // Send email to customer with pickup link
         if (order.customer_email && pickupLink) {
@@ -8617,6 +8626,40 @@ async function attemptFulfillment(order) {
     }
 
     return result;
+}
+
+// Tag the Shopify order so its locker status is visible + filterable in the
+// Shopify admin order list. Keeps a single "LockerDrop: <status>" tag by
+// removing the other status tags first. Skipped for manual orders (no real
+// Shopify order); non-fatal on error.
+const LOCKER_STATUS_TAGS = [
+    'LockerDrop: Pending drop-off',
+    'LockerDrop: Ready for pickup',
+    'LockerDrop: Picked up',
+    'LockerDrop: Cancelled'
+];
+async function setLockerOrderTag(shop, shopifyOrderId, statusLabel) {
+    if (!shop || !shopifyOrderId || String(shopifyOrderId).startsWith('MANUAL-')) return;
+    try {
+        let accessToken = accessTokens.get(shop);
+        if (!accessToken) {
+            const r = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop]);
+            if (r.rows.length && r.rows[0].access_token) { accessToken = r.rows[0].access_token; accessTokens.set(shop, accessToken); }
+        }
+        if (!accessToken) return;
+        const gid = `gid://shopify/Order/${shopifyOrderId}`;
+        const newTag = `LockerDrop: ${statusLabel}`;
+        const toRemove = LOCKER_STATUS_TAGS.filter(t => t !== newTag);
+        await shopifyGraphQL(shop, accessToken,
+            `mutation($id: ID!, $tags: [String!]!) { tagsRemove(id: $id, tags: $tags) { userErrors { message } } }`,
+            { id: gid, tags: toRemove });
+        await shopifyGraphQL(shop, accessToken,
+            `mutation($id: ID!, $tags: [String!]!) { tagsAdd(id: $id, tags: $tags) { userErrors { message } } }`,
+            { id: gid, tags: [newTag] });
+        logger.info(`🏷️ Tagged Shopify order ${shopifyOrderId}: ${newTag}`);
+    } catch (e) {
+        logger.info(`Could not tag Shopify order ${shopifyOrderId}: ${e.message}`);
+    }
 }
 
 // ============================================

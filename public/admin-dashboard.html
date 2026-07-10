@@ -5470,37 +5470,45 @@
             const g = document.getElementById('setup-guide');
             if (!g || !shop) return;
             try { if (localStorage.getItem(sgKey('dismissed')) === '1') { g.hidden = true; return; } } catch (e) {}
-            g.hidden = false;
+            // Keep hidden while checking so a fully-set-up store never sees a flash.
+            g.hidden = true;
 
-            // Each check runs independently and updates its own checkmark as it
-            // resolves — a slow shipping-plan call can't block the others.
+            // Each check updates its own checkmark; we also gather the results so we
+            // can hide the whole guide once all three are complete.
+            const [carrier, lockers, products] = await Promise.all([
+                // 1. Shipping rate — from plan data the app already tracks
+                (async () => {
+                    let plan = shopPlanData;
+                    if (!plan || plan.carrierServiceRegistered === undefined) {
+                        const j = await sgFetchJSON(`/api/shop-plan/${shop}`);
+                        if (j) { plan = j; try { shopPlanData = j; } catch (e) {} }
+                    }
+                    const done = !!(plan && plan.carrierServiceRegistered);
+                    sgSetStep('carrier', done);
+                    return done;
+                })(),
+                // 2. Lockers chosen — cheap DB endpoint
+                (async () => {
+                    if (typeof savedPreferenceIds !== 'undefined' && savedPreferenceIds.length > 0) { sgSetStep('lockers', true); return true; }
+                    const prefs = await sgFetchJSON(`/api/locker-preferences/${shop}`);
+                    const done = Array.isArray(prefs) && prefs.length > 0;
+                    sgSetStep('lockers', done);
+                    return done;
+                })(),
+                // 3. Product sizes — prefer in-memory data; fetch once only if needed
+                (async () => {
+                    if (typeof productsData !== 'undefined' && Array.isArray(productsData) && productsData.length) { const done = sgProductsConfigured(productsData); sgSetStep('products', done); return done; }
+                    if (_sgProductsCache !== null) { sgSetStep('products', _sgProductsCache); return _sgProductsCache; }
+                    const d = await sgFetchJSON(`/api/products/${shop}`);
+                    const done = d ? sgProductsConfigured(d.products || []) : false;
+                    _sgProductsCache = done;
+                    sgSetStep('products', done);
+                    return done;
+                })()
+            ]);
 
-            // 1. Shipping rate — from plan data the app already tracks
-            (async () => {
-                let plan = shopPlanData;
-                if (!plan || plan.carrierServiceRegistered === undefined) {
-                    const j = await sgFetchJSON(`/api/shop-plan/${shop}`);
-                    if (j) { plan = j; try { shopPlanData = j; } catch (e) {} }
-                }
-                sgSetStep('carrier', !!(plan && plan.carrierServiceRegistered));
-            })();
-
-            // 2. Lockers chosen — cheap DB endpoint
-            (async () => {
-                if (typeof savedPreferenceIds !== 'undefined' && savedPreferenceIds.length > 0) { sgSetStep('lockers', true); return; }
-                const prefs = await sgFetchJSON(`/api/locker-preferences/${shop}`);
-                sgSetStep('lockers', Array.isArray(prefs) && prefs.length > 0);
-            })();
-
-            // 3. Product sizes — prefer in-memory data; fetch once only if needed
-            (async () => {
-                if (typeof productsData !== 'undefined' && Array.isArray(productsData) && productsData.length) { sgSetStep('products', sgProductsConfigured(productsData)); return; }
-                if (_sgProductsCache !== null) { sgSetStep('products', _sgProductsCache); return; }
-                const d = await sgFetchJSON(`/api/products/${shop}`);
-                const done = d ? sgProductsConfigured(d.products || []) : false;
-                _sgProductsCache = done;
-                sgSetStep('products', done);
-            })();
+            // Show the guide only while setup is incomplete; hide once fully done.
+            g.hidden = !!(carrier && lockers && products);
         }
 
         function initSetupGuide() {
