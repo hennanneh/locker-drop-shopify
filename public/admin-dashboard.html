@@ -2576,7 +2576,9 @@
             <span id="last-refresh" style="display: none;">--</span>
 
             <!-- Branding Section -->
-            <div class="card">
+            <!-- overflow: visible so the product-picker dropdown isn't clipped by
+                 the card's overflow:hidden (used for rounded corners elsewhere). -->
+            <div class="card" style="overflow: visible;">
                 <div class="card-header">
                     <span class="card-header-title">
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
