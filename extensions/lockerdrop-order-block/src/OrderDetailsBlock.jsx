@@ -114,8 +114,15 @@ function OrderBlock() {
         ) : null}
 
         <s-stack gap="small-200">
-          {showDropoff ? <s-link href={data.dropoffLink} target="_blank">Open dropoff link</s-link> : null}
-          {showPickup ? <s-link href={data.pickupLink} target="_blank">View customer pickup link</s-link> : null}
+          {showDropoff ? (
+            <s-stack gap="small-200">
+              <s-link href={data.dropoffLink} target="_blank">Drop Off Locker Link</s-link>
+              <s-text color="subdued">Open this at the locker to drop off the package.</s-text>
+            </s-stack>
+          ) : null}
+          {showPickup ? (
+            <s-text color="subdued">Ready for the customer to collect. To resend their pickup link, open the LockerDrop dashboard and tap "Resend" on this order — don't open the pickup link yourself, it unlocks the customer's locker.</s-text>
+          ) : null}
           <s-link href={`https://app.lockerdrop.it/admin/dashboard?shop=${data?.shop || ''}`} target="_blank">Open LockerDrop dashboard</s-link>
         </s-stack>
 
