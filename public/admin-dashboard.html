@@ -3832,7 +3832,7 @@
                     <td data-label="Pickup Date">${order.pickupDate ? formatPickupDate(order.pickupDate) : '<span style="color: #6d7175;">-</span>'}</td>
                     <td data-label="Customer">${order.customerName}</td>
                     <td data-label="Locker">${order.lockerName || 'Not assigned'}</td>
-                    <td data-label="Drop-off">${order.dropoffLink ? `<a href="/dropoff-confirm?order=${order.orderNumber}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'pending_dropoff' ? 'Drop Off' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
+                    <td data-label="Drop-off">${order.dropoffLink ? `<a href="/dropoff-confirm?order=${order.orderNumber}&t=${encodeURIComponent(order.t || '')}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'pending_dropoff' ? 'Drop Off' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
                     <td data-label="Pickup">${order.pickupLink ? `<a href="${order.pickupLink}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'ready_for_pickup' ? 'Open' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
                     <td data-label="Status"><span class="status-badge status-${order.status}">${formatStatus(order.status, order.completedAt)}</span></td>
                     <td>
@@ -3919,7 +3919,7 @@
                         <p style="color: var(--p-color-text-secondary); font-size: 13px; margin-bottom: 12px;">
                             Verify locker size and open the locker <strong>at the locker location</strong>.
                         </p>
-                        <a href="/dropoff-confirm?order=${order.orderNumber}" target="_blank" class="btn btn-primary">
+                        <a href="/dropoff-confirm?order=${order.orderNumber}&t=${encodeURIComponent(order.t || '')}" target="_blank" class="btn btn-primary">
                             📦 Drop Off Package
                         </a>
                         ${dropoffPending ? `

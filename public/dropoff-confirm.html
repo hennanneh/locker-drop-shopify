@@ -317,7 +317,7 @@
             }
 
             try {
-                const response = await fetch(`/api/order-dropoff-info/${encodeURIComponent(orderNumber)}`);
+                const response = await fetch(`/api/order-dropoff-info/${encodeURIComponent(orderNumber)}?t=${encodeURIComponent(orderToken || '')}`);
                 const result = await response.json();
 
                 if (!result.success) {

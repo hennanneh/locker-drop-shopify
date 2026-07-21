@@ -670,6 +670,28 @@ app.use('/webhooks/', webhookLimiter);
 // Store access tokens (use a database in production)
 const accessTokens = new Map();
 
+// Short-lived OAuth nonces (state) keyed by shop, for CSRF protection on the
+// install -> callback round-trip. Expire after 10 minutes.
+const oauthNonces = new Map();
+const OAUTH_NONCE_TTL_MS = 10 * 60 * 1000;
+
+// Verify the HMAC Shopify signs OAuth redirects with (proves the callback params
+// came from Shopify and weren't forged). Excludes hmac/signature, sorts the rest,
+// joins key=value with &, HMAC-SHA256 with the app secret, timing-safe compare.
+function verifyOAuthHmac(query) {
+    const { hmac, signature, ...rest } = query || {};
+    if (!hmac || !process.env.SHOPIFY_API_SECRET) return false;
+    const message = Object.keys(rest).sort().map(k => `${k}=${rest[k]}`).join('&');
+    const computed = crypto.createHmac('sha256', process.env.SHOPIFY_API_SECRET).update(message).digest('hex');
+    try {
+        const a = Buffer.from(computed);
+        const b = Buffer.from(String(hmac));
+        return a.length === b.length && crypto.timingSafeEqual(a, b);
+    } catch (e) {
+        return false;
+    }
+}
+
 // ============================================
 // SHOPIFY OAUTH ROUTES
 // ============================================
@@ -677,10 +699,14 @@ const accessTokens = new Map();
 // Install route - initiates OAuth
 app.get('/auth/install', (req, res) => {
     const shop = req.query.shop;
+    if (!isValidShopDomain(shop)) {
+        return res.status(400).send('Invalid shop parameter');
+    }
     const redirectUri = `https://app.lockerdrop.it/auth/callback`;
     const scopes = process.env.SHOPIFY_SCOPES || 'write_shipping,read_orders,write_orders,read_products,read_fulfillments,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders';
     const nonce = crypto.randomBytes(16).toString('hex');
-    
+    oauthNonces.set(shop, { nonce, ts: Date.now() });
+
     const installUrl = 
         `https://${shop}/admin/oauth/authorize?` +
         `client_id=${process.env.SHOPIFY_API_KEY}&` +
@@ -694,7 +720,23 @@ app.get('/auth/install', (req, res) => {
 
 // OAuth callback
 app.get('/auth/callback', async (req, res) => {
-    const { shop, code } = req.query;
+    const { shop, code, state } = req.query;
+
+    // Validate the callback before trusting anything: canonical shop domain,
+    // Shopify's HMAC signature, and our CSRF state nonce.
+    if (!isValidShopDomain(shop) || !code) {
+        return res.status(400).send('Invalid callback parameters');
+    }
+    if (!verifyOAuthHmac(req.query)) {
+        logger.warn({ shop }, 'OAuth callback HMAC verification failed');
+        return res.status(403).send('HMAC verification failed');
+    }
+    const storedNonce = oauthNonces.get(shop);
+    oauthNonces.delete(shop);
+    if (!storedNonce || storedNonce.nonce !== state || (Date.now() - storedNonce.ts) > OAUTH_NONCE_TTL_MS) {
+        logger.warn({ shop }, 'OAuth callback state/nonce invalid or expired');
+        return res.status(403).send('Invalid or expired state parameter');
+    }
 
     try {
         const accessToken = await getAccessToken(shop, code);
@@ -787,8 +829,8 @@ app.get('/auth/callback', async (req, res) => {
 // Reconnect route - forces re-authentication when token is invalid
 app.get('/auth/reconnect', (req, res) => {
     const shop = req.query.shop;
-    if (!shop) {
-        return res.status(400).send('Shop parameter required');
+    if (!isValidShopDomain(shop)) {
+        return res.status(400).send('Invalid shop parameter');
     }
 
     logger.info(`🔄 Reconnect requested for ${shop}`);
@@ -796,6 +838,7 @@ app.get('/auth/reconnect', (req, res) => {
     const redirectUri = `https://app.lockerdrop.it/auth/callback`;
     const scopes = process.env.SHOPIFY_SCOPES || 'write_shipping,read_orders,write_orders,read_products,read_fulfillments,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders';
     const nonce = crypto.randomBytes(16).toString('hex');
+    oauthNonces.set(shop, { nonce, ts: Date.now() });
 
     const installUrl =
         `https://${shop}/admin/oauth/authorize?` +
@@ -2634,7 +2677,7 @@ app.get('/api/retry-link/:orderNumber', requireOrderToken, async (req, res) => {
 });
 
 // Get order info for the dropoff confirm page (pre-locker-open size verification)
-app.get('/api/order-dropoff-info/:orderNumber', async (req, res) => {
+app.get('/api/order-dropoff-info/:orderNumber', requireOrderToken, async (req, res) => {
     try {
         const { orderNumber } = req.params;
 
@@ -2682,10 +2725,7 @@ app.get('/api/order-dropoff-info/:orderNumber', async (req, res) => {
             locationName: order.location_name,
             lockerSize: lockerSize,
             dropoffLink: order.dropoff_link,
-            status: order.status,
-            // Signed token so the page can call the token-protected change-size
-            // endpoint (the dropoff-confirm link doesn't carry a token).
-            t: signOrderToken(order.order_number)
+            status: order.status
         });
     } catch (error) {
         logger.error('Error fetching order dropoff info:', error);
@@ -4507,7 +4547,11 @@ app.get('/api/orders/:shop', requireApiAuth, auditCustomerDataAccess('view_order
             [shop]
         );
 
-        res.json(result.rows);
+        // Attach a signed order token so the (authenticated) dashboard can build
+        // token-protected drop-off links — the token is never minted by a public
+        // endpoint.
+        const orders = result.rows.map(o => ({ ...o, t: signOrderToken(o.orderNumber) }));
+        res.json(orders);
     } catch (error) {
         logger.error('Error loading orders:', error);
         res.status(500).json({ error: 'Failed to load orders' });
