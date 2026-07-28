@@ -5304,44 +5304,40 @@ app.get('/api/customer/order-status/:orderId', async (req, res) => {
         res.header('Access-Control-Allow-Methods', 'GET');
         res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-        // Extract shop domain from Shopify session token (JWT) to scope query to the correct store
+        // Authenticate: require a VERIFIED Shopify session token (App Bridge JWT from the
+        // checkout / customer-account extension). The shop MUST be derived from a token whose
+        // signature we verify — decoding the JWT payload without verifying it lets an attacker
+        // name any shop and read another tenant's order data (cross-tenant IDOR).
         let shopDomain = null;
         const authHeader = req.headers.authorization;
         if (authHeader?.startsWith('Bearer ')) {
             try {
-                const token = authHeader.slice(7);
-                const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+                const payload = verifyShopifySessionToken(authHeader.slice(7));
                 // Shopify session tokens have 'dest' (e.g. "https://store.myshopify.com") or 'iss' (e.g. "https://store.myshopify.com/admin")
                 const dest = payload.dest || payload.iss;
                 if (dest) {
                     shopDomain = new URL(dest).hostname;
                 }
             } catch (e) {
-                logger.info('⚠️ Could not decode session token for shop domain');
+                logger.info('⚠️ Invalid session token on order-status request');
             }
         }
 
-        // Find order in our database, scoped to the shop if available
-        let orderResult;
-        if (shopDomain) {
-            orderResult = await db.query(
-                `SELECT o.*, lp.location_name as locker_name
-                 FROM orders o
-                 LEFT JOIN locker_preferences lp ON o.location_id::text = lp.location_id::text AND o.shop = lp.shop
-                 WHERE o.shop = $2 AND (o.shopify_order_id = $1 OR o.order_number = $1 OR o.id::text = $1)
-                 ORDER BY o.created_at DESC LIMIT 1`,
-                [orderId, shopDomain]
-            );
-        } else {
-            orderResult = await db.query(
-                `SELECT o.*, lp.location_name as locker_name
-                 FROM orders o
-                 LEFT JOIN locker_preferences lp ON o.location_id::text = lp.location_id::text AND o.shop = lp.shop
-                 WHERE o.shopify_order_id = $1 OR o.order_number = $1 OR o.id::text = $1
-                 ORDER BY o.created_at DESC LIMIT 1`,
-                [orderId]
-            );
+        if (!shopDomain || !isValidShopDomain(shopDomain)) {
+            // Without a verified shop we cannot scope the lookup, and an unscoped global
+            // lookup is a cross-tenant data leak. Refuse rather than guess the shop.
+            return res.status(401).json({ error: 'Unauthorized' });
         }
+
+        // Find order in our database, scoped to the verified shop
+        const orderResult = await db.query(
+            `SELECT o.*, lp.location_name as locker_name
+             FROM orders o
+             LEFT JOIN locker_preferences lp ON o.location_id::text = lp.location_id::text AND o.shop = lp.shop
+             WHERE o.shop = $2 AND (o.shopify_order_id = $1 OR o.order_number = $1 OR o.id::text = $1)
+             ORDER BY o.created_at DESC LIMIT 1`,
+            [orderId, shopDomain]
+        );
 
         if (orderResult.rows.length === 0) {
             // Order not found in our system - might not be a LockerDrop order
