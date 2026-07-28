@@ -713,14 +713,18 @@ app.get('/auth/install', (req, res) => {
     const nonce = crypto.randomBytes(16).toString('hex');
     oauthNonces.set(shop, { nonce, ts: Date.now() });
 
-    const installUrl = 
+    // NOTE: no `grant_options[]=per-user` — that requests an ONLINE (per-user,
+    // ~24h) token. This app uses the stored token for background/server-initiated
+    // work (webhook order processing, fulfillment updates, plan/carrier calls),
+    // so it needs an OFFLINE (long-lived) token, which is Shopify's default when
+    // grant_options is omitted.
+    const installUrl =
         `https://${shop}/admin/oauth/authorize?` +
         `client_id=${process.env.SHOPIFY_API_KEY}&` +
         `scope=${scopes}&` +
         `redirect_uri=${redirectUri}&` +
-        `state=${nonce}&` +
-        `grant_options[]=per-user`;  // This forces re-approval
-    
+        `state=${nonce}`;
+
     res.redirect(installUrl);
 });
 
