@@ -5620,6 +5620,16 @@ app.post('/api/manual-order/:shop', requireApiAuth, async (req, res) => {
         const shop = req.params.shop;
         const { orderNumber, customerName, customerEmail, lockerId, lockerName, sendEmail, requiredLockerSize, preferredPickupDate } = req.body;
 
+        // Order numbers are unique per store. Reject a duplicate before reserving a Harbor
+        // locker (avoids an orphan reservation and a unique-constraint crash on insert).
+        const dupe = await db.query(
+            "SELECT id FROM orders WHERE shop = $1 AND order_number = $2 LIMIT 1",
+            [shop, orderNumber]
+        );
+        if (dupe.rows.length > 0) {
+            return res.status(409).json({ success: false, error: `Order #${orderNumber} already exists for this store.` });
+        }
+
         // Parse required locker size (1=small, 2=medium, 3=large, 4=x-large), default to 2 (medium)
         const requiredSizeId = parseInt(requiredLockerSize) || 2;
         const requiredSizeName = LOCKER_SIZES.find(s => s.id === requiredSizeId)?.name || 'Medium';
@@ -5709,13 +5719,40 @@ app.post('/api/manual-order/:shop', requireApiAuth, async (req, res) => {
         const dropoffData = dropoffResponse.data;
         logger.info(`📦 Manual order dropoff - Locker ID: ${dropoffData.lockerId}, Tower ID: ${dropoffData.towerId}`);
 
-        // Insert order into database with locker_id and tower_id for proper release on cancellation
-        const insertResult = await db.query(
-            `INSERT INTO orders (shop, shopify_order_id, order_number, customer_name, customer_email, location_id, location_name, locker_id, tower_id, dropoff_request_id, status, dropoff_link, preferred_pickup_date, created_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
-             RETURNING id`,
-            [shop, `MANUAL-${orderNumber}`, orderNumber, customerName, customerEmail, lockerId, lockerName, dropoffData.lockerId, dropoffData.towerId, dropoffData.id, 'pending_dropoff', dropoffData.linkToken, preferredPickupDate || null]
-        );
+        // Insert order into database with locker_id and tower_id for proper release on cancellation.
+        // The INSERT is the real uniqueness backstop: the pre-check above can be raced by a
+        // concurrent request, and it can't see a different shop's row via the globally-unique
+        // shopify_order_id. If the INSERT fails AFTER Harbor has reserved a physical locker,
+        // release that locker so we never orphan the reservation.
+        let insertResult;
+        try {
+            insertResult = await db.query(
+                `INSERT INTO orders (shop, shopify_order_id, order_number, customer_name, customer_email, location_id, location_name, locker_id, tower_id, dropoff_request_id, status, dropoff_link, preferred_pickup_date, created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+                 RETURNING id`,
+                [shop, `MANUAL-${orderNumber}`, orderNumber, customerName, customerEmail, lockerId, lockerName, dropoffData.lockerId, dropoffData.towerId, dropoffData.id, 'pending_dropoff', dropoffData.linkToken, preferredPickupDate || null]
+            );
+        } catch (insertErr) {
+            // Release the just-reserved Harbor locker to avoid an orphan reservation.
+            if (dropoffData?.towerId && dropoffData?.lockerId) {
+                try {
+                    await axios.post(
+                        `${HARBOR_API_URL}/api/v1/towers/${dropoffData.towerId}/lockers/${dropoffData.lockerId}/release-locker`,
+                        {},
+                        { headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }}
+                    );
+                    logger.info(`↩️ Released orphaned Harbor locker (tower ${dropoffData.towerId}, locker ${dropoffData.lockerId}) after failed insert for #${orderNumber}`);
+                } catch (releaseErr) {
+                    logger.error(`⚠️ Could not release orphaned Harbor locker for #${orderNumber}: ${releaseErr.response?.data?.detail || releaseErr.message}`);
+                }
+            }
+            // 23505 = unique_violation: order already exists (raced past the pre-check, or a
+            // different shop collided on the global shopify_order_id / the (shop, order_number) index).
+            if (insertErr.code === '23505') {
+                return res.status(409).json({ success: false, error: `Order #${orderNumber} already exists.` });
+            }
+            throw insertErr; // fall through to the outer catch → 500
+        }
 
         logger.info(`✅ Manual order #${orderNumber} created with dropoff link, locker_id: ${dropoffData.lockerId}, tower_id: ${dropoffData.towerId}`);
 

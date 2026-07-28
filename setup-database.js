@@ -112,6 +112,8 @@ async function setupDatabase() {
       CREATE INDEX IF NOT EXISTS idx_orders_shop ON orders(shop);
       CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
       CREATE INDEX IF NOT EXISTS idx_locker_prefs_shop ON locker_preferences(shop);
+      -- Order numbers are unique per store; enforce it so lookups can safely key on (shop, order_number).
+      CREATE UNIQUE INDEX IF NOT EXISTS orders_shop_order_number_uidx ON orders(shop, order_number);
     `);
 
     console.log('✅ Database setup complete!');

@@ -28,3 +28,6 @@ database.sqlite
 
 # Personal Claude Code permissions
 .claude/settings.local.json
+
+# OS cruft
+.DS_Store
