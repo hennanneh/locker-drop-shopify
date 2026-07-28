@@ -9221,29 +9221,37 @@ app.post('/api/errors', express.json(), (req, res) => {
 // ============================================
 
 app.listen(PORT, async () => {
-    // Apply pending DB migrations (replaces the legacy ensure*/init* startup
-    // helpers; see migrations/ and P4-2 in LAUNCH_CHECKLIST.md).
-    try {
-        await runMigrations({ logger });
-    } catch (err) {
-        logger.error({ err: err.message, stack: err.stack }, '❌ Migration runner failed');
+    // Startup side-effects — DB migrations, at-rest token encryption, and the
+    // recurring retention/expiry/stuck-order/reconciliation jobs — all mutate the
+    // real DB and can call Harbor (locker release). Set SKIP_STARTUP_JOBS=1 for a
+    // safe local/QA boot that does not touch shared data. Unset in prod (default).
+    if (process.env.SKIP_STARTUP_JOBS === '1') {
+        logger.warn('⏭️  SKIP_STARTUP_JOBS=1 — skipping migrations, token encryption, and scheduled jobs (local/QA boot; no DB writes or Harbor calls)');
+    } else {
+        // Apply pending DB migrations (replaces the legacy ensure*/init* startup
+        // helpers; see migrations/ and P4-2 in LAUNCH_CHECKLIST.md).
+        try {
+            await runMigrations({ logger });
+        } catch (err) {
+            logger.error({ err: err.message, stack: err.stack }, '❌ Migration runner failed');
+        }
+
+        // Encrypt any legacy plaintext access tokens at rest (S2-10).
+        // This is a data migration, not a schema migration — keep it separate.
+        await db.migrateAccessTokensToEncrypted();
+
+        // Schedule data retention cleanup
+        scheduleDataRetention();
+
+        // Schedule locker expiry checks
+        scheduleLockerExpiryCheck();
+
+        // Schedule stuck order detection
+        scheduleStuckOrderCheck();
+
+        // Backstop: retry Shopify fulfillment for completed-but-unfulfilled orders
+        scheduleFulfillmentReconciliation();
     }
-
-    // Encrypt any legacy plaintext access tokens at rest (S2-10).
-    // This is a data migration, not a schema migration — keep it separate.
-    await db.migrateAccessTokensToEncrypted();
-
-    // Schedule data retention cleanup
-    scheduleDataRetention();
-
-    // Schedule locker expiry checks
-    scheduleLockerExpiryCheck();
-
-    // Schedule stuck order detection
-    scheduleStuckOrderCheck();
-
-    // Backstop: retry Shopify fulfillment for completed-but-unfulfilled orders
-    scheduleFulfillmentReconciliation();
 
     logger.info({
         port: PORT,
