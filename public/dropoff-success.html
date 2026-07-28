@@ -10,7 +10,7 @@
       gtag('config', 'G-9V5MYQXT0E');
     </script>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Drop-off Status</title>
     <style>
         * {
@@ -154,7 +154,7 @@
             border-radius: 12px;
             padding: 16px;
             font-size: 14px;
-            opacity: 0.8;
+            opacity: 0.95;
             margin-top: 20px;
             animation: fadeInUp 0.5s ease-out 0.7s both;
         }
@@ -282,8 +282,8 @@
 
         .size-btn .size-dims {
             display: block;
-            font-size: 10px;
-            opacity: 0.7;
+            font-size: 12px;
+            opacity: 0.95;
             margin-top: 2px;
         }
 
@@ -366,11 +366,15 @@
         .didnt-fit-link {
             display: inline-block;
             margin-top: 20px;
-            color: rgba(255, 255, 255, 0.6);
+            color: rgba(255, 255, 255, 0.85);
             font-size: 13px;
+            font-family: inherit;
             text-decoration: none;
             cursor: pointer;
-            border-bottom: 1px dashed rgba(255, 255, 255, 0.4);
+            background: transparent;
+            border: none;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.6);
+            padding: 2px 0;
         }
 
         .didnt-fit-link:hover {
@@ -405,10 +409,14 @@
                 </ul>
             </div>
 
-            <div class="status-update" id="status-update">
+            <div class="status-update" id="status-update" role="status" aria-live="polite">
                 <span class="spinner"></span>
                 Updating order status...
             </div>
+
+            <button type="button" class="didnt-fit-link" onclick="showDoesntFitUI()">
+                Package didn't fit? Get a larger locker
+            </button>
         </div>
 
         <!-- LOCKER DIDN'T OPEN STATE -->
@@ -477,18 +485,18 @@
                     Get New Locker
                 </button>
 
-                <div id="df-error" class="error-msg hidden"></div>
+                <div id="df-error" class="error-msg hidden" role="alert" aria-live="assertive"></div>
             </div>
 
-            <div id="df-status" class="status-update hidden">
+            <div id="df-status" class="status-update hidden" role="status" aria-live="polite">
                 <span class="spinner"></span>
                 Clearing previous reservation...
             </div>
 
             <div style="margin-top: 20px;">
-                <a href="javascript:void(0)" class="btn-secondary btn" id="btn-dashboard" style="font-size: 13px; padding: 10px 20px;">
+                <button type="button" class="btn-secondary btn" id="btn-dashboard" onclick="goToDashboard()" style="font-size: 13px; padding: 10px 20px;">
                     Return to Dashboard
-                </a>
+                </button>
             </div>
         </div>
 
@@ -693,6 +701,19 @@
         function showTroubleUI() {
             document.getElementById('success-container').classList.add('hidden');
             document.getElementById('trouble-container').classList.remove('hidden');
+        }
+
+        // Return the seller to their LockerDrop dashboard (inside Shopify Admin).
+        // The app is embedded in Shopify Admin, so the meaningful destination is the
+        // merchant's admin. Fall back to the marketing site if we have no valid shop.
+        function goToDashboard() {
+            if (shop && /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/.test(shop)) {
+                window.location.href = 'https://' + shop + '/admin';
+            } else if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                window.location.href = 'https://lockerdrop.it';
+            }
         }
 
         // Route based on status

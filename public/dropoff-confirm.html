@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Confirm Drop-off Size</title>
     <style>
         * {
@@ -106,7 +106,7 @@
 
         .current-size-label {
             font-size: 14px;
-            opacity: 0.8;
+            opacity: 0.95;
             margin-bottom: 12px;
         }
 
@@ -148,13 +148,13 @@
 
         .size-btn .size-dims {
             display: block;
-            font-size: 10px;
-            opacity: 0.7;
+            font-size: 12px;
+            opacity: 0.95;
             margin-top: 2px;
         }
 
         .size-btn.selected .size-dims {
-            opacity: 0.6;
+            opacity: 0.85;
         }
 
         .btn {
@@ -282,11 +282,11 @@
                 Open Locker
             </button>
 
-            <div id="status-msg" class="status-msg hidden"></div>
+            <div id="status-msg" class="status-msg hidden" role="alert" aria-live="assertive"></div>
         </div>
 
         <!-- ERROR STATE -->
-        <div id="error-container" class="hidden">
+        <div id="error-container" class="hidden" role="alert" aria-live="assertive">
             <div class="icon">!</div>
             <h1>Something went wrong</h1>
             <p class="subtitle" id="error-message">Could not load order info.</p>

@@ -143,11 +143,21 @@
             cursor: pointer;
             transition: all 0.2s;
             background: white;
+            width: 100%;
+            font-family: inherit;
+            color: inherit;
+            -webkit-appearance: none;
+            appearance: none;
         }
 
         .date-option:hover {
             border-color: #667eea;
             transform: translateY(-2px);
+        }
+
+        .date-option:focus-visible {
+            outline: 3px solid #667eea;
+            outline-offset: 2px;
         }
 
         .date-option.selected {
@@ -326,7 +336,7 @@
                 <p>Loading order details...</p>
             </div>
 
-            <div id="errorSection" class="message error"></div>
+            <div id="errorSection" class="message error" role="alert" aria-live="assertive"></div>
 
             <!-- Select New Date -->
             <div id="datesSection" class="dates-section">
@@ -451,6 +461,9 @@
         function renderDates() {
             const grid = document.getElementById('datesGrid');
             grid.innerHTML = '';
+            // Group the options so AT announces them as one choice.
+            grid.setAttribute('role', 'group');
+            grid.setAttribute('aria-label', 'Select a new pickup date');
 
             if (availableDates.length === 0) {
                 grid.innerHTML = '<p>No available dates found</p>';
@@ -458,22 +471,26 @@
             }
 
             availableDates.forEach(date => {
-                const div = document.createElement('div');
-                div.className = 'date-option';
+                // Real <button> so it is focusable and operable by keyboard/screen reader.
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'date-option';
+                btn.setAttribute('aria-pressed', 'false');
+                btn.setAttribute('aria-label', `${date.dayName}, ${date.monthDay}`);
 
                 // Check if this is the current date
                 if (orderData.currentDate === date.date) {
-                    div.classList.add('current');
+                    btn.classList.add('current');
                 }
 
-                div.innerHTML = `
+                btn.innerHTML = `
                     <div class="day-name">${date.dayName}</div>
                     <div class="date">${date.monthDay.split(' ')[1]}</div>
                     <div class="month">${date.monthDay.split(' ')[0]}</div>
                 `;
 
-                div.onclick = () => selectDate(date, div);
-                grid.appendChild(div);
+                btn.onclick = () => selectDate(date, btn);
+                grid.appendChild(btn);
             });
         }
 
@@ -481,10 +498,12 @@
             // Remove selection from all
             document.querySelectorAll('.date-option').forEach(el => {
                 el.classList.remove('selected');
+                el.setAttribute('aria-pressed', 'false');
             });
 
             // Select this one
             element.classList.add('selected');
+            element.setAttribute('aria-pressed', 'true');
             selectedDate = date;
 
             // Enable update button

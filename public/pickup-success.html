@@ -10,7 +10,7 @@
       gtag('config', 'G-9V5MYQXT0E');
     </script>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pickup Complete!</title>
     <style>
         * {
@@ -134,7 +134,7 @@
             border-radius: 12px;
             padding: 16px;
             font-size: 14px;
-            opacity: 0.8;
+            opacity: 0.95;
             animation: fadeInUp 0.5s ease-out 0.6s both;
         }
 
@@ -367,7 +367,7 @@
                 Thank you for using LockerDrop! Your order has been successfully picked up from the locker.
             </p>
 
-            <div class="status-update" id="status-update">
+            <div class="status-update" id="status-update" role="status" aria-live="polite">
                 <span class="spinner"></span>
                 Notifying seller...
             </div>
