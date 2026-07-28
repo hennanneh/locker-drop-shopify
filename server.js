@@ -4290,7 +4290,7 @@ app.get('/api/products/:shop', requireApiAuth, async (req, res) => {
             if (result.rows.length > 0) {
                 accessToken = result.rows[0].access_token;
                 accessTokens.set(shop, accessToken);
-                logger.info(`   Found token: ${accessToken.substring(0, 15)}...`);
+                logger.info(`   Found token for shop (len ${accessToken ? accessToken.length : 0})`);
             } else {
                 logger.info(`   No token found for shop: ${shop}`);
             }
@@ -6824,7 +6824,10 @@ async function processAppUninstall(shop) {
             // Optional tables that "may not exist yet" — isolate each in a savepoint
             // so a missing-relation error can't abort the whole transaction.
             await deleteWithSavepoint(client, 'sp_branding', 'DELETE FROM branding_settings WHERE shop = $1', [shop]);
-            await deleteWithSavepoint(client, 'sp_sessions', 'DELETE FROM user_sessions WHERE sess::text LIKE $1', [`%${shop}%`]);
+            // Match the shop field precisely (JSON ->> 'shop'), not a substring of the
+            // whole session JSON — a LIKE '%shop%' can delete sessions of OTHER shops
+            // whose name contains this one as a substring (e.g. 'acme' vs 'acme-eu').
+            await deleteWithSavepoint(client, 'sp_sessions', "DELETE FROM user_sessions WHERE sess->>'shop' = $1", [shop]);
 
             // Store record + access token last.
             await client.query('DELETE FROM stores WHERE shop = $1', [shop]);
