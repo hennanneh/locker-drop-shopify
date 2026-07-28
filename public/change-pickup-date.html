@@ -328,8 +328,8 @@
 
             <div id="errorSection" class="message error"></div>
 
-            <!-- Step 1: Verify Email -->
-            <div id="verifySection" class="verify-section">
+            <!-- Select New Date -->
+            <div id="datesSection" class="dates-section">
                 <div class="order-info">
                     <h3>Order Details</h3>
                     <div class="order-detail">
@@ -346,16 +346,6 @@
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="email">Verify Your Email</label>
-                    <input type="email" id="email" placeholder="Enter the email used for this order">
-                </div>
-
-                <button class="btn btn-primary" onclick="verifyEmail()">Continue</button>
-            </div>
-
-            <!-- Step 2: Select New Date -->
-            <div id="datesSection" class="dates-section">
                 <div class="dates-container">
                     <h3>Select New Pickup Date</h3>
                     <div id="datesGrid" class="dates-grid">
@@ -364,7 +354,6 @@
                 </div>
 
                 <button class="btn btn-primary" onclick="updateDate()" id="updateBtn" disabled>Update Pickup Date</button>
-                <button class="btn btn-secondary" onclick="goBack()">Go Back</button>
             </div>
 
             <!-- Step 3: Success -->
@@ -390,7 +379,9 @@
         // Get order number from URL
         const urlParams = new URLSearchParams(window.location.search);
         const orderNumber = window.location.pathname.split('/').pop() || urlParams.get('order');
-        const token = urlParams.get('token');
+        const shop = urlParams.get('shop');
+        // Shop-bound signed order token (supports legacy ?token= param name too).
+        const token = urlParams.get('t') || urlParams.get('token');
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', loadOrderDetails);
@@ -401,15 +392,21 @@
                 return;
             }
 
+            if (!token || !shop) {
+                showError('This link is invalid or has expired. Please use the "Change pickup date" link from your pickup email.');
+                return;
+            }
+
             try {
-                const response = await fetch(`/api/order-pickup-details/${orderNumber}`);
+                const response = await fetch(`/api/order-pickup-details/${encodeURIComponent(orderNumber)}?shop=${encodeURIComponent(shop)}&t=${encodeURIComponent(token)}`);
                 const data = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Failed to load order');
+                    throw new Error(data.error || 'This link is invalid or has expired. Please use the link from your pickup email.');
                 }
 
                 orderData = data;
+                verifiedEmail = data.email || null;
 
                 // Populate order info
                 document.getElementById('orderNumber').textContent = '#' + orderNumber;
@@ -418,45 +415,9 @@
                     ? formatDate(data.currentDate)
                     : 'Not set';
 
-                // Hide loading, show verify section
+                // Hide loading. The signed token is the authentication, so go
+                // straight to date selection — no separate email-match step.
                 document.getElementById('loadingSection').style.display = 'none';
-
-                // If token provided and valid, skip email verification
-                if (token && data.tokenValid) {
-                    verifiedEmail = data.email;
-                    await loadAvailableDates();
-                    showSection('datesSection');
-                } else {
-                    showSection('verifySection');
-                }
-
-            } catch (err) {
-                showError(err.message);
-            }
-        }
-
-        async function verifyEmail() {
-            const email = document.getElementById('email').value.trim();
-
-            if (!email) {
-                showError('Please enter your email');
-                return;
-            }
-
-            try {
-                const response = await fetch(`/api/verify-order-email/${orderNumber}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok || !data.verified) {
-                    throw new Error(data.error || 'Email does not match order');
-                }
-
-                verifiedEmail = email;
                 await loadAvailableDates();
                 showSection('datesSection');
 
@@ -531,7 +492,7 @@
         }
 
         async function updateDate() {
-            if (!selectedDate || !verifiedEmail) {
+            if (!selectedDate) {
                 showError('Please select a date');
                 return;
             }
@@ -541,12 +502,12 @@
             btn.textContent = 'Updating...';
 
             try {
-                const response = await fetch(`/api/update-pickup-date/${orderData.shop}/${orderNumber}`, {
+                const response = await fetch(`/api/update-pickup-date/${encodeURIComponent(orderData.shop)}/${encodeURIComponent(orderNumber)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        email: verifiedEmail,
-                        newDate: selectedDate.date
+                        newDate: selectedDate.date,
+                        t: token
                     })
                 });
 
@@ -567,12 +528,8 @@
             }
         }
 
-        function goBack() {
-            showSection('verifySection');
-        }
-
         function showSection(sectionId) {
-            ['verifySection', 'datesSection', 'successSection'].forEach(id => {
+            ['datesSection', 'successSection'].forEach(id => {
                 document.getElementById(id).classList.remove('active');
             });
             document.getElementById(sectionId).classList.add('active');
@@ -595,10 +552,6 @@
             });
         }
 
-        // Handle enter key on email input
-        document.getElementById('email')?.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') verifyEmail();
-        });
-    </script>
+</script>
 </body>
 </html>

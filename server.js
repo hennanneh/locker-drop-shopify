@@ -586,7 +586,6 @@ app.use((req, res, next) => {
         req.path.startsWith('/api/checkout/') ||
         req.path.startsWith('/api/waitlist') ||
         req.path.startsWith('/api/order-pickup-details/') ||
-        req.path.startsWith('/api/verify-order-email/') ||
         req.path.startsWith('/api/update-pickup-date/') ||
         req.path.startsWith('/api/available-pickup-dates/') ||
         req.path.startsWith('/api/upsell-products/') ||
@@ -668,7 +667,6 @@ app.use('/api/pickup-points', publicApiLimiter);
 app.use('/api/waitlist', publicApiLimiter);
 app.use('/api/customer/', publicApiLimiter);
 app.use('/api/order-pickup-details/', publicApiLimiter);
-app.use('/api/verify-order-email/', publicApiLimiter);
 app.use('/api/update-pickup-date/', publicApiLimiter);
 app.use('/api/available-pickup-dates/', publicApiLimiter);
 app.use('/api/checkout/', checkoutLimiter);
@@ -2951,12 +2949,9 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
 
         // Send email to customer with pickup link
         if (order.customer_email && pickupLink) {
-            // Generate change date link with verification token
-            const changeDateToken = crypto.createHash('sha256')
-                .update(orderNumber + order.customer_email + (process.env.SESSION_SECRET || 'lockerdrop'))
-                .digest('hex')
-                .substring(0, 16);
-            const changeDateLink = `https://app.lockerdrop.it/change-pickup/${orderNumber}?token=${changeDateToken}`;
+            // Generate change date link with a shop-bound signed order token so the
+            // change-pickup page can authenticate without an email-match oracle.
+            const changeDateLink = `https://app.lockerdrop.it/change-pickup/${orderNumber}?shop=${encodeURIComponent(order.shop)}&t=${signOrderToken(order.shop, orderNumber)}`;
 
             const branding = await getBrandingForEmail(order.shop);
             const loc = await resolveLockerLocation(order.shop, order);
@@ -3238,12 +3233,9 @@ app.post('/api/resend-notification/:shop/:orderNumber', requireApiAuth, async (r
 
         // Send email
         if ((type === 'email' || type === 'both') && order.customer_email) {
-            // Generate change date link with verification token
-            const changeDateToken = crypto.createHash('sha256')
-                .update(orderNumber + order.customer_email + (process.env.SESSION_SECRET || 'lockerdrop'))
-                .digest('hex')
-                .substring(0, 16);
-            const changeDateLink = `https://app.lockerdrop.it/change-pickup/${orderNumber}?token=${changeDateToken}`;
+            // Generate change date link with a shop-bound signed order token so the
+            // change-pickup page can authenticate without an email-match oracle.
+            const changeDateLink = `https://app.lockerdrop.it/change-pickup/${orderNumber}?shop=${encodeURIComponent(shop)}&t=${signOrderToken(shop, orderNumber)}`;
 
             const branding = await getBrandingForEmail(shop);
             const loc = await resolveLockerLocation(shop, order);
@@ -3792,21 +3784,23 @@ app.get('/api/available-pickup-dates/:shop', async (req, res) => {
     }
 });
 
-// Get order pickup details for date change page
-app.get('/api/order-pickup-details/:orderNumber', async (req, res) => {
+// Get order pickup details for date change page.
+// Gated by the shop-bound signed order token (requireOrderToken reads shop + t
+// from the query and orderNumber from the path), and scoped to that shop — so it
+// no longer leaks locker/date/shop for arbitrary order numbers cross-tenant.
+app.get('/api/order-pickup-details/:orderNumber', requireOrderToken, async (req, res) => {
     try {
         const { orderNumber } = req.params;
-        const token = req.query.token;
+        const shop = req.verifiedShop;
 
-        // Find order by order number (strip # if present)
+        // Find order by order number (strip # if present), scoped to the verified shop
         const cleanOrderNumber = orderNumber.replace(/^#/, '');
 
         const result = await db.query(
-            `SELECT o.*, s.shop as shop_domain
+            `SELECT o.*
              FROM orders o
-             LEFT JOIN shops s ON o.shop_id = s.id
-             WHERE o.order_number = $1 OR o.shopify_order_id::text = $1`,
-            [cleanOrderNumber]
+             WHERE (o.order_number = $1 OR o.shopify_order_id::text = $1) AND o.shop = $2`,
+            [cleanOrderNumber, shop]
         );
 
         if (result.rows.length === 0) {
@@ -3828,23 +3822,15 @@ app.get('/api/order-pickup-details/:orderNumber', async (req, res) => {
             if (match) lockerName = match[1].trim();
         }
 
-        // Check if token is valid (simple hash check)
-        let tokenValid = false;
-        if (token && order.customer_email) {
-            const expectedToken = crypto.createHash('sha256')
-                .update(cleanOrderNumber + order.customer_email + (process.env.SESSION_SECRET || 'lockerdrop'))
-                .digest('hex')
-                .substring(0, 16);
-            tokenValid = (token === expectedToken);
-        }
-
+        // The request is already authenticated by the signed order token, so all
+        // fields (including the customer email) are safe to return.
         res.json({
             orderNumber: order.order_number || cleanOrderNumber,
             lockerName,
             currentDate: order.preferred_pickup_date,
-            shop: order.shop_domain || order.shop,
-            email: tokenValid ? order.customer_email : null,
-            tokenValid
+            shop: order.shop,
+            email: order.customer_email || null,
+            tokenValid: true
         });
 
     } catch (error) {
@@ -3853,52 +3839,43 @@ app.get('/api/order-pickup-details/:orderNumber', async (req, res) => {
     }
 });
 
-// Verify email matches order for date change
-app.post('/api/verify-order-email/:orderNumber', async (req, res) => {
+// NOTE: /api/verify-order-email was removed. It was an unauthenticated,
+// cross-tenant email-confirmation oracle (POST order# + guessed email ->
+// {verified:true|false}). The change-pickup flow is now authenticated by the
+// shop-bound signed order token, so a separate email-match step is unnecessary
+// and the oracle is gone.
+
+// Update pickup date for an order.
+// Gated by the shop-bound signed order token (requireOrderToken reads :shop and
+// :orderNumber from the path and t from the body/query) and scoped to that shop.
+app.post('/api/update-pickup-date/:shop/:orderNumber', requireOrderToken, async (req, res) => {
     try {
         const { orderNumber } = req.params;
-        const { email } = req.body;
+        const shop = req.verifiedShop;
+        const { newDate } = req.body;
 
         const cleanOrderNumber = orderNumber.replace(/^#/, '');
 
-        const result = await db.query(
-            `SELECT customer_email FROM orders
-             WHERE (order_number = $1 OR shopify_order_id::text = $1)
-             AND LOWER(customer_email) = LOWER($2)`,
-            [cleanOrderNumber, email]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(400).json({ verified: false, error: 'Email does not match this order' });
+        // Validate newDate is a real ISO calendar date (YYYY-MM-DD) before any write.
+        if (typeof newDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+            return res.status(400).json({ error: 'Invalid date format' });
+        }
+        const parsed = new Date(newDate + 'T00:00:00Z');
+        if (isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== newDate) {
+            return res.status(400).json({ error: 'Invalid date' });
         }
 
-        res.json({ verified: true });
-
-    } catch (error) {
-        logger.error('Error verifying email:', error);
-        res.status(500).json({ error: 'Failed to verify email' });
-    }
-});
-
-// Update pickup date for an order
-app.post('/api/update-pickup-date/:shop/:orderNumber', async (req, res) => {
-    try {
-        const { shop, orderNumber } = req.params;
-        const { email, newDate } = req.body;
-
-        const cleanOrderNumber = orderNumber.replace(/^#/, '');
-
-        // Verify email matches
+        // Look up the order scoped to the verified shop. The token is the auth;
+        // the customer email is read from the DB (never trusted from the request).
         const orderResult = await db.query(
             `SELECT id, customer_email, customer_name, preferred_pickup_date
              FROM orders
-             WHERE (order_number = $1 OR shopify_order_id::text = $1)
-             AND LOWER(customer_email) = LOWER($2)`,
-            [cleanOrderNumber, email]
+             WHERE (order_number = $1 OR shopify_order_id::text = $1) AND shop = $2`,
+            [cleanOrderNumber, shop]
         );
 
         if (orderResult.rows.length === 0) {
-            return res.status(400).json({ error: 'Order not found or email mismatch' });
+            return res.status(404).json({ error: 'Order not found' });
         }
 
         const order = orderResult.rows[0];
