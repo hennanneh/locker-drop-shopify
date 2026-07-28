@@ -300,6 +300,7 @@
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const orderNumber = urlParams.get('order');
+        const shop = urlParams.get('shop');
 
         let orderData = null;
         let orderToken = urlParams.get('t') || null;
@@ -317,7 +318,7 @@
             }
 
             try {
-                const response = await fetch(`/api/order-dropoff-info/${encodeURIComponent(orderNumber)}?t=${encodeURIComponent(orderToken || '')}`);
+                const response = await fetch(`/api/order-dropoff-info/${encodeURIComponent(orderNumber)}?shop=${encodeURIComponent(shop || '')}&t=${encodeURIComponent(orderToken || '')}`);
                 const result = await response.json();
 
                 if (!result.success) {
@@ -390,6 +391,7 @@
                         body: JSON.stringify({
                             orderNumber: orderNumber,
                             newSize: selectedSize,
+                            shop: shop,
                             t: orderToken
                         })
                     });

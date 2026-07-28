@@ -21,6 +21,14 @@ const logger = pino({
     } : undefined
 });
 
+// Fail fast if the secret that signs customer-facing order tokens is missing.
+// signOrderToken() depends on it; a missing/blank secret must never silently
+// fall back to a guessable literal (that would make every order token forgeable).
+if (!process.env.SESSION_SECRET) {
+    logger.error('SESSION_SECRET is not set — refusing to start (order tokens would be forgeable).');
+    process.exit(1);
+}
+
 // Harbor API endpoints. Default to sandbox. To switch to production, set
 // HARBOR_API_URL=https://api.harborlockers.com and
 // HARBOR_ACCOUNTS_URL=https://accounts.harborlockers.com in .env (S2-4 / S2-5).
@@ -1576,16 +1584,16 @@ async function requireAuth(req, res, next) {
 // endpoints (dropoff/pickup completion) so that knowledge of an order number
 // alone is not enough to call them — the holder must also possess the signed
 // token from the original outbound link/email/SMS.
-function signOrderToken(orderNumber) {
-    return crypto.createHmac('sha256', process.env.SESSION_SECRET || 'lockerdrop-fallback')
-        .update(`order:${String(orderNumber)}`)
+function signOrderToken(shop, orderNumber) {
+    return crypto.createHmac('sha256', process.env.SESSION_SECRET)
+        .update(`order:${String(shop)}:${String(orderNumber)}`)
         .digest('base64url')
         .substring(0, 24);
 }
 
-function verifyOrderToken(orderNumber, token) {
-    if (!orderNumber || !token) return false;
-    const expected = signOrderToken(orderNumber);
+function verifyOrderToken(shop, orderNumber, token) {
+    if (!shop || !orderNumber || !token) return false;
+    const expected = signOrderToken(shop, orderNumber);
     const a = Buffer.from(String(token));
     const b = Buffer.from(expected);
     if (a.length !== b.length) return false;
@@ -1594,17 +1602,22 @@ function verifyOrderToken(orderNumber, token) {
 
 // Middleware: require a valid order token on the request.
 // Looks for orderNumber in body, params, or query (under 'order' or 'orderNumber'),
-// and the token under body.t / query.t.
+// the shop in body/params/query, and the token under body.t / query.t.
+// The token is bound to BOTH shop and order number, so a link issued for one
+// shop cannot act on another shop's identically-numbered order.
 function requireOrderToken(req, res, next) {
     const orderNumber = req.body?.orderNumber
         || req.params?.orderNumber
         || req.query?.orderNumber
         || req.query?.order;
+    const shop = req.body?.shop || req.params?.shop || req.query?.shop;
     const token = req.body?.t || req.query?.t;
-    if (!verifyOrderToken(String(orderNumber || ''), String(token || ''))) {
-        logger.warn({ orderNumber, hasToken: !!token, path: req.path }, 'Order token invalid or missing');
+    if (!isValidShopDomain(String(shop || ''))
+        || !verifyOrderToken(String(shop || ''), String(orderNumber || ''), String(token || ''))) {
+        logger.warn({ orderNumber, shop, hasToken: !!token, path: req.path }, 'Order token invalid or missing');
         return res.status(401).json({ error: 'Invalid or missing order token' });
     }
+    req.verifiedShop = String(shop);
     next();
 }
 
@@ -2338,7 +2351,7 @@ app.post('/api/order/:shop/:orderId/status', requireApiAuth, async (req, res) =>
                                 lockerId: order.locker_id,
                                 keypadIntent: 'pickup',
                                 persistKeypadCode: false,
-                                returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${order.shop}&t=${signOrderToken(orderNumber)}`,
+                                returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${shop}&t=${signOrderToken(shop, orderNumber)}`,
                                 clientInfo: `customer-${orderNumber}`,
                                 payload: { order_id: order.shopify_order_id, order_number: orderNumber, customer_name: order.customer_name }
                             },
@@ -2442,8 +2455,8 @@ app.post('/api/pickup-complete', requireOrderToken, async (req, res) => {
         // fulfillment_status lets us tell "already completed AND fulfilled"
         // (nothing to do) from "completed but fulfillment failed" (retry below).
         const result = await db.query(
-            "UPDATE orders SET status = 'completed', updated_at = NOW() WHERE order_number = $1 AND status = 'ready_for_pickup' RETURNING id, shop, shopify_order_id, order_number, customer_name, locker_id, tower_id, fulfillment_status",
-            [orderNumber]
+            "UPDATE orders SET status = 'completed', updated_at = NOW() WHERE order_number = $1 AND shop = $2 AND status = 'ready_for_pickup' RETURNING id, shop, shopify_order_id, order_number, customer_name, locker_id, tower_id, fulfillment_status",
+            [orderNumber, req.verifiedShop]
         );
 
         let order;
@@ -2458,8 +2471,8 @@ app.post('/api/pickup-complete', requireOrderToken, async (req, res) => {
             // common failure case: order is completed but Shopify fulfillment
             // never succeeded — retry it instead of silently returning.
             const existing = await db.query(
-                "SELECT id, shop, shopify_order_id, order_number, customer_name, locker_id, tower_id, status, fulfillment_status FROM orders WHERE order_number = $1",
-                [orderNumber]
+                "SELECT id, shop, shopify_order_id, order_number, customer_name, locker_id, tower_id, status, fulfillment_status FROM orders WHERE order_number = $1 AND shop = $2",
+                [orderNumber, req.verifiedShop]
             );
             if (existing.rows.length === 0) {
                 logger.info(`⚠️ Order ${orderNumber} not found`);
@@ -2656,8 +2669,8 @@ app.get('/api/retry-link/:orderNumber', requireOrderToken, async (req, res) => {
 
         const column = type === 'pickup' ? 'pickup_link' : 'dropoff_link';
         const result = await pool.query(
-            `SELECT ${column} FROM orders WHERE order_number = $1`,
-            [orderNumber]
+            `SELECT ${column} FROM orders WHERE order_number = $1 AND shop = $2`,
+            [orderNumber, req.verifiedShop]
         );
 
         if (result.rows.length === 0) {
@@ -2690,10 +2703,10 @@ app.get('/api/order-dropoff-info/:orderNumber', requireOrderToken, async (req, r
                     COALESCE(lp.location_name, 'Location ' || o.location_id) as location_name
              FROM orders o
              LEFT JOIN locker_preferences lp ON o.location_id = lp.location_id AND o.shop = lp.shop
-             WHERE o.order_number = $1
+             WHERE o.order_number = $1 AND o.shop = $2
              ORDER BY (o.status = 'cancelled'), o.created_at DESC
              LIMIT 1`,
-            [orderNumber]
+            [orderNumber, req.verifiedShop]
         );
 
         if (result.rows.length === 0) {
@@ -2751,8 +2764,8 @@ app.post('/api/dropoff-change-size', requireOrderToken, async (req, res) => {
 
         // Find the order
         const orderResult = await db.query(
-            "SELECT id, shop, shopify_order_id, order_number, location_id, locker_id, tower_id, status FROM orders WHERE order_number = $1",
-            [orderNumber]
+            "SELECT id, shop, shopify_order_id, order_number, location_id, locker_id, tower_id, status FROM orders WHERE order_number = $1 AND shop = $2",
+            [orderNumber, req.verifiedShop]
         );
 
         if (orderResult.rows.length === 0) {
@@ -2790,7 +2803,8 @@ app.post('/api/dropoff-change-size', requireOrderToken, async (req, res) => {
                     order.location_id,
                     size.id,
                     order.shopify_order_id,
-                    order.order_number
+                    order.order_number,
+                    order.shop
                 );
                 usedSize = size.name;
                 logger.info(`✅ Success with ${size.name} locker!`);
@@ -2845,8 +2859,8 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
 
         // Find the order
         const orderResult = await db.query(
-            "SELECT id, shop, shopify_order_id, customer_email, customer_name, customer_phone, locker_id, location_id, location_name, preferred_pickup_date FROM orders WHERE order_number = $1",
-            [orderNumber]
+            "SELECT id, shop, shopify_order_id, customer_email, customer_name, customer_phone, locker_id, location_id, location_name, preferred_pickup_date FROM orders WHERE order_number = $1 AND shop = $2",
+            [orderNumber, req.verifiedShop]
         );
 
         if (orderResult.rows.length === 0) {
@@ -2889,8 +2903,8 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
         // Update order with locker_id and tower_id if we found them
         if (finalLockerId && !order.locker_id) {
             await db.query(
-                "UPDATE orders SET locker_id = $1, tower_id = $2 WHERE order_number = $3",
-                [finalLockerId, finalTowerId || null, orderNumber]
+                "UPDATE orders SET locker_id = $1, tower_id = $2 WHERE id = $3",
+                [finalLockerId, finalTowerId || null, order.id]
             );
             logger.info(`📍 Updated order with locker_id: ${finalLockerId}, tower_id: ${finalTowerId}`);
         }
@@ -2908,7 +2922,7 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
                         lockerId: parseInt(finalLockerId),
                         keypadIntent: 'pickup',
                         persistKeypadCode: false,
-                        returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${order.shop}&t=${signOrderToken(orderNumber)}`,
+                        returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${order.shop}&t=${signOrderToken(order.shop, orderNumber)}`,
                         clientInfo: `customer-${orderNumber}`,
                         payload: { order_id: order.shopify_order_id, order_number: orderNumber }
                     },
@@ -2926,8 +2940,8 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
 
         // Update order status to ready_for_pickup and save pickup link
         await db.query(
-            "UPDATE orders SET status = 'ready_for_pickup', pickup_link = COALESCE($1, pickup_link), updated_at = NOW() WHERE order_number = $2",
-            [pickupLink, orderNumber]
+            "UPDATE orders SET status = 'ready_for_pickup', pickup_link = COALESCE($1, pickup_link), updated_at = NOW() WHERE id = $2",
+            [pickupLink, order.id]
         );
 
         logger.info(`✅ Order #${orderNumber} marked as ready_for_pickup`);
@@ -2994,8 +3008,8 @@ app.post('/api/dropoff-doesnt-fit', requireOrderToken, async (req, res) => {
 
         // Find the order
         const orderResult = await db.query(
-            "SELECT id, shop, shopify_order_id, order_number, location_id, locker_id, tower_id, status FROM orders WHERE order_number = $1",
-            [orderNumber]
+            "SELECT id, shop, shopify_order_id, order_number, location_id, locker_id, tower_id, status FROM orders WHERE order_number = $1 AND shop = $2",
+            [orderNumber, req.verifiedShop]
         );
 
         if (orderResult.rows.length === 0) {
@@ -3046,7 +3060,8 @@ app.post('/api/dropoff-doesnt-fit', requireOrderToken, async (req, res) => {
                         order.location_id,
                         size.id,
                         order.shopify_order_id,
-                        order.order_number
+                        order.order_number,
+                        order.shop
                     );
                     usedSize = size.name;
                     logger.info(`✅ Success with ${size.name} locker!`);
@@ -3153,7 +3168,8 @@ app.post('/api/order-change-location/:shop/:orderNumber', requireApiAuth, async 
                         newLocationId,
                         sizeMap[sizeName],
                         order.shopify_order_id,
-                        order.order_number
+                        order.order_number,
+                        req.params.shop
                     );
                     logger.info(`✅ New dropoff link generated at ${locationName} (${sizeName})`);
                     break;
@@ -4550,7 +4566,7 @@ app.get('/api/orders/:shop', requireApiAuth, auditCustomerDataAccess('view_order
         // Attach a signed order token so the (authenticated) dashboard can build
         // token-protected drop-off links — the token is never minted by a public
         // endpoint.
-        const orders = result.rows.map(o => ({ ...o, t: signOrderToken(o.orderNumber) }));
+        const orders = result.rows.map(o => ({ ...o, t: signOrderToken(shop, o.orderNumber) }));
         res.json(orders);
     } catch (error) {
         logger.error('Error loading orders:', error);
@@ -5093,7 +5109,8 @@ app.post('/api/checkout/reserve-locker', async (req, res) => {
                     locationId,
                     size.id,
                     reservationRef, // Use temp reference
-                    reservationRef
+                    reservationRef,
+                    shop
                 );
                 usedSize = size.name;
                 logger.info(`✅ Reservation success with ${size.name} locker!`);
@@ -5709,7 +5726,7 @@ app.post('/api/manual-order/:shop', requireApiAuth, async (req, res) => {
                 keypadIntent: 'pickup',
                 persistKeypadCode: false,
                 requireLowLocker: false,  // Don't require low locker - use any available
-                returnUrl: `https://app.lockerdrop.it/dropoff-success?order=${orderNumber}&t=${signOrderToken(orderNumber)}`,
+                returnUrl: `https://app.lockerdrop.it/dropoff-success?order=${orderNumber}&shop=${shop}&t=${signOrderToken(shop, orderNumber)}`,
                 clientInfo: `manual-order-${orderNumber}`,
                 payload: { order_number: orderNumber, customer_name: customerName, manual: true }
             },
@@ -5802,7 +5819,7 @@ app.post('/api/generate-dropoff-link/:shop', requireApiAuth, async (req, res) =>
                 keypadIntent: 'pickup',
                 persistKeypadCode: false,
                 requireLowLocker: true,
-                returnUrl: `https://app.lockerdrop.it/dropoff-success?order=${orderNumber}&t=${signOrderToken(orderNumber)}`,
+                returnUrl: `https://app.lockerdrop.it/dropoff-success?order=${orderNumber}&shop=${req.params.shop}&t=${signOrderToken(req.params.shop, orderNumber)}`,
                 clientInfo: `order-${orderNumber}`,
                 payload: { order_id: orderId, order_number: orderNumber }
             },
@@ -5837,7 +5854,7 @@ app.post('/api/generate-pickup-link/:shop', requireApiAuth, async (req, res) => 
                 lockerId,
                 keypadIntent: 'pickup',
                 persistKeypadCode: false,
-                returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${req.params.shop}&t=${signOrderToken(orderNumber)}`,
+                returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${req.params.shop}&t=${signOrderToken(req.params.shop, orderNumber)}`,
                 clientInfo: `customer-${orderNumber}`,
                 payload: { order_id: orderId, order_number: orderNumber, customer_name: customerName }
             },
@@ -5997,7 +6014,7 @@ app.post('/api/emergency-open/:shop', requireApiAuth, async (req, res) => {
                     lockerId: parseInt(order.locker_id),
                     keypadIntent: 'pickup',
                     persistKeypadCode: false,
-                    returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${shop}&t=${signOrderToken(orderNumber)}`,
+                    returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${shop}&t=${signOrderToken(shop, orderNumber)}`,
                     clientInfo: `emergency-${orderNumber}-${Date.now()}`,
                     payload: { order_id: order.shopify_order_id, order_number: orderNumber, emergency: true }
                 },
@@ -6155,7 +6172,8 @@ app.post('/api/regenerate-links/:shop', requireApiAuth, async (req, res) => {
                     locationId,
                     lockerTypeId,
                     order.shopify_order_id,
-                    order.order_number
+                    order.order_number,
+                    req.params.shop
                 );
                 logger.info(`   ✅ Got dropoff link:`, dropoffLink.linkToken);
                 logger.info(`   📦 Locker ID:`, dropoffLink.lockerId);
@@ -6334,7 +6352,8 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
                     locationId,
                     size.id,
                     order.shopify_order_id,
-                    order.order_number
+                    order.order_number,
+                    req.params.shop
                 );
                 usedSize = size.name;
                 logger.info(`✅ Success with ${size.name} locker!`);
@@ -7200,7 +7219,8 @@ async function processNewOrder(order, shopDomain) {
                     preferredLocation.location_id,
                     size.id,
                     order.id,
-                    order.order_number
+                    order.order_number,
+                    shop
                 );
                 usedSize = size.name;
                 logger.info(`✅ Success with ${size.name} locker!`);
@@ -7303,8 +7323,8 @@ async function processNewOrder(order, shopDomain) {
     }
 }
 
-async function generateDropoffLink(locationId, lockerTypeId, orderId, orderNumber) {
-    logger.info(`🔗 generateDropoffLink called with: locationId=${locationId}, lockerTypeId=${lockerTypeId}, orderId=${orderId}, orderNumber=${orderNumber}`);
+async function generateDropoffLink(locationId, lockerTypeId, orderId, orderNumber, shop) {
+    logger.info(`🔗 generateDropoffLink called with: locationId=${locationId}, lockerTypeId=${lockerTypeId}, orderId=${orderId}, orderNumber=${orderNumber}, shop=${shop}`);
 
     // Get Harbor token
     const tokenResponse = await axios.post(
@@ -7325,7 +7345,7 @@ async function generateDropoffLink(locationId, lockerTypeId, orderId, orderNumbe
             lockerTypeId,
             keypadIntent: 'pickup',
             persistKeypadCode: false,
-            returnUrl: `https://app.lockerdrop.it/dropoff-success?order=${orderNumber}&t=${signOrderToken(orderNumber)}`,
+            returnUrl: `https://app.lockerdrop.it/dropoff-success?order=${orderNumber}&shop=${shop}&t=${signOrderToken(shop, orderNumber)}`,
             clientInfo: `order-${orderNumber}`,
             payload: { order_id: orderId, order_number: orderNumber }
         },
