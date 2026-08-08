@@ -32,9 +32,15 @@ function OrderBlock() {
         if (!orderId) { if (!cancelled) setPhase('none'); return; }
         const numericId = orderId.toString().split('/').pop();
 
+        // Send the Shopify admin session token so the server can verify the shop
+        // and scope the lookup — the endpoint now rejects unauthenticated calls.
+        const token = await shopify.idToken();
         const res = await fetch(`https://app.lockerdrop.it/api/order-locker-data/${numericId}`, {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
         });
         const body = await res.json();
 

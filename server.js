@@ -1715,10 +1715,29 @@ app.get('/admin/dashboard', requireAuth, (req, res) => {
 app.get('/api/order-locker-data/:shopifyOrderId', async (req, res) => {
     try {
         const { shopifyOrderId } = req.params;
-        const shop = req.query.shop; // Shop passed from the block
-        logger.info(`🧩 Admin block requested order-locker-data for ${shopifyOrderId}`);
 
-        // First, check if order exists in our database
+        // Auth: require a valid Shopify admin session token (the order block sends it
+        // via `shopify.idToken()`). Derive the shop from the *verified* token, never
+        // from a request-supplied param, and scope every lookup to it — otherwise this
+        // endpoint leaks another tenant's order tokens (dropoff/pickup links unlock lockers).
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'Unauthorized', message: 'Missing session token. Reload the app inside Shopify Admin.' });
+        }
+        let shop;
+        try {
+            const payload = verifyShopifySessionToken(authHeader.slice(7));
+            const dest = payload.dest || payload.iss;
+            shop = dest ? new URL(dest).hostname : null;
+            if (!isValidShopDomain(shop)) throw new Error('token has no valid shop');
+        } catch (err) {
+            logger.warn({ path: req.path, err: err.message }, 'order-locker-data: invalid session token');
+            return res.status(401).json({ error: 'Unauthorized', message: 'Invalid session token.' });
+        }
+
+        logger.info(`🧩 Admin block requested order-locker-data for ${shopifyOrderId} (shop ${shop})`);
+
+        // First, check if order exists in our database — scoped to the verified shop
         const result = await db.query(
             `SELECT
                 o.id, o.shop, o.shopify_order_id, o.order_number, o.status,
@@ -1727,8 +1746,8 @@ app.get('/api/order-locker-data/:shopifyOrderId', async (req, res) => {
                 lp.location_name
              FROM orders o
              LEFT JOIN locker_preferences lp ON o.location_id = lp.location_id AND o.shop = lp.shop
-             WHERE o.shopify_order_id = $1`,
-            [shopifyOrderId]
+             WHERE o.shopify_order_id = $1 AND o.shop = $2`,
+            [shopifyOrderId, shop]
         );
 
         if (result.rows.length > 0) {
@@ -3738,9 +3757,27 @@ app.get('/api/available-pickup-dates/:shop', async (req, res) => {
             vacation_days: []
         };
 
+        // Postgres can hand array columns back as literal strings ("{}", "{monday,...}")
+        // when the driver doesn't parse the type; coerce to real arrays so .map/.includes
+        // don't throw — was a 500 on the storefront pickup-date picker for shops with settings.
+        const toArray = (v) => {
+            if (Array.isArray(v)) return v;
+            if (v == null) return [];
+            if (typeof v === 'string') {
+                const s = v.trim();
+                if (!s || s === '{}' || s === '[]') return [];
+                if (s.startsWith('{') && s.endsWith('}')) {
+                    return s.slice(1, -1).split(',').map(x => x.replace(/^"|"$/g, '').trim()).filter(Boolean);
+                }
+                if (s.startsWith('[')) { try { const p = JSON.parse(s); return Array.isArray(p) ? p : []; } catch (e) { return []; } }
+                return [s];
+            }
+            return [];
+        };
         const processingDays = settings.processing_days || 1;
-        const fulfillmentDays = settings.fulfillment_days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-        const vacationDays = (settings.vacation_days || []).map(d => {
+        const fdays = toArray(settings.fulfillment_days);
+        const fulfillmentDays = fdays.length ? fdays : ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+        const vacationDays = toArray(settings.vacation_days).map(d => {
             if (d instanceof Date) return d.toISOString().split('T')[0];
             return d;
         });
