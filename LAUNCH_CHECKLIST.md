@@ -109,6 +109,7 @@ Distribution: app is already **public** (correct for App Store; can't be changed
 | P4-5 | Returns via locker (was #35) | 🔵 LOW | Future feature. |
 | P4-6 | Multi-package orders (was #36) | 🔵 LOW | Future feature. |
 | P4-7 | Tiered subscription pricing (was #37) | 🔵 LOW | After 10+ merchants prove PMF. |
+| P4-8 | Checkout/customer-account/admin UI-extension blocks don't render (Shopify-side) | 🟡 HIGH | 2026-08-08: Root-caused to a Shopify extension-runtime issue — bundle builds, deploys, is fetched by the browser, registers `shopify.extend(...)`, and is placed, yet **no target renders** (block AND a no-placement static target both blank; also blank in Shopify's own editor preview). Retested on CLI 4.6.1 + API 2026-07 + SDK 2026.7.1. Full evidence in [docs/SHOPIFY_SUPPORT_TICKET.md](docs/SHOPIFY_SUPPORT_TICKET.md). **Not launch-blocking** — drop-off/pickup use secure email links, seller uses the admin dashboard, storefront info uses the theme app extension. Pursue via Shopify support; re-enable OrderStatus/OrderIndex/admin blocks once resolved. |
 
 **Removed from list:** #31 (CSRF). Once S1-2 lands real JWT auth, the JWT itself is the proof-of-origin and a separate CSRF layer is redundant.
 

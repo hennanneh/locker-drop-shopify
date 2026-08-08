@@ -5,6 +5,36 @@
 ## Summary
 A checkout UI extension (Thank You page block) builds and deploys successfully, the block is added **and saved** to the Thank you page in the checkout editor, but it **never renders on the live thank-you page** — its output is completely absent from the page DOM. There is **no error in the storefront console**. As the final isolation test we reduced the entire extension to a **single bare static `<s-banner>` — no hooks, no data, no `shopify` global, no network** — deployed and released it, placed an order, and it *still* produces zero DOM on the immediate thank-you page. A static banner cannot fail to render for any code reason, so this points conclusively to an extension-runtime/delivery issue on Shopify's side rather than our code.
 
+---
+
+## 2026-08-08 UPDATE — retested on current toolchain; delivery + registration now PROVEN, and a static (no-placement) target also fails
+
+Re-verified the whole chain on the current toolchain and captured hard evidence that the bundle is delivered, fetched, and registered — yet still renders nothing. This narrows the failure to Shopify's extension runtime for this app.
+
+**Toolchain refreshed (ruled out as the cause):**
+- Rebuilt/redeployed with **Shopify CLI 4.6.1** (previously deployed via 3.87.1). Clean builds, versions `lockerdrop-112` → `115`.
+- Upgraded the extension from api_version **2025-10 → 2026-07** and SDK `@shopify/ui-extensions` **2025.10.15 → 2026.7.1**. Still blank.
+- Dependencies verified installed and peer-compatible (`preact` 10.29.7, `@preact/signals` 2.9.3; SDK peerDeps on both are `*`).
+
+**HARD PROOF the extension is delivered and fetched (not a delivery failure):**
+- On the live thank-you page, `performance.getEntriesByType('resource')` shows the browser **did fetch** the extension bundle:
+  `https://extensions.shopifycdn.com/partners-extensions-scripts-bucket/ui_extension/handle/lockerdrop-thankyou/version/lockerdrop-113/019b99df-62d4-78e9-9b65-b55373b8a87a/….js` (HTTP 200, ~28 KB).
+- The page's serialized checkout config **registers the extension**: `appId gid://shopify/App/297504309249`, `appName "LockerDrop"`, `extensionPoints ["Checkout::ThankYou::Dynamic::Render"]`, `registrationUuid 019b99df-62d4-78e9-9b65-b55373b8a87a`, matching `scriptUrl`, `version lockerdrop-113`.
+- The **deployed CDN bundle content is correct** — its tail is literally:
+  `shopify.extend("purchase.thank-you.block.render", (...e)=>qe(...e))` where `qe(){ render(<s-banner tone="success" heading="LockerDrop test">…</s-banner>, document.body) }`.
+- The checkout **extension host is present** on the page (iframe `extensions.shopifycdn.com/shopifycloud/checkout-web/assets/c1/assets/load.*.html`).
+
+**Placement ruled out — a STATIC (auto-render, no-placement) target ALSO fails:**
+- Added a second target `purchase.thank-you.customer-information.render-after` (a static render-after target that requires **no** merchant placement) as a bare `<s-banner>`, deployed as `lockerdrop-114`.
+- On a fresh live order, the page registers **both** points — `extensionPoints ["Checkout::ThankYou::Dynamic::Render","Checkout::ThankYou::CustomerInformation…"]` — the v114 bundle is fetched, and **neither target renders any DOM**. No console error.
+- This eliminates block/placement mechanics: even the auto-rendering static target is blank.
+
+**Also fails in Shopify's own editor:** In the checkout **editor preview**, the placed "LockerDrop Pickup Info" block is present in the layout tree and set to visible (no error in its config panel), but renders nothing in the preview. Native blocks (Confirmation, Order details) render fine; no app-extension content renders.
+
+**Net:** code, config, CLI, api_version, SDK, dependencies, delivery (fetched), registration, and placement are all verified correct/current — yet every one of this app's UI-extension targets (block + static, thank-you + order-status + admin) produces zero DOM. The app's non-extension surfaces (CarrierService rates, OAuth, webhooks, Admin GraphQL) all work.
+
+**Refined ask:** Please check the **extension-load / sandbox-execution logs** for app `297504309249` on `locker-plus.myshopify.com` for versions `lockerdrop-112`–`115`. The bundle is fetched and calls `shopify.extend(...)`, but no target ever mounts. Is the extension sandbox failing to execute this app's bundle, is `shopify.extend` registration being dropped for this app, or is there an app-level flag gating extension rendering?
+
 ## Environment
 - **Partner org:** Howrey (dashboard id `130091942`)
 - **App:** LockerDrop — Partner app id `297504309249`; client_id `d0123a17d1e004675deaca3a4a154239`
