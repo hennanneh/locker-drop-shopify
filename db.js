@@ -112,14 +112,21 @@ function decryptToken(stored) {
   }
 }
 
-// Wrapped query: auto-decrypts the access_token column on read so existing
-// call sites don't need to know about encryption.
+// Wrapped query: auto-decrypts the access_token and refresh_token columns on
+// read so existing call sites don't need to know about encryption.
 function query(text, params) {
   return pool.query(text, params).then(result => {
-    if (result && Array.isArray(result.rows) && /\baccess_token\b/i.test(text)) {
-      for (const row of result.rows) {
-        if (row && typeof row.access_token === 'string') {
-          row.access_token = decryptToken(row.access_token);
+    if (result && Array.isArray(result.rows)) {
+      const hasAccess = /\baccess_token\b/i.test(text);
+      const hasRefresh = /\brefresh_token\b/i.test(text);
+      if (hasAccess || hasRefresh) {
+        for (const row of result.rows) {
+          if (hasAccess && row && typeof row.access_token === 'string') {
+            row.access_token = decryptToken(row.access_token);
+          }
+          if (hasRefresh && row && typeof row.refresh_token === 'string') {
+            row.refresh_token = decryptToken(row.refresh_token);
+          }
         }
       }
     }
