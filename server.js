@@ -1623,6 +1623,42 @@ function requireOrderToken(req, res, next) {
     next();
 }
 
+// ---- Reviewer simulate control (development stores ONLY) --------------------
+// Lets an App Store reviewer complete the drop-off → pickup → fulfillment flow
+// without physically visiting a Harbor locker. Hard-gated to partner_development
+// stores; forwards to the REAL completion endpoints with a valid shop-bound order
+// token, so the simulated path is byte-identical to production. The dashboard only
+// renders the buttons on dev stores; this backend check is the real gate.
+async function simulateLockerStep(req, res, stage) {
+    try {
+        const { shop, orderId } = req.params;
+        const orderNumber = String(orderId).replace(/^#/, '');
+        const store = await db.query('SELECT partner_development FROM stores WHERE shop = $1', [shop]);
+        if (!store.rows[0]?.partner_development) {
+            return res.status(403).json({ error: 'Simulation is only available on development stores.' });
+        }
+        const own = await db.query('SELECT id FROM orders WHERE shop = $1 AND order_number = $2', [shop, orderNumber]);
+        if (own.rows.length === 0) {
+            return res.status(404).json({ error: 'Order not found for this shop' });
+        }
+        const endpoint = stage === 'dropoff' ? 'dropoff-complete' : 'pickup-complete';
+        const PORT = process.env.PORT || 3000;
+        const fwd = await axios.post(
+            `http://localhost:${PORT}/api/${endpoint}`,
+            { orderNumber, shop, t: signOrderToken(shop, orderNumber), status: stage === 'dropoff' ? 'dropped_off' : 'picked_up' },
+            { headers: { 'Content-Type': 'application/json' }, validateStatus: () => true }
+        );
+        logger.info({ shop, orderNumber, stage }, '🧪 Simulated locker step (dev store)');
+        return res.status(fwd.status).json(fwd.data);
+    } catch (e) {
+        logger.error({ err: e }, 'Simulate locker step failed');
+        return res.status(500).json({ error: e.message });
+    }
+}
+
+app.post('/api/simulate/:shop/:orderId/dropoff', requireApiAuth, (req, res) => simulateLockerStep(req, res, 'dropoff'));
+app.post('/api/simulate/:shop/:orderId/pickup', requireApiAuth, (req, res) => simulateLockerStep(req, res, 'pickup'));
+
 // Strict shop-domain validation — only accept canonical *.myshopify.com hostnames.
 function isValidShopDomain(shop) {
     return typeof shop === 'string' && /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop);
