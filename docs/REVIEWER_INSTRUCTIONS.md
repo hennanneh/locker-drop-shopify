@@ -36,11 +36,12 @@ secure link, and the Shopify order auto-fulfills on pickup.
    the physical Harbor locker opens the door; after the package is placed, the order becomes
    **Ready for pickup** and the customer is notified. Opening the pickup link at the locker
    completes the order, which **auto-fulfills in Shopify**.
-   - ⚠️ **This step requires a physical Harbor locker, which reviewers can't visit.** The full
-     physical cycle (drop-off → locker opens → pickup → auto-fulfillment) is shown end-to-end
-     in our **demo video**. If you need to exercise the state transitions yourself without a
-     locker, contact us and we will enable a **reviewer-only simulate control** (guarded to
-     `partner_development` stores) so you can advance drop-off/pickup from the dashboard.
+   - ⚠️ **The physical drop-off/pickup uses a Harbor locker, which reviewers can't visit** — so on
+     a **development store** the LockerDrop dashboard shows **"Sim drop-off"** and **"Sim pickup"**
+     buttons on each order. Click them to advance the order **pending drop-off → ready for pickup →
+     completed + auto-fulfilled**, exercising the exact production flow (real order token, real
+     fulfillment) without a physical locker. The full physical cycle is also shown in our **demo video**.
+     (These buttons are hard-gated to development stores and never appear for live merchants.)
 6. **Uninstall** to confirm clean removal (sessions revoked, webhooks removed).
 
 ## Notes for the reviewer
