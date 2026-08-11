@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>LockerDrop — App Store feature banner (1600×900)</title>
+<style>
+  html,body{margin:0;padding:0;background:#0e1013;}
+  svg{display:block;}
+  .ff{font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;}
+</style>
+</head>
+<body>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="dark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1e26"/>
+      <stop offset="1" stop-color="#0f1116"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F3763D"/>
+      <stop offset="1" stop-color="#E75B26"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFE7AE" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#FFE7AE" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- panels -->
+  <rect x="0" y="0" width="1600" height="900" fill="url(#dark)"/>
+  <rect x="920" y="0" width="680" height="900" fill="url(#orange)"/>
+
+  <!-- wordmark -->
+  <g class="ff">
+    <rect x="90" y="82" width="46" height="46" rx="11" fill="#EC6633"/>
+    <rect x="111" y="92" width="3.5" height="27" rx="1.75" fill="#ffffff"/>
+    <circle cx="106" cy="112" r="3" fill="#ffffff"/>
+    <text x="152" y="116" font-size="30" font-weight="600" fill="#ffffff" letter-spacing="0.2">LockerDrop</text>
+  </g>
+
+  <!-- headline -->
+  <g class="ff" fill="#ffffff" font-weight="700" letter-spacing="-1.2">
+    <text x="90" y="352" font-size="62">Smart-locker pickup,</text>
+    <text x="90" y="428" font-size="62">right inside checkout.</text>
+  </g>
+
+  <!-- subline -->
+  <g class="ff" fill="#A3AAB8" font-size="26" font-weight="400">
+    <text x="92" y="508">Customers pick a nearby locker at checkout. You drop the</text>
+    <text x="92" y="546">package off, they grab it 24/7 — and the order fulfills</text>
+    <text x="92" y="584">itself in Shopify. No staffed counter, no waiting in line.</text>
+  </g>
+
+  <!-- feature chips -->
+  <g class="ff" font-size="19" font-weight="500">
+    <g>
+      <rect x="90" y="648" width="180" height="46" rx="23" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.16"/>
+      <circle cx="112" cy="671" r="4" fill="#EC6633"/>
+      <text x="132" y="678" fill="#D8DCE4">24/7 pickup</text>
+    </g>
+    <g>
+      <rect x="286" y="648" width="210" height="46" rx="23" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.16"/>
+      <circle cx="308" cy="671" r="4" fill="#EC6633"/>
+      <text x="328" y="678" fill="#D8DCE4">Auto-fulfilled</text>
+    </g>
+    <g>
+      <rect x="512" y="648" width="240" height="46" rx="23" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.16"/>
+      <circle cx="534" cy="671" r="4" fill="#EC6633"/>
+      <text x="554" y="678" fill="#D8DCE4">Live availability</text>
+    </g>
+  </g>
+
+  <!-- locker bank illustration (right panel) -->
+  <g>
+    <!-- closed doors -->
+    <!-- row 0 -->
+    <g fill="#ffffff" fill-opacity="0.10" stroke="#ffffff" stroke-opacity="0.5" stroke-width="2">
+      <rect x="1040" y="181" width="132" height="118" rx="10"/>
+      <rect x="1348" y="181" width="132" height="118" rx="10"/>
+      <rect x="1040" y="321" width="132" height="118" rx="10"/>
+      <rect x="1348" y="321" width="132" height="118" rx="10"/>
+      <rect x="1040" y="461" width="132" height="118" rx="10"/>
+      <rect x="1194" y="461" width="132" height="118" rx="10"/>
+      <rect x="1348" y="461" width="132" height="118" rx="10"/>
+      <rect x="1040" y="601" width="132" height="118" rx="10"/>
+      <rect x="1194" y="601" width="132" height="118" rx="10"/>
+      <rect x="1348" y="601" width="132" height="118" rx="10"/>
+      <rect x="1194" y="181" width="132" height="118" rx="10"/>
+    </g>
+    <!-- door handles -->
+    <g fill="#ffffff" fill-opacity="0.6">
+      <rect x="1150" y="227" width="6" height="26" rx="3"/>
+      <rect x="1458" y="227" width="6" height="26" rx="3"/>
+      <rect x="1150" y="367" width="6" height="26" rx="3"/>
+      <rect x="1458" y="367" width="6" height="26" rx="3"/>
+      <rect x="1150" y="507" width="6" height="26" rx="3"/>
+      <rect x="1304" y="507" width="6" height="26" rx="3"/>
+      <rect x="1458" y="507" width="6" height="26" rx="3"/>
+      <rect x="1150" y="647" width="6" height="26" rx="3"/>
+      <rect x="1304" y="647" width="6" height="26" rx="3"/>
+      <rect x="1458" y="647" width="6" height="26" rx="3"/>
+      <rect x="1304" y="227" width="6" height="26" rx="3"/>
+    </g>
+
+    <!-- OPEN door (col 1, row 1) — the active pickup -->
+    <circle cx="1260" cy="380" r="112" fill="url(#glow)"/>
+    <rect x="1194" y="321" width="132" height="118" rx="10" fill="#1b120d" stroke="#ffffff" stroke-width="3"/>
+    <!-- package -->
+    <rect x="1224" y="357" width="72" height="48" rx="6" fill="#F4E7D4" stroke="#E2C7A2" stroke-width="1.5"/>
+    <line x1="1260" y1="357" x2="1260" y2="405" stroke="#E2C7A2" stroke-width="2"/>
+    <rect x="1246" y="357" width="28" height="10" rx="2" fill="#E9D3B4"/>
+    <!-- fulfilled check badge -->
+    <circle cx="1298" cy="360" r="13" fill="#2FBF71"/>
+    <path d="M1292 360 l4 4 l7 -8" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
+</body>
+</html>
