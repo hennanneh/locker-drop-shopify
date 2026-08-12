@@ -1389,7 +1389,7 @@ app.post('/carrier/rates', async (req, res) => {
             `${HARBOR_API_URL}/api/v1/locations/`,
             {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
-                params: { limit: 100 }
+                params: { limit: 500 }
             }
         );
 
@@ -2094,31 +2094,46 @@ async function getLockerLocations() {
         return lockerLocationsCache.data;
     }
 
-    // Load from static JSON file (much faster than Harbor API)
+    // Fetch from the LIVE Harbor environment (cached for LOCKER_CACHE_TTL).
+    // Previously this read a static snapshot (public/harbor-locations.json), which
+    // drifted from the active sandbox/production env — so saved lockers that existed
+    // live but not in the snapshot silently vanished from "My Lockers" while still
+    // counting as selected ("6 selected, 3 shown"). Reading the live env keeps the
+    // list, the count, and what's actually reservable in sync.
     try {
-        const locationsPath = path.join(__dirname, 'public', 'harbor-locations.json');
-        const locationsData = JSON.parse(fs.readFileSync(locationsPath, 'utf8'));
+        const tokenResponse = await axios.post(
+            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
+            'grant_type=client_credentials&scope=service_provider&client_id=' + process.env.HARBOR_CLIENT_ID + '&client_secret=' + process.env.HARBOR_CLIENT_SECRET,
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'accept': 'application/json' }}
+        );
+        const accessToken = tokenResponse.data.access_token;
 
-        // Transform to our format
-        const lockers = locationsData.map(location => ({
+        const lockersResponse = await axios.get(`${HARBOR_API_URL}/api/v1/locations/`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+            params: { limit: 500 }
+        });
+        const raw = Array.isArray(lockersResponse.data)
+            ? lockersResponse.data
+            : (lockersResponse.data.results || lockersResponse.data.items || lockersResponse.data.locations || lockersResponse.data.data || []);
+
+        const lockers = raw.map(location => ({
             id: location.id,
             name: location.name || location.location_name,
-            address: location.address1 || [location.street_address, location.city, location.state, location.zip].filter(Boolean).join(', '),
+            address: location.address1 || location.address || [location.street_address, location.city, location.state, location.zip].filter(Boolean).join(', '),
             city: location.city || '',
             state: location.state || '',
             zip: location.zip || '',
             latitude: location.lat || location.latitude || null,
             longitude: location.lon || location.longitude || null,
-            available_sizes: ['Small', 'Medium', 'Large', 'X-Large']
+            available_sizes: location.locker_sizes || ['Small', 'Medium', 'Large', 'X-Large']
         }));
 
         // Update cache
         lockerLocationsCache = { data: lockers, timestamp: now };
-        logger.info(`📍 Loaded ${lockers.length} locker locations from static file`);
+        logger.info(`📍 Loaded ${lockers.length} locker locations from Harbor (${/sandbox/i.test(HARBOR_API_URL) ? 'sandbox' : 'production'})`);
         return lockers;
     } catch (error) {
-        logger.error('Failed to load static locker locations:', error.message);
-        // Fall back to API if static file fails
+        logger.error('Failed to load locker locations from Harbor:', error.message);
         return null;
     }
 }
@@ -4756,7 +4771,7 @@ app.get('/api/locker-availability/:shop', requireApiAuth, async (req, res) => {
         // Fetch all locations to get addresses
         const locationsResponse = await axios.get(
             `${HARBOR_API_URL}/api/v1/locations/`,
-            { headers: { 'Authorization': `Bearer ${accessToken}` }, params: { limit: 100 } }
+            { headers: { 'Authorization': `Bearer ${accessToken}` }, params: { limit: 500 } }
         );
         const allLocations = locationsResponse.data || [];
 
@@ -4972,7 +4987,7 @@ app.get('/api/checkout/lockers', async (req, res) => {
             `${HARBOR_API_URL}/api/v1/locations/`,
             {
                 headers: { 'Authorization': `Bearer ${harborAccessToken}` },
-                params: { limit: 100 }
+                params: { limit: 500 }
             }
         );
 
@@ -5577,7 +5592,7 @@ app.get('/api/pickup-points', async (req, res) => {
             `${HARBOR_API_URL}/api/v1/locations/`,
             {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
-                params: { limit: 100 }
+                params: { limit: 500 }
             }
         );
 
@@ -7067,6 +7082,17 @@ async function processNewOrder(order, shopDomain) {
     try {
         logger.info('📦 Processing order:', order.id);
         logger.info('🏪 Order data:', JSON.stringify(order, null, 2).substring(0, 500)); // First 500 chars
+
+        // Never reserve a REAL locker (or bill the merchant) for a Shopify TEST order
+        // — a Bogus-Gateway order or an App Store reviewer's test purchase would
+        // otherwise tie up a physical production locker and incur a Harbor charge.
+        // On SANDBOX we still process test orders so the full flow can be exercised
+        // harmlessly (you + reviewers), so this skip applies to production only.
+        const onSandboxHarbor = /sandbox/i.test(HARBOR_API_URL);
+        if (order.test === true && !onSandboxHarbor) {
+            logger.info({ orderId: order.id }, '🧪 Skipping Shopify TEST order on production Harbor — no real locker reserved');
+            return;
+        }
 
         // Check if this order uses LockerDrop shipping
         const hasLockerDropShipping = order.shipping_lines?.some(line =>
@@ -9236,7 +9262,7 @@ app.post('/carrier-service/rates', async (req, res) => {
             `${HARBOR_API_URL}/api/v1/locations/`,
             {
                 headers: { 'Authorization': `Bearer ${accessToken}` },
-                params: { limit: 100 }
+                params: { limit: 500 }
             }
         );
 
@@ -9258,7 +9284,14 @@ app.post('/carrier-service/rates', async (req, res) => {
             return { ...location, distance };
         });
 
+        // Only offer lockers within a sensible pickup radius, nearest first.
+        // (This filter previously lived only in the now-dead /carrier/rates handler,
+        // which is why far-away lockers — e.g. an Atlanta locker for a Dallas cart —
+        // were showing at checkout. Number.isFinite() also drops entries whose
+        // lat/lon didn't resolve, so they can't render as "NaN mi".)
+        const MAX_DISTANCE_MILES = 100;
         const nearestLocations = locationsWithDistance
+            .filter(loc => Number.isFinite(loc.distance) && loc.distance <= MAX_DISTANCE_MILES)
             .sort((a, b) => a.distance - b.distance)
             .slice(0, 10); // Check top 10 nearest for availability
 
