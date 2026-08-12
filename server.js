@@ -1363,7 +1363,7 @@ async function simulateLockerStep(req, res, stage) {
         const PORT = process.env.PORT || 3000;
         const fwd = await axios.post(
             `http://localhost:${PORT}/api/${endpoint}`,
-            { orderNumber, shop, t: signOrderToken(shop, orderNumber), status: stage === 'dropoff' ? 'dropped_off' : 'picked_up' },
+            { orderNumber, shop, t: signOrderToken(shop, orderNumber), simulated: true, status: stage === 'dropoff' ? 'dropped_off' : 'picked_up' },
             { headers: { 'Content-Type': 'application/json' }, validateStatus: () => true }
         );
         logger.info({ shop, orderNumber, stage }, '🧪 Simulated locker step (dev store)');
@@ -2638,7 +2638,7 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
 
         // Find the order
         const orderResult = await db.query(
-            "SELECT id, shop, shopify_order_id, customer_email, customer_name, customer_phone, locker_id, location_id, location_name, preferred_pickup_date FROM orders WHERE order_number = $1 AND shop = $2",
+            "SELECT id, shop, shopify_order_id, customer_email, customer_name, customer_phone, locker_id, location_id, location_name, preferred_pickup_date, pickup_link FROM orders WHERE order_number = $1 AND shop = $2",
             [orderNumber, req.verifiedShop]
         );
 
@@ -2688,9 +2688,26 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
             logger.info(`📍 Updated order with locker_id: ${finalLockerId}, tower_id: ${finalTowerId}`);
         }
 
-        // Generate pickup link if we have a locker_id
+        // Determine simulated mode — reviewer/dev stores only. A Sim drop-off never
+        // physically fills the locker, so Harbor's real pickup-request would 403
+        // ("locker not occupied"). In simulated mode we skip that call and use a
+        // simulated pickup link so the reviewer can walk the whole flow without a
+        // real locker. Re-checked here (not just in the Sim route) so the flag can
+        // only ever take effect on a development store.
+        let simulated = false;
+        if (req.body && req.body.simulated === true) {
+            const devCheck = await db.query('SELECT partner_development FROM stores WHERE shop = $1', [order.shop]);
+            simulated = !!devCheck.rows[0]?.partner_development;
+        }
+
+        // Generate the customer pickup link.
         let pickupLink = null;
-        if (finalLockerId) {
+        if (simulated) {
+            // Self-contained simulation: pickup-success completes the order the same
+            // way the Sim pickup button does — no Harbor occupancy required.
+            pickupLink = `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${order.shop}&t=${signOrderToken(order.shop, orderNumber)}`;
+            logger.info(`🧪 Simulated drop-off (dev store) — using a simulated pickup link, skipping Harbor pickup-request`);
+        } else if (finalLockerId) {
             try {
                 logger.info(`🔗 Generating pickup link for order #${orderNumber} (locker: ${finalLockerId})`);
 
@@ -2711,10 +2728,23 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
                 pickupLink = pickupResponse.data.linkToken;
                 logger.info(`✅ Pickup link generated: ${pickupLink}`);
             } catch (pickupError) {
-                logger.error(`❌ Error generating pickup link:`, pickupError.response?.data || pickupError.message);
+                // Log the REAL Harbor error. pino takes the object as the FIRST arg;
+                // the previous call passed it second, so the detail was dropped.
+                logger.error({ err: pickupError.response?.data || pickupError.message }, '❌ Error generating pickup link');
             }
         } else {
             logger.info(`⚠️ No locker_id available, cannot generate pickup link`);
+        }
+
+        // Robustness guard: never advance a REAL order to ready_for_pickup without a
+        // usable pickup link — that yields a dead-end "ready" order the customer can't
+        // open (and no pickup email). Leave it where it is so it can be retried/seen.
+        if (!simulated && !pickupLink && !order.pickup_link) {
+            logger.error({ orderNumber, finalLockerId }, '❌ Pickup link unavailable — NOT marking ready_for_pickup');
+            return res.status(502).json({
+                success: false,
+                error: 'Could not generate a pickup link (the locker may not be occupied, or Harbor returned an error). The order was left as pending drop-off.'
+            });
         }
 
         // Update order status to ready_for_pickup and save pickup link
