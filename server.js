@@ -6809,16 +6809,10 @@ async function processNewOrder(order, shopDomain) {
         logger.info('📦 Processing order:', order.id);
         logger.info('🏪 Order data:', JSON.stringify(order, null, 2).substring(0, 500)); // First 500 chars
 
-        // Never reserve a REAL locker (or bill the merchant) for a Shopify TEST order
-        // — a Bogus-Gateway order or an App Store reviewer's test purchase would
-        // otherwise tie up a physical production locker and incur a Harbor charge.
-        // On SANDBOX we still process test orders so the full flow can be exercised
-        // harmlessly (you + reviewers), so this skip applies to production only.
+        // Whether we're on the sandbox Harbor environment. Used by the TEST-order
+        // branch below (after we've confirmed this is a LockerDrop order and resolved
+        // the shop) to decide whether to reserve a real locker or create a Sim-able one.
         const onSandboxHarbor = /sandbox/i.test(HARBOR_API_URL);
-        if (order.test === true && !onSandboxHarbor) {
-            logger.info({ orderId: order.id }, '🧪 Skipping Shopify TEST order on production Harbor — no real locker reserved');
-            return;
-        }
 
         // Check if this order uses LockerDrop shipping
         const hasLockerDropShipping = order.shipping_lines?.some(line =>
@@ -6853,6 +6847,46 @@ async function processNewOrder(order, shopDomain) {
 
         if (preferredPickupDate) {
             logger.info(`📅 Customer selected pickup date: ${preferredPickupDate}`);
+        }
+
+        // Shopify TEST order (Bogus Gateway / App Store reviewer purchase) on PRODUCTION
+        // Harbor: create a fully Sim-able order WITHOUT reserving a real locker or charging
+        // the merchant. Dev stores only ever place test orders, so this is the exact path a
+        // reviewer — and a merchant's own test purchase — walks on production. The reviewer
+        // Sim drop-off / Sim pickup buttons then drive it to completion with no physical
+        // locker (the Sim completion path is self-contained). On SANDBOX we skip this branch
+        // and reserve the sandbox devlocker normally so the real link flow can be exercised.
+        if (order.test === true && !onSandboxHarbor) {
+            const pref = await db.query(
+                'SELECT location_id, location_name FROM locker_preferences WHERE shop = $1 ORDER BY id LIMIT 1',
+                [shop]
+            );
+            const loc = pref.rows[0] || {};
+            const displayLocker = loc.location_name || 'Test Locker';
+            const customerPhone = order.phone || order.shipping_address?.phone ||
+                order.billing_address?.phone || order.customer?.phone || null;
+            await db.query(
+                `INSERT INTO orders (shop, shopify_order_id, order_number, customer_email,
+                    customer_name, customer_phone, location_id, location_name, locker_name,
+                    status, preferred_pickup_date)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending_dropoff',$10)
+                 ON CONFLICT (shopify_order_id) DO NOTHING`,
+                [
+                    shop,
+                    order.id.toString(),
+                    order.order_number.toString(),
+                    order.email,
+                    order.customer ? ([order.customer.first_name, order.customer.last_name].filter(Boolean).join(' ') || 'Guest') : 'Guest',
+                    customerPhone,
+                    loc.location_id || null,
+                    displayLocker,
+                    displayLocker,
+                    preferredPickupDate
+                ]
+            );
+            logger.info({ orderId: order.id, shop },
+                '🧪 Created Sim-able TEST order on production Harbor (no real locker reserved, no merchant charge)');
+            return;
         }
 
         if (reservationRef) {
