@@ -35,6 +35,25 @@ if (!process.env.SESSION_SECRET) {
 const HARBOR_ACCOUNTS_URL = process.env.HARBOR_ACCOUNTS_URL || 'https://accounts.sandbox.harborlockers.com';
 const HARBOR_API_URL = process.env.HARBOR_API_URL || 'https://api.sandbox.harborlockers.com';
 
+// Guard against a half-finished environment switch. The token (accounts) URL and the
+// API URL must point at the SAME Harbor environment — otherwise we'd mint tokens from
+// one realm and call the other, 401-ing every Harbor request silently (no rates, no
+// reservations). The test-order guard keys off HARBOR_API_URL while tokens key off
+// HARBOR_ACCOUNTS_URL, so a mismatch also desyncs those. Fail fast at boot instead.
+{
+    const accountsIsSandbox = /sandbox/i.test(HARBOR_ACCOUNTS_URL);
+    const apiIsSandbox = /sandbox/i.test(HARBOR_API_URL);
+    if (accountsIsSandbox !== apiIsSandbox) {
+        logger.error(
+            `❌ Harbor environment mismatch: HARBOR_ACCOUNTS_URL (${HARBOR_ACCOUNTS_URL}) and ` +
+            `HARBOR_API_URL (${HARBOR_API_URL}) point at different environments. ` +
+            `Set BOTH to sandbox or BOTH to production.`
+        );
+        process.exit(1);
+    }
+    logger.info(`🔧 Harbor environment: ${apiIsSandbox ? 'SANDBOX' : 'PRODUCTION'}`);
+}
+
 // Configure multer for logo uploads
 const logoStorage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -1199,316 +1218,15 @@ app.get('/', (req, res) => {
     `);
 });
 
-// ============================================
-// CARRIER SERVICE ROUTE
-// ============================================
-
-// Legacy carrier rates endpoint - now includes availability check
-// Returns locker options as shipping rates for non-Plus stores
-// Plus stores use the Pickup Point Function instead (native pickup UI)
+// The live Shopify carrier callback is app.post('/carrier-service/rates') further
+// below (registered via carrierServiceCreate). A near-duplicate '/carrier/rates'
+// handler used to live here; it was dead (Shopify never called it) but carried the
+// CORRECT distance filter while the live one didn't — so a past fix edited the wrong
+// copy and far-away lockers kept showing at checkout. Removed to prevent a repeat.
 
 // Minimum available lockers required to show a location (prevents race conditions)
 const MIN_AVAILABLE_BUFFER = 2;
 
-app.post('/carrier/rates', async (req, res) => {
-    try {
-        const { rate } = req.body;
-        logger.info('📍 Shipping rate request received [v2-size-filter]');
-        logger.info('📦 Rate items:', rate?.items?.length || 0, 'items');
-
-        // Get shop domain from Shopify header
-        const shopDomain = req.headers['x-shopify-shop-domain'];
-        logger.info(`🏪 Shop: ${shopDomain || 'unknown'}`);
-
-        // Get shop settings (including fulfillment settings for pickup date calculation)
-        let freePickup = false;
-        let processingDays = 1;
-        let fulfillmentDays = ['monday','tuesday','wednesday','thursday','friday'];
-        let vacationDays = [];
-        // Per-size locker price in cents (size id -> cents): 1=small 2=medium 3=large 4=x-large.
-        // Seller-configurable flat pricing; defaults to $1.00. free_pickup overrides to $0.
-        let lockerSizePrices = { 1: 100, 2: 100, 3: 100, 4: 100 };
-        // Checkout-block widget path is SHELVED for launch — every store (incl. Plus)
-        // uses per-location carrier rates: one shipping line per available locker, so
-        // the customer picks the location directly with no checkout block to place.
-        // To bring back the Plus inline widget later, fetch stores.shopify_plus and set:
-        //   useNativePickup = (settings.use_checkout_extension || false) && shopIsPlus;
-        let useNativePickup = false;
-
-        if (shopDomain) {
-            try {
-                const settingsResult = await db.query('SELECT * FROM shop_settings WHERE shop = $1', [shopDomain]);
-                if (settingsResult.rows.length > 0) {
-                    const settings = settingsResult.rows[0];
-                    freePickup = settings.free_pickup || false;
-                    processingDays = settings.processing_days || 1;
-                    fulfillmentDays = settings.fulfillment_days || ['monday','tuesday','wednesday','thursday','friday'];
-                    vacationDays = settings.vacation_days || [];
-                    lockerSizePrices = {
-                        1: settings.price_small_cents ?? 100,
-                        2: settings.price_medium_cents ?? 100,
-                        3: settings.price_large_cents ?? 100,
-                        4: settings.price_xlarge_cents ?? 100
-                    };
-                }
-            } catch (e) {
-                logger.info('Could not check shop settings:', e.message);
-            }
-        }
-
-        // Calculate pickup date
-        const { pickupDate } = calculatePickupDate(processingDays, fulfillmentDays, vacationDays);
-        const pickupDateFormatted = formatPickupDate(pickupDate);
-
-        // If checkout extension is enabled, return a single generic LockerDrop rate
-        // The checkout extension UI handles the specific locker selection
-        if (useNativePickup) {
-            logger.info('🔀 Checkout extension enabled - returning single LockerDrop rate');
-            const price = freePickup ? '0' : '100';
-            return res.json({
-                rates: [{
-                    service_name: 'LockerDrop Pickup',
-                    service_code: 'lockerdrop_pickup',
-                    total_price: price,
-                    currency: 'USD',
-                    description: `📅 Ready ${pickupDateFormatted} • Select locker location below`
-                }]
-            });
-        }
-
-        logger.info(`📅 Expected pickup: ${pickupDateFormatted}`);
-
-        const destination = rate.destination;
-        // Lockers are US-only — never offer locker pickup for international destinations,
-        // even if the carrier service is (auto-)added to an International shipping zone.
-        if (destination && destination.country && destination.country !== 'US') {
-            logger.info(`🌍 Non-US destination (${destination.country}) — LockerDrop pickup not offered`);
-            return res.json({ rates: [] });
-        }
-        let lat = destination.latitude;
-        let lon = destination.longitude;
-
-        // If no coordinates provided, try to geocode from zip code
-        if (!lat || !lon) {
-            logger.info(`📍 No coordinates provided, attempting zip code geocode for: ${destination.postal_code}`);
-            const geocoded = await geocodeZipCode(destination.postal_code, destination.country || 'US');
-            if (geocoded) {
-                lat = geocoded.latitude;
-                lon = geocoded.longitude;
-                logger.info(`📍 Using geocoded coordinates from zip: ${lat}, ${lon}`);
-            }
-        }
-
-        // Calculate required locker size from cart items
-        let requiredLockerTypeId = 2; // Default to medium
-        let requiredSizeName = 'medium';
-
-        if (shopDomain && rate.items && rate.items.length > 0) {
-            logger.info(`📦 First item: product_id=${rate.items[0].product_id}, variant_id=${rate.items[0].variant_id}`);
-            try {
-                // Get shop access token for fetching product dimensions
-                let shopAccessToken = accessTokens.get(shopDomain);
-                if (!shopAccessToken) {
-                    const storeResult = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shopDomain]);
-                    if (storeResult.rows.length > 0) {
-                        shopAccessToken = storeResult.rows[0].access_token;
-                        accessTokens.set(shopDomain, shopAccessToken);
-                    }
-                }
-
-                if (shopAccessToken) {
-                    // Convert rate.items to the format expected by getProductDimensions
-                    const lineItems = rate.items.map(item => ({
-                        product_id: item.product_id,
-                        variant_id: item.variant_id,
-                        quantity: item.quantity
-                    }));
-
-                    logger.info(`📦 Calculating dimensions for ${lineItems.length} line items...`);
-                    const productDimensions = await getProductDimensionsFromOrder(shopDomain, shopAccessToken, lineItems);
-                    logger.info(`📦 Got ${productDimensions.length} product dimensions`);
-                    requiredLockerTypeId = calculateRequiredLockerSize(productDimensions);
-
-                    // If any product is not configured for LockerDrop, don't offer it
-                    if (requiredLockerTypeId === null) {
-                        logger.info('❌ One or more products not configured for LockerDrop - hiding option at checkout');
-                        return res.json({ rates: [] });
-                    }
-
-                    requiredSizeName = LOCKER_SIZES.find(s => s.id === requiredLockerTypeId)?.name?.toLowerCase() || 'medium';
-                    logger.info(`📦 Required locker size for cart: ${requiredSizeName} (type ${requiredLockerTypeId})`);
-                } else {
-                    logger.info(`⚠️ No access token found for ${shopDomain}`);
-                    // No token means we can't verify product sizes - don't offer LockerDrop
-                    return res.json({ rates: [] });
-                }
-            } catch (sizeError) {
-                logger.info(`⚠️ Could not calculate locker size: ${sizeError.message} - hiding LockerDrop option`);
-                return res.json({ rates: [] });
-            }
-        }
-
-        // If no coordinates, return empty (can't check availability without location)
-        if (!lat || !lon) {
-            logger.info('❌ No coordinates available (even after geocode attempt)');
-            return res.json({ rates: [] });
-        }
-
-        // Check if shop has enabled any locker locations
-        let enabledLocationIds = [];
-        if (shopDomain) {
-            try {
-                const prefsResult = await db.query(
-                    'SELECT location_id FROM locker_preferences WHERE shop = $1',
-                    [shopDomain]
-                );
-                enabledLocationIds = prefsResult.rows.map(r => r.location_id);
-
-                if (enabledLocationIds.length === 0) {
-                    logger.info('❌ No locker locations enabled for this shop - hiding LockerDrop at checkout');
-                    return res.json({ rates: [] });
-                }
-                logger.info(`🔧 Shop has ${enabledLocationIds.length} enabled locations: ${enabledLocationIds.join(', ')}`);
-            } catch (e) {
-                logger.info('⚠️ Could not check locker preferences:', e.message);
-            }
-        }
-
-        logger.info(`📍 Customer location: ${lat}, ${lon}`);
-
-        // Get Harbor token
-        const tokenResponse = await axios.post(
-            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
-            `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
-            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
-        );
-
-        const accessToken = tokenResponse.data.access_token;
-
-        const locationsResponse = await axios.get(
-            `${HARBOR_API_URL}/api/v1/locations/`,
-            {
-                headers: { 'Authorization': `Bearer ${accessToken}` },
-                params: { limit: 500 }
-            }
-        );
-
-        const allLocations = locationsResponse.data;
-
-        // Filter to only enabled locations for this shop
-        const enabledLocations = enabledLocationIds.length > 0
-            ? allLocations.filter(loc => enabledLocationIds.includes(loc.id))
-            : allLocations;
-
-        if (enabledLocations.length === 0) {
-            logger.info('❌ None of the enabled locations match Harbor locations');
-            return res.json({ rates: [] });
-        }
-
-        // Calculate distances and find nearest locations
-        const locationsWithDistance = enabledLocations.map(location => {
-            const distance = calculateDistance(lat, lon, location.lat, location.lon);
-            return { ...location, distance };
-        });
-
-        // Filter to within 100 miles and sort by distance
-        const MAX_DISTANCE_MILES = 100;
-        const MAX_LOCKERS_TO_SHOW = 5;
-
-        const nearestLocations = locationsWithDistance
-            .filter(loc => loc.distance <= MAX_DISTANCE_MILES)
-            .sort((a, b) => a.distance - b.distance)
-            .slice(0, 15); // Check up to 15 for availability
-
-        // Check availability for each location - filtering by required size
-        const availableLocations = [];
-        for (const location of nearestLocations) {
-            try {
-                const availabilityResponse = await axios.get(
-                    `${HARBOR_API_URL}/api/v1/locations/${location.id}/availability`,
-                    { headers: { 'Authorization': `Bearer ${accessToken}` }}
-                );
-
-                const availability = availabilityResponse.data;
-                let hasRequiredSizeAvailable = false;
-                let availableForRequiredSize = 0;
-
-                if (availability.byType && Array.isArray(availability.byType)) {
-                    // New API format with size-specific availability
-                    // Check if required size OR LARGER is available
-                    for (const type of availability.byType) {
-                        const typeId = type.lockerType?.id;
-                        const typeName = type.lockerType?.name || '';
-                        const available = type.lockerAvailability?.availableLockers || 0;
-
-                        // Map Harbor's locker type to our size hierarchy
-                        const harborSizeId = getLockerSizeIdFromName(typeName);
-
-                        // Accept if this locker type is >= required size
-                        if (harborSizeId >= requiredLockerTypeId && available > 0) {
-                            hasRequiredSizeAvailable = true;
-                            availableForRequiredSize += available;
-                        }
-                    }
-                } else if (availability.lockerAvailability) {
-                    // Fallback: just check total availability (less accurate but better than nothing)
-                    const totalAvailable = availability.lockerAvailability.availableLockers || 0;
-                    hasRequiredSizeAvailable = totalAvailable >= MIN_AVAILABLE_BUFFER;
-                    availableForRequiredSize = totalAvailable;
-                } else if (Array.isArray(availability)) {
-                    // Old API format
-                    hasRequiredSizeAvailable = availability.some(type => type.availableCount >= MIN_AVAILABLE_BUFFER);
-                    availableForRequiredSize = availability.reduce((sum, type) => sum + (type.availableCount || 0), 0);
-                }
-
-                // Only show locations with enough buffer to prevent race conditions
-                if (hasRequiredSizeAvailable && availableForRequiredSize >= MIN_AVAILABLE_BUFFER) {
-                    logger.info(`✅ Location ${location.name}: ${availableForRequiredSize} lockers available (${requiredSizeName}+, min ${MIN_AVAILABLE_BUFFER})`);
-                    availableLocations.push({ ...location, availableCount: availableForRequiredSize });
-                } else {
-                    logger.info(`❌ Location ${location.name}: Only ${availableForRequiredSize} ${requiredSizeName}+ lockers (need ${MIN_AVAILABLE_BUFFER}+)`);
-                }
-            } catch (availError) {
-                logger.info(`⚠️ Could not check availability for ${location.name}:`, availError.message);
-            }
-
-            if (availableLocations.length >= MAX_LOCKERS_TO_SHOW) break;
-        }
-
-        if (availableLocations.length === 0) {
-            logger.info(`❌ No lockers available with required size: ${requiredSizeName}`);
-            return res.json({ rates: [] });
-        }
-
-        // Set price based on free pickup setting
-        const price = freePickup ? '0' : String(lockerSizePrices[requiredLockerTypeId] ?? 100); // per-size flat; $0 if free
-        logger.info(`💰 Price: ${freePickup ? 'FREE (seller absorbs fee)' : '$1.00'}`);
-        logger.info(`✅ Returning ${availableLocations.length} available locker options (pickup: ${pickupDateFormatted})`);
-
-        const rates = availableLocations.map(location => {
-            // Build full address from Harbor location fields
-            const address = location.address ||
-                [location.address1 || location.street_address, location.city, location.state, location.zip]
-                    .filter(Boolean).join(', ') || '';
-            const shortAddress = [location.city, location.state].filter(Boolean).join(', ');
-
-            return {
-                // Format: LockerDrop @ Name (City, State) - clean title
-                service_name: `LockerDrop @ ${location.name}${shortAddress ? ` (${shortAddress})` : ''}`,
-                service_code: `lockerdrop_${location.id}`,
-                total_price: price,
-                currency: 'USD',
-                // Date on its own line, then address details
-                description: `📅 Ready ${pickupDateFormatted}\n📍 ${address} • ${location.distance.toFixed(1)} mi`
-            };
-        });
-
-        res.json({ rates });
-    } catch (error) {
-        logger.error('Error calculating rates:', error);
-        res.status(500).json({ rates: [] });
-    }
-});
 
 // ============================================
 // ADMIN DASHBOARD ROUTES
@@ -2069,17 +1787,6 @@ async function geocodeLocation(query) {
     return null;
 }
 
-// Calculate distance between two coordinates using Haversine formula (returns miles)
-function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 3959; // Earth's radius in miles
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-}
 
 // In-memory cache for locker locations (refreshed every 5 minutes)
 let lockerLocationsCache = { data: null, timestamp: 0 };
@@ -5276,23 +4983,12 @@ app.get('/api/checkout/reservation/:ref', async (req, res) => {
 // ============================================
 
 // Public endpoint for theme locker finder section
-// No authentication required - for customer-facing locker discovery
-// Load Harbor locations from static JSON (from Harbor's open source map)
-let harborLocationsCache = null;
-function getHarborLocations() {
-    if (!harborLocationsCache) {
-        try {
-            const locationsPath = path.join(__dirname, 'public', 'harbor-locations.json');
-            harborLocationsCache = JSON.parse(fs.readFileSync(locationsPath, 'utf8'));
-            logger.info(`📍 Loaded ${harborLocationsCache.length} Harbor locations from static file`);
-        } catch (err) {
-            logger.error('Error loading Harbor locations:', err.message);
-            harborLocationsCache = [];
-        }
-    }
-    return harborLocationsCache;
-}
-
+// No authentication required - for customer-facing locker discovery.
+// Reads the LIVE Harbor environment (via getLockerLocations), NOT a static file.
+// A stale static snapshot here used to leak sandbox-only lockers (e.g. the Dallas
+// devlocker 329 and "Zipship (Test)") to real storefront customers, and would show
+// nonexistent sandbox ids on production. Sourcing it from the live env keeps this
+// finder in sync with whatever Harbor environment the app is actually pointed at.
 app.get('/api/public/lockers', async (req, res) => {
     try {
         const { lat, lon, limit = 6 } = req.query;
@@ -5312,22 +5008,22 @@ app.get('/api/public/lockers', async (req, res) => {
             return res.status(400).json({ error: 'Invalid coordinates', locations: [] });
         }
 
-        // Get locations from static JSON file (450+ real Harbor locations)
-        const allLocations = getHarborLocations();
+        // Get locations from the live Harbor environment (env-aware, 5-min cached).
+        const allLocations = (await getLockerLocations()) || [];
 
         // Calculate distances
         const locationsWithDistance = allLocations
-            .filter(location => location.lat && location.lon)
+            .filter(location => location.latitude != null && location.longitude != null)
             .map(location => ({
                 id: location.id,
                 name: location.name,
-                address: location.address1 || '',
+                address: location.address || '',
                 city: location.city,
                 state: location.state,
                 zip: location.zip,
-                lat: location.lat,
-                lon: location.lon,
-                distance: calculateDistance(latitude, longitude, location.lat, location.lon)
+                lat: location.latitude,
+                lon: location.longitude,
+                distance: calculateDistance(latitude, longitude, location.latitude, location.longitude)
             }));
 
         // Sort by distance
