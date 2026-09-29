@@ -331,6 +331,119 @@ function buildPickupEmailHtml({ shop, orderNumber, customerName, pickupLink, loc
         </div>`;
 }
 
+function escHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// Build the "order confirmed, locker pickup" customer email sent when a LockerDrop
+// order is placed. The pickup link itself arrives later (buildPickupEmailHtml) once
+// the merchant has dropped the package in the locker.
+function buildOrderConfirmationEmailHtml({ shop, orderNumber, customerName, locationName, locationAddress, pickupDateText, changeDateLink, branding }) {
+    const b = branding || {};
+    const primary = b.primaryColor || '#5c6ac4';
+    const storeName = prettyStoreName(shop);
+    const logo = b.logoUrl
+        ? (b.logoUrl.startsWith('http') ? b.logoUrl : `https://app.lockerdrop.it${b.logoUrl}`)
+        : null;
+
+    const locationBlock = (locationName || locationAddress || pickupDateText) ? `
+            <div style="background:#f6f6f7;border-radius:10px;padding:20px 24px;margin:24px 0;text-align:center;">
+                <p style="margin:0 0 6px;color:#6d7175;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;">Pickup Locker</p>
+                ${locationName ? `<p style="margin:0;color:#202223;font-size:18px;font-weight:600;line-height:1.4;">${escHtml(locationName)}</p>` : ''}
+                ${locationAddress ? `<p style="margin:6px 0 0;color:#6d7175;font-size:14px;">${escHtml(locationAddress)}</p>` : ''}
+                ${pickupDateText ? `<p style="margin:8px 0 0;color:#6d7175;font-size:14px;">Expected pickup: ${escHtml(pickupDateText)}</p>` : ''}
+            </div>` : '';
+
+    return `
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;">
+            <div style="background:${primary};padding:28px 24px;text-align:center;border-radius:10px 10px 0 0;">
+                ${logo ? `<img src="${escHtml(logo)}" alt="${escHtml(storeName)}" style="max-height:52px;max-width:200px;">` : `<h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:600;">${escHtml(storeName)}</h1>`}
+            </div>
+            <div style="padding:32px 28px;">
+                <h2 style="margin:0 0 6px;color:#1a1a1a;font-size:24px;text-align:center;">Order Confirmed 📦</h2>
+                <p style="margin:0 0 20px;color:#8c9196;font-size:13px;text-align:center;">Order #${escHtml(orderNumber)} · Locker pickup</p>
+
+                <p style="color:#202223;font-size:15px;">Hi ${escHtml(customerName || 'there')},</p>
+                <p style="color:#202223;font-size:15px;">Thanks for your order! You chose <strong>locker pickup</strong>. We'll email you a secure link to open the locker as soon as your package has been dropped off.</p>
+
+                ${locationBlock}
+
+                <div style="background:#f6f6f7;border-radius:8px;padding:18px 20px;margin:20px 0;">
+                    <p style="margin:0 0 8px;color:#202223;font-weight:600;font-size:14px;">What happens next:</p>
+                    <ol style="margin:0;padding-left:20px;color:#6d7175;font-size:14px;line-height:1.6;">
+                        <li>The store drops your package in the locker</li>
+                        <li>You get a "ready for pickup" email and text with your locker link</li>
+                        <li>Go to the locker, tap the link, and grab your package</li>
+                    </ol>
+                </div>
+
+                ${changeDateLink ? `<p style="color:#8c9196;font-size:13px;">Need a different pickup day? <a href="${escHtml(changeDateLink)}" style="color:${primary};">Change pickup date</a>.</p>` : ''}
+            </div>
+            <div style="padding:18px 24px;border-top:1px solid #e1e3e5;text-align:center;">
+                <p style="margin:0;color:#8c9196;font-size:12px;">Locker pickup powered by LockerDrop.it</p>
+            </div>
+        </div>`;
+}
+
+// Runs after processNewOrder for every orders/create webhook, whichever creation
+// path saved the row (pre-reserved locker, new allocation, or Sim-able test order):
+//   1. records whether this was a Shopify TEST order (drives the reviewer Sim controls)
+//   2. sends the customer an order-confirmation email, exactly once (the claim on
+//      confirmation_sent_at makes webhook retries a no-op).
+// Never throws: a notification problem must not fail the webhook.
+async function finalizeNewOrder(order, shopDomain) {
+    try {
+        const shop = shopDomain || order.order_status_url?.match(/https:\/\/([^\/]+)/)?.[1];
+        if (!shop || !order?.id) return;
+        const shopifyOrderId = order.id.toString();
+
+        await db.query(
+            'UPDATE orders SET is_test = $3 WHERE shop = $1 AND shopify_order_id = $2',
+            [shop, shopifyOrderId, order.test === true]
+        );
+
+        const claim = await db.query(
+            `UPDATE orders SET confirmation_sent_at = NOW()
+             WHERE shop = $1 AND shopify_order_id = $2 AND confirmation_sent_at IS NULL
+               AND customer_email IS NOT NULL AND customer_email <> ''
+             RETURNING shop, order_number, customer_email, customer_name, location_id,
+                       location_name, preferred_pickup_date`,
+            [shop, shopifyOrderId]
+        );
+        if (claim.rows.length === 0) return; // not a LockerDrop order, no email, or already sent
+        const row = claim.rows[0];
+
+        const branding = await getBrandingForEmail(shop);
+        const loc = await resolveLockerLocation(shop, row);
+        const changeDateLink = `https://app.lockerdrop.it/change-pickup/${row.order_number}?shop=${encodeURIComponent(shop)}&t=${signOrderToken(shop, row.order_number)}`;
+        const result = await sendEmail(
+            row.customer_email,
+            `Order #${row.order_number} confirmed: locker pickup`,
+            buildOrderConfirmationEmailHtml({
+                shop,
+                orderNumber: row.order_number,
+                customerName: row.customer_name,
+                locationName: loc.name,
+                locationAddress: loc.address,
+                pickupDateText: formatPickupDateText(row.preferred_pickup_date),
+                changeDateLink,
+                branding
+            })
+        );
+        if (!result.success) {
+            // Release the claim so a webhook retry (or a manual resend) can try again.
+            await db.query(
+                'UPDATE orders SET confirmation_sent_at = NULL WHERE shop = $1 AND shopify_order_id = $2',
+                [shop, shopifyOrderId]
+            );
+        }
+    } catch (e) {
+        logger.error({ err: e.message, orderId: order?.id }, 'finalizeNewOrder failed');
+    }
+}
+
 // Shopify GraphQL Admin API helper
 const SHOPIFY_API_VERSION = '2025-10';
 
@@ -1347,17 +1460,31 @@ function requireOrderToken(req, res, next) {
 // stores; forwards to the REAL completion endpoints with a valid shop-bound order
 // token, so the simulated path is byte-identical to production. The dashboard only
 // renders the buttons on dev stores; this backend check is the real gate.
+// Simulation is allowed for a Shopify TEST order (Bogus Gateway, so never a real
+// sale) on any store, or for any order on a partner development store. Keyed on the
+// order as well as the store because Shopify's review stores don't reliably report
+// partnerDevelopment.
+async function canSimulateOrder(shop, orderNumber) {
+    const r = await db.query(
+        `SELECT o.is_test, s.partner_development
+         FROM orders o LEFT JOIN stores s ON s.shop = o.shop
+         WHERE o.shop = $1 AND o.order_number = $2`,
+        [shop, String(orderNumber)]
+    );
+    const row = r.rows[0];
+    return !!(row && (row.is_test || row.partner_development));
+}
+
 async function simulateLockerStep(req, res, stage) {
     try {
         const { shop, orderId } = req.params;
         const orderNumber = String(orderId).replace(/^#/, '');
-        const store = await db.query('SELECT partner_development FROM stores WHERE shop = $1', [shop]);
-        if (!store.rows[0]?.partner_development) {
-            return res.status(403).json({ error: 'Simulation is only available on development stores.' });
-        }
         const own = await db.query('SELECT id FROM orders WHERE shop = $1 AND order_number = $2', [shop, orderNumber]);
         if (own.rows.length === 0) {
             return res.status(404).json({ error: 'Order not found for this shop' });
+        }
+        if (!(await canSimulateOrder(shop, orderNumber))) {
+            return res.status(403).json({ error: 'Simulation is only available for test orders or on development stores.' });
         }
         const endpoint = stage === 'dropoff' ? 'dropoff-complete' : 'pickup-complete';
         const PORT = process.env.PORT || 3000;
@@ -2696,8 +2823,7 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
         // only ever take effect on a development store.
         let simulated = false;
         if (req.body && req.body.simulated === true) {
-            const devCheck = await db.query('SELECT partner_development FROM stores WHERE shop = $1', [order.shop]);
-            simulated = !!devCheck.rows[0]?.partner_development;
+            simulated = await canSimulateOrder(order.shop, orderNumber);
         }
 
         // Generate the customer pickup link.
@@ -4361,9 +4487,12 @@ app.get('/api/orders/:shop', requireApiAuth, auditCustomerDataAccess('view_order
                 o.location_id as "locationId",
                 COALESCE(lp.location_name, 'Location ' || o.location_id) as "lockerName",
                 TO_CHAR(o.created_at, 'YYYY-MM-DD') as date,
-                TO_CHAR(o.preferred_pickup_date, 'YYYY-MM-DD') as "pickupDate"
+                TO_CHAR(o.preferred_pickup_date, 'YYYY-MM-DD') as "pickupDate",
+                o.is_test as "isTest",
+                COALESCE(s.partner_development, false) as "devStore"
             FROM orders o
             LEFT JOIN locker_preferences lp ON o.location_id = lp.location_id AND o.shop = lp.shop
+            LEFT JOIN stores s ON s.shop = o.shop
             WHERE o.shop = $1
             ORDER BY o.created_at DESC`,
             [shop]
@@ -4371,8 +4500,15 @@ app.get('/api/orders/:shop', requireApiAuth, auditCustomerDataAccess('view_order
 
         // Attach a signed order token so the (authenticated) dashboard can build
         // token-protected drop-off links — the token is never minted by a public
-        // endpoint.
-        const orders = result.rows.map(o => ({ ...o, t: signOrderToken(shop, o.orderNumber) }));
+        // endpoint. canSimulate mirrors canSimulateOrder(); simOnly marks a test order
+        // on production Harbor, which has no physical locker behind it.
+        const onSandboxHarbor = /sandbox/i.test(HARBOR_API_URL);
+        const orders = result.rows.map(({ devStore, ...o }) => ({
+            ...o,
+            t: signOrderToken(shop, o.orderNumber),
+            canSimulate: !!(o.isTest || devStore),
+            simOnly: !!(o.isTest && !onSandboxHarbor)
+        }));
         res.json(orders);
     } catch (error) {
         logger.error('Error loading orders:', error);
@@ -6013,7 +6149,7 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
 
         // Find the order
         const orderResult = await db.query(
-            'SELECT id, shopify_order_id, order_number, location_id, locker_id, dropoff_link, status FROM orders WHERE shop = $1 AND order_number = $2',
+            'SELECT id, shopify_order_id, order_number, location_id, locker_id, dropoff_link, status, is_test FROM orders WHERE shop = $1 AND order_number = $2',
             [shop, orderNumber]
         );
 
@@ -6024,6 +6160,18 @@ app.post('/api/regenerate-order-link/:shop/:orderNumber', requireApiAuth, async 
 
         const order = orderResult.rows[0];
         logger.info(`📋 Found order:`, JSON.stringify(order, null, 2));
+
+        // A Shopify TEST order on production Harbor never reserves a physical locker
+        // (see processNewOrder), so there is no real drop-off link to regenerate. Answer
+        // cleanly and point at the Sim controls instead of calling Harbor and failing.
+        if (order.is_test && !/sandbox/i.test(HARBOR_API_URL)) {
+            return res.json({
+                success: true,
+                simulated: true,
+                orderNumber: order.order_number,
+                message: 'This is a test order, so no physical locker is reserved and there is no real drop-off link. Use "Sim drop-off" to continue the flow.'
+            });
+        }
 
         if (!order.location_id) {
             return res.status(400).json({ error: 'No locker location assigned to this order. Please assign a locker first.' });
@@ -6348,6 +6496,10 @@ app.post('/webhooks/orders/create', verifyShopifyWebhook, async (req, res) => {
         await processNewOrder(order, shopDomain);
 
         res.status(200).send('OK');
+
+        // Test flag + customer confirmation email, after the ack so a slow email
+        // provider can't push the webhook past Shopify's 5s timeout.
+        finalizeNewOrder(order, shopDomain);
     } catch (error) {
         logger.error('Error processing order webhook:', error);
         res.status(500).send('Error');
