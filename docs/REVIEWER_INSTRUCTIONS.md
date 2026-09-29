@@ -35,24 +35,25 @@ it up with a secure link, and the Shopify order auto-fulfills on pickup.
    alongside normal shipping (with distance + pickup date) → select it → pay with
    **Bogus Gateway** (card number `1`).
 
-4. **Dashboard:** the order appears as **Pending drop-off**, with a locker assigned and a
-   drop-off link.
+4. **Confirmation email + dashboard:** the customer email on the order immediately receives
+   an **"Order confirmed: locker pickup"** email. In LockerDrop → **Orders**, the order
+   appears as **Pending drop-off** with its locker assigned.
 
 5. **Complete the flow using the reviewer Sim buttons.**
-   The real drop-off/pickup happens at a physical locker you can't visit, so on a
-   **development store** each order shows **"Sim drop-off"** and then **"Sim pickup"**
-   buttons in the **Actions** column. These stand in for the physical locker.
+   The real drop-off/pickup happens at a physical locker you can't visit, so every
+   **test order** (Bogus Gateway) shows **"Sim drop-off"** and then **"Sim pickup"**
+   buttons in the **Actions** column of the **Orders** tab. These stand in for the
+   physical locker. (The same button is also inside the order's **View** panel.)
 
-   > ⚠️ **Use the Sim buttons in the "Actions" column — NOT the "Drop Off" link in the
-   > "Drop-off Link" column.** The "Drop Off" link opens the real Harbor locker page
-   > (meant for the merchant's phone *at* the locker) and will not advance the order here.
+   > Test orders don't reserve a physical locker, so they have no real drop-off link to
+   > open or regenerate. Use the Sim buttons to advance them.
 
    - Click **Sim drop-off** → confirm → the order becomes **Ready for pickup**, a customer
      **pickup link** is generated, and the customer is notified by email/SMS.
    - Click **Sim pickup** → confirm → the order becomes **Completed** and **auto-fulfills in
      Shopify**. Open the order in Shopify Admin to see it marked **Fulfilled**.
 
-   (These Sim buttons are hard-gated to development stores and never appear for live merchants.
+   (These Sim buttons only appear for Shopify test orders or on development stores, never for real paid orders.
    They run the exact production completion path — real order token, real Shopify fulfillment —
    only the physical locker step is simulated. The full physical cycle is in the demo video.)
 
