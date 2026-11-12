@@ -6640,7 +6640,7 @@ app.post('/webhooks/customers/data_request', verifyShopifyWebhook, async (req, r
         const customerId = customer?.id;
         const customerEmail = customer?.email;
 
-        logger.info({ shop, customerId, customerEmail, ordersRequested: orders_requested },
+        logger.info({ shop, customerId, ordersRequested: Array.isArray(orders_requested) ? orders_requested.length : 0 },
             'GDPR: Customer data request received');
 
         // Query all order data we hold for this customer
@@ -6670,43 +6670,69 @@ app.post('/webhooks/customers/redact', verifyShopifyWebhook, async (req, res) =>
         const { shop_domain, customer, orders_to_redact } = req.body;
         const shop = shopDomain || shop_domain;
         const customerId = customer?.id;
-        const customerEmail = customer?.email;
+        const customerEmail = customer?.email || null;
+        const customerPhone = customer?.phone || null;
+        const orderIds = Array.isArray(orders_to_redact) ? orders_to_redact.map(String) : [];
 
-        logger.info({ shop, customerId, customerEmail, ordersToRedact: orders_to_redact },
-            'GDPR: Customer redact request received');
+        // Never log the customer's email/phone; the Shopify customer id is enough to trace.
+        logger.info({ shop, customerId, ordersToRedact: orderIds.length }, 'GDPR: Customer redact request received');
 
-        // Redact customer PII from orders — replace with anonymized placeholders
-        const result = await db.query(
-            `UPDATE orders
-             SET customer_email = 'redacted@redacted.com',
-                 customer_name = 'Redacted Customer',
-                 customer_phone = NULL,
-                 updated_at = NOW()
-             WHERE shop = $1 AND customer_email = $2`,
-            [shop, customerEmail]
-        );
+        const client = await db.pool.connect();
+        let ordersRedacted = 0;
+        try {
+            await client.query('BEGIN');
 
-        // Also redact by order IDs if Shopify provided them
-        if (orders_to_redact && orders_to_redact.length > 0) {
-            const orderIds = orders_to_redact.map(String);
-            await db.query(
+            // Orders matched by email or by the order ids Shopify sent.
+            const orders = await client.query(
                 `UPDATE orders
                  SET customer_email = 'redacted@redacted.com',
                      customer_name = 'Redacted Customer',
                      customer_phone = NULL,
                      updated_at = NOW()
-                 WHERE shop = $1 AND shopify_order_id = ANY($2)`,
-                [shop, orderIds]
+                 WHERE shop = $1
+                   AND (($2::text IS NOT NULL AND customer_email = $2) OR shopify_order_id = ANY($3::text[]))
+                 RETURNING id`,
+                [shop, customerEmail, orderIds]
             );
+            ordersRedacted = orders.rowCount;
+            const internalIds = orders.rows.map(r => r.id);
+
+            // Locker reservations store email + phone directly.
+            await deleteWithSavepoint(client, 'sp_redact_resv',
+                `UPDATE locker_reservations SET customer_email = NULL, customer_phone = NULL
+                 WHERE shop = $1 AND (($2::text IS NOT NULL AND customer_email = $2)
+                       OR ($3::text IS NOT NULL AND customer_phone = $3)
+                       OR used_by_order_id = ANY($4::text[]))`,
+                [shop, customerEmail, customerPhone, orderIds]);
+
+            // Event payloads for those orders can echo customer details.
+            if (internalIds.length > 0) {
+                await deleteWithSavepoint(client, 'sp_redact_events',
+                    'UPDATE locker_events SET payload = NULL WHERE order_id = ANY($1::int[])', [internalIds]);
+            }
+
+            // Audit entries that mention the customer.
+            if (customerEmail) {
+                await deleteWithSavepoint(client, 'sp_redact_audit',
+                    `UPDATE audit_log SET details = NULL, ip_address = NULL, user_agent = NULL
+                     WHERE shop = $1 AND details::text ILIKE '%' || $2 || '%'`,
+                    [shop, customerEmail]);
+            }
+
+            await client.query('COMMIT');
+        } catch (txError) {
+            try { await client.query('ROLLBACK'); } catch (_) { /* ignore */ }
+            throw txError;
+        } finally {
+            client.release();
         }
 
-        logger.info({ shop, customerId, rowsUpdated: result.rowCount },
-            'GDPR: Customer data redacted from orders');
-
+        logger.info({ shop, customerId, ordersRedacted }, 'GDPR: Customer data redacted');
         res.status(200).send('OK');
     } catch (error) {
-        logger.error({ err: error }, 'Error processing customers/redact webhook');
-        res.status(200).send('OK');
+        // Non-2xx so Shopify retries instead of treating the redaction as done.
+        logger.error({ err: error.message }, 'Error processing customers/redact webhook');
+        res.status(500).send('Redaction failed');
     }
 });
 
@@ -6721,14 +6747,15 @@ app.post('/webhooks/shop/redact', verifyShopifyWebhook, async (req, res) => {
 
         // Reuse the same cleanup logic as app/uninstalled
         // This is a safety net — data should already be deleted by processAppUninstall
-        await processAppUninstall(shop);
+        await processAppUninstall(shop, { throwOnError: true });
 
         logger.info({ shop }, 'GDPR: Shop data redacted');
 
         res.status(200).send('OK');
     } catch (error) {
+        // Non-2xx so Shopify retries the redaction instead of treating it as done.
         logger.error({ err: error }, 'Error processing shop/redact webhook');
-        res.status(200).send('OK');
+        res.status(500).send('Redaction failed');
     }
 });
 
@@ -6749,7 +6776,7 @@ async function deleteWithSavepoint(client, savepoint, sql, params) {
     }
 }
 
-async function processAppUninstall(shop) {
+async function processAppUninstall(shop, { throwOnError = false } = {}) {
     if (!shop) {
         logger.info('❌ No shop domain in uninstall webhook');
         return;
@@ -6824,6 +6851,9 @@ async function processAppUninstall(shop) {
             // Optional tables that "may not exist yet" — isolate each in a savepoint
             // so a missing-relation error can't abort the whole transaction.
             await deleteWithSavepoint(client, 'sp_branding', 'DELETE FROM branding_settings WHERE shop = $1', [shop]);
+            // Customer email/phone also live in locker_reservations; audit_log can hold PII in details.
+            await deleteWithSavepoint(client, 'sp_reservations', 'DELETE FROM locker_reservations WHERE shop = $1', [shop]);
+            await deleteWithSavepoint(client, 'sp_audit', 'DELETE FROM audit_log WHERE shop = $1', [shop]);
             // Match the shop field precisely (JSON ->> 'shop'), not a substring of the
             // whole session JSON — a LIKE '%shop%' can delete sessions of OTHER shops
             // whose name contains this one as a substring (e.g. 'acme' vs 'acme-eu').
@@ -6851,6 +6881,7 @@ async function processAppUninstall(shop) {
         logger.info(`✅ All data cleaned up for ${shop}`);
     } catch (error) {
         logger.error({ err: error }, `❌ Error cleaning up data for ${shop}`);
+        if (throwOnError) throw error;
     }
 }
 
