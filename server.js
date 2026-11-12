@@ -2765,7 +2765,7 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
 
         // Find the order
         const orderResult = await db.query(
-            "SELECT id, shop, shopify_order_id, customer_email, customer_name, customer_phone, locker_id, location_id, location_name, preferred_pickup_date, pickup_link FROM orders WHERE order_number = $1 AND shop = $2",
+            "SELECT id, shop, status, shopify_order_id, customer_email, customer_name, customer_phone, locker_id, location_id, location_name, preferred_pickup_date, pickup_link FROM orders WHERE order_number = $1 AND shop = $2",
             [orderNumber, req.verifiedShop]
         );
 
@@ -2776,27 +2776,50 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
 
         const order = orderResult.rows[0];
 
+        // Idempotency: a replayed callback must not move a finished order backwards.
+        if (['ready_for_pickup', 'completed', 'cancelled', 'expired'].includes(order.status)) {
+            logger.info({ orderNumber, status: order.status }, 'Dropoff callback for an order already past drop-off; no change');
+            return res.json({ success: true, alreadyProcessed: true, status: order.status });
+        }
+
+        // Determine simulated mode FIRST — reviewer/dev stores only. A Sim drop-off never
+        // physically fills the locker, so Harbor's real pickup-request would 403
+        // ("locker not occupied"). In simulated mode we skip every Harbor call and use a
+        // simulated pickup link so the reviewer can walk the whole flow without a
+        // real locker. Re-checked here (not just in the Sim route) so the flag can
+        // only ever take effect on a development store.
+        let simulated = false;
+        if (req.body && req.body.simulated === true) {
+            simulated = await canSimulateOrder(order.shop, orderNumber);
+        }
+
         // Use locker_id from order first (most reliable), then callback, then fetch from Harbor
         // The order's locker_id is set when the dropoff link is created, so it should be correct
         let finalLockerId = order.locker_id || lockerId;
         logger.info(`📍 Locker ID sources - order.locker_id: ${order.locker_id}, callback lockerId: ${lockerId}, using: ${finalLockerId}`);
 
-        // Get Harbor token
-        const tokenResponse = await axios.post(
-            `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
-            `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
-            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
-        );
-        const accessToken = tokenResponse.data.access_token;
+        // Harbor token is fetched lazily, only when a real Harbor call is needed, so a
+        // simulated drop-off can never fail on Harbor auth.
+        let accessToken = null;
+        const getHarborToken = async () => {
+            if (accessToken) return accessToken;
+            const tokenResponse = await axios.post(
+                `${HARBOR_ACCOUNTS_URL}/realms/harbor/protocol/openid-connect/token`,
+                `grant_type=client_credentials&scope=service_provider&client_id=${process.env.HARBOR_CLIENT_ID}&client_secret=${process.env.HARBOR_CLIENT_SECRET}`,
+                { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }}
+            );
+            accessToken = tokenResponse.data.access_token;
+            return accessToken;
+        };
 
         // If we don't have locker_id but have requestId, try to get it from the dropoff request
         let finalTowerId = towerId;
-        if (!finalLockerId && requestId) {
+        if (!simulated && !finalLockerId && requestId) {
             try {
                 logger.info(`🔍 Fetching locker info from dropoff request ${requestId}`);
                 const requestInfo = await axios.get(
                     `${HARBOR_API_URL}/api/v1/locker-open-requests/${requestId}`,
-                    { headers: { 'Authorization': `Bearer ${accessToken}` }}
+                    { headers: { 'Authorization': `Bearer ${await getHarborToken()}` }}
                 );
                 finalLockerId = requestInfo.data.lockerId || requestInfo.data.locker?.id;
                 finalTowerId = requestInfo.data.towerId || finalTowerId;
@@ -2813,17 +2836,6 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
                 [finalLockerId, finalTowerId || null, order.id]
             );
             logger.info(`📍 Updated order with locker_id: ${finalLockerId}, tower_id: ${finalTowerId}`);
-        }
-
-        // Determine simulated mode — reviewer/dev stores only. A Sim drop-off never
-        // physically fills the locker, so Harbor's real pickup-request would 403
-        // ("locker not occupied"). In simulated mode we skip that call and use a
-        // simulated pickup link so the reviewer can walk the whole flow without a
-        // real locker. Re-checked here (not just in the Sim route) so the flag can
-        // only ever take effect on a development store.
-        let simulated = false;
-        if (req.body && req.body.simulated === true) {
-            simulated = await canSimulateOrder(order.shop, orderNumber);
         }
 
         // Generate the customer pickup link.
@@ -2848,7 +2860,7 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
                         clientInfo: `customer-${orderNumber}`,
                         payload: { order_id: order.shopify_order_id, order_number: orderNumber }
                     },
-                    { headers: { 'Authorization': `Bearer ${accessToken}` }}
+                    { headers: { 'Authorization': `Bearer ${await getHarborToken()}` }}
                 );
 
                 pickupLink = pickupResponse.data.linkToken;
@@ -3335,7 +3347,17 @@ async function createUsageSubscription(shop, accessToken) {
         }
     `;
 
-    const isTestStore = DEV_STORES.includes(shop);
+    // Test charges for our own test store AND any Shopify development store
+    // (App Store reviewers install on dev stores, where real charges are refused).
+    let isTestStore = DEV_STORES.includes(shop);
+    if (!isTestStore) {
+        try {
+            const dev = await db.query('SELECT partner_development FROM stores WHERE shop = $1', [shop]);
+            isTestStore = !!dev.rows[0]?.partner_development;
+        } catch (e) {
+            logger.warn({ shop, err: e.message }, 'Could not read partner_development; defaulting to non-test billing');
+        }
+    }
 
     const variables = {
         name: USAGE_BILLING.name,
@@ -3936,45 +3958,61 @@ app.post('/api/subscribe/:shop', requireApiAuth, async (req, res) => {
 
 // Billing confirmation callback (Shopify redirects here after merchant approves/declines)
 app.get('/api/billing/confirm', async (req, res) => {
-    try {
-        const { shop, charge_id } = req.query;
-        const shopHost = Buffer.from(`${shop}/admin`).toString('base64').replace(/=+$/, '');
+    // This is a top-level redirect from Shopify, so there is no session token.
+    // Never trust the query string: validate the shop, then read the subscription's
+    // real status from Shopify with the shop's own access token.
+    const shop = String(req.query.shop || '').toLowerCase();
+    if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)) {
+        return res.status(400).send('Invalid shop');
+    }
+    const shopHost = Buffer.from(`${shop}/admin`).toString('base64').replace(/=+$/, '');
+    const backToApp = (state) =>
+        res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}&billing=${state}`);
 
-        if (!charge_id) {
-            // Merchant declined billing
-            logger.info({ shop }, 'Merchant declined usage billing');
-            await db.query(
-                `UPDATE subscriptions SET status = 'declined', updated_at = NOW() WHERE shop = $1`,
-                [shop]
-            );
-            return res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}&billing=declined`);
+    try {
+        const storeResult = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop]);
+        const subResult = await db.query('SELECT shopify_subscription_id FROM subscriptions WHERE shop = $1', [shop]);
+        if (storeResult.rows.length === 0 || subResult.rows.length === 0 || !subResult.rows[0].shopify_subscription_id) {
+            logger.warn({ shop }, 'Billing confirm for unknown shop or no pending subscription');
+            return res.status(404).send('No pending subscription for this shop');
         }
 
-        // Merchant approved — activate subscription
-        await db.query(`
-            UPDATE subscriptions
-            SET status = 'active', billing_cycle_start = NOW(),
-                orders_this_month = 0, total_charged_this_month = 0,
-                updated_at = NOW()
-            WHERE shop = $1
-        `, [shop]);
+        const accessToken = accessTokens.get(shop) || storeResult.rows[0].access_token;
+        const data = await shopifyGraphQL(shop, accessToken,
+            `query($id: ID!) { node(id: $id) { ... on AppSubscription { id status } } }`,
+            { id: subResult.rows[0].shopify_subscription_id });
+        const shopifyStatus = data?.node?.status;
 
-        logger.info({ shop }, 'Usage billing subscription activated');
+        if (shopifyStatus === 'ACTIVE') {
+            await db.query(`
+                UPDATE subscriptions
+                SET status = 'active', billing_cycle_start = NOW(),
+                    orders_this_month = 0, total_charged_this_month = 0,
+                    updated_at = NOW()
+                WHERE shop = $1
+            `, [shop]);
+            logger.info({ shop }, 'Usage billing subscription activated (verified with Shopify)');
+            return backToApp('success');
+        }
 
-        res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}&billing=success`);
+        if (shopifyStatus === 'DECLINED' || shopifyStatus === 'CANCELLED' || shopifyStatus === 'EXPIRED') {
+            await db.query(`UPDATE subscriptions SET status = 'declined', updated_at = NOW() WHERE shop = $1`, [shop]);
+            logger.info({ shop, shopifyStatus }, 'Merchant declined usage billing (verified with Shopify)');
+            return backToApp('declined');
+        }
 
+        logger.info({ shop, shopifyStatus }, 'Billing confirm: subscription not active yet; leaving pending');
+        return backToApp('pending');
     } catch (error) {
-        logger.error({ err: error }, 'Error confirming billing');
-        const shop = req.query.shop;
-        const shopHost = Buffer.from(`${shop}/admin`).toString('base64').replace(/=+$/, '');
-        res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}&billing=error`);
+        logger.error({ err: error.message, shop }, 'Error confirming billing');
+        return backToApp('error');
     }
 });
 
 // Keep old confirm endpoint for backward compat (redirects to new one)
 app.get('/api/subscription/confirm', (req, res) => {
-    const { shop, charge_id } = req.query;
-    res.redirect(`/api/billing/confirm?shop=${shop}&charge_id=${charge_id || ''}`);
+    const params = new URLSearchParams({ shop: String(req.query.shop || ''), charge_id: String(req.query.charge_id || '') });
+    res.redirect(`/api/billing/confirm?${params}`);
 });
 
 // Cancel subscription
