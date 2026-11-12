@@ -17,8 +17,9 @@ it up with a secure link, and the Shopify order auto-fulfills on pickup.
   surfaces its pickup option as a real-time carrier rate. Development, Advanced, and Plus
   stores have CCS.
 - No separate login — the app is embedded and uses your Shopify admin session.
-- Billing is **usage-based** (a small per-order fee through Shopify Billing). On a
-  development store these are test charges; approve the subscription to reach all features.
+- Billing is **usage-based** through Shopify Billing: a per-order fee by locker size
+  ($1.50 to $6.00), capped at $200 per 30 days. On a development store these are test
+  charges; approve the subscription to reach all features.
 
 **Step-by-step**
 
@@ -62,9 +63,10 @@ it up with a secure link, and the Shopify order auto-fulfills on pickup.
 **Notes**
 - Customer emails/SMS use the address/phone on the test order.
 - Access scopes are minimized and justified in the app configuration.
-- The privacy policy lists all third-party processors (Harbor, Twilio, Resend, DigitalOcean).
+- The privacy policy lists all third-party processors (Harbor, Twilio, Resend, DigitalOcean,
+  plus OpenStreetMap map tiles, Zippopotam.us ZIP lookup, and Google Analytics on the marketing site only).
 
-**Contact:** [your support email] — happy to provide a fresh test order or hop on a call if
+**Contact:** anne@lockerdrop.it, happy to provide a fresh test order or hop on a call if
 anything blocks the review.
 
 === END TESTING INSTRUCTIONS ========================================================
@@ -80,7 +82,8 @@ anything blocks the review.
 - [ ] Protected Customer Data request approved in the Partner Dashboard (`read_orders` + customer data) — see `PROTECTED_CUSTOMER_DATA.md`.
 - [ ] Listing content + screenshots finalized.
 - [ ] Confirm CCS is active on the store you point reviewers to.
-- [ ] Replace **[your support email]** above with a real support address.
-- [ ] Harbor environment: the app is currently pointed at **sandbox** Harbor. Confirm which
-      environment you intend reviewers to test against, and the plan for real merchants after
-      approval (see Phase 2 — production switch).
+- [x] Support address set to anne@lockerdrop.it (change if you'd rather use a support@ alias).
+- [x] Harbor environment: prod points at **production** Harbor (`api.harborlockers.com`,
+      verified 2026-11-12). Reviewer test orders never reserve a physical locker; they use the Sim buttons.
+- [ ] Run `shopify app deploy` so the released app version drops the parked admin/Thank You
+      extensions and picks up API 2026-10 (see `extensions-disabled/README.md`).

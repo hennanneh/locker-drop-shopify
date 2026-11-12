@@ -35,7 +35,7 @@ Full end-to-end QA against the dev-store matrix (basic / grow / advanced-ennanne
 **Remaining launch blockers:**
 1. **S2-5 Harbor → production** + finalize per-order pricing with Harbor → set `USAGE_BILLING` → verify one live usage charge. (All above validated on sandbox only.)
 2. **S1-6 remainder:** `SESSION_SECRET` rotated 2026-07-01 ✅; still rotate DB password, Shopify API secret, Twilio/Resend keys.
-3. **Sprint 3 App Store submission** — draft materials in `docs/APP_STORE_SUBMISSION.md`; needs Protected Customer Data approval + demo video + reviewer creds. **Reviewer-testability now relies on the demo video** — the simulate control was removed 2026-07-02 (see below). Fallback if reviewers reject an un-testable flow: re-add the guarded `partner_development`-only simulate control.
+3. **Sprint 3 App Store submission** — draft materials in `docs/APP_STORE_SUBMISSION.md`; needs Protected Customer Data approval + demo video + reviewer creds. Reviewer-testability uses the guarded Sim drop-off/pickup buttons (restored Aug 2026 after the 07-02 removal below; per-test-order since `e39eaf4`) plus the demo video.
 4. One full cycle on a **real** (non-dev) store once Harbor prod is live.
 5. ✅ **Demo/test features removed 2026-07-02 (customer-ready):**
    - `admin-dashboard.html` — removed the `DEMO_US_LOCKERS` block + its `loadLockers()` injection (nationwide screenshot map).

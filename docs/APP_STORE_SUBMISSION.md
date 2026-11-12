@@ -67,8 +67,10 @@ Advanced, or Plus**. Basic is not supported.
 - Auto-fulfillment on pickup — no manual status updates
 - Usage-based pricing billed through your Shopify invoice
 
-**Pricing (fill in after Harbor discussion):** usage-based — $X per completed
-locker order, capped at $Y/month. Billed via Shopify.
+**Pricing:** usage-based, billed through your Shopify invoice. Per locker order, by
+locker size: Extra Small $1.50, Small $2.00, Medium $3.00, Large $5.00, Extra Large $6.00.
+Capped at $200 per 30-day billing cycle. 7-day free trial. (Source: docs/PRICING_MODEL.md;
+matches `feeForLockerSize()` in server.js.)
 
 **Screenshots to capture (no pricing text, no unsubstantiated stats):**
 1. Checkout showing LockerDrop locker options — ✅ CAPTURED 2026-07-02 (advanced-ennanne
@@ -124,19 +126,17 @@ locker order, capped at $Y/month. Billed via Shopify.
 7. After pickup, confirm the Shopify order shows **Fulfilled** and the dashboard
    shows **Completed**.
 
-> ⚠️ **Review-testability note:** drop-off/pickup require a physical locker + phone,
-> which a remote reviewer cannot do. The reviewer-only "Sim drop-off / Sim pickup"
-> control was **removed 2026-07-02** (owner decision — customer-ready app, no test
-> shortcuts in production). The **demo video is now the sole way reviewers see those
-> steps.** Ensure the video clearly shows the real locker opening for both drop-off
-> and pickup. Fallback if Shopify rejects for an un-testable flow: re-add the guarded
-> `partner_development`-only simulate control (removed in commit — easy to restore).
+> **Review-testability note:** drop-off/pickup require a physical locker + phone,
+> which a remote reviewer cannot do. The guarded reviewer **Sim drop-off / Sim pickup**
+> buttons were restored (Aug 2026, `5741687`, then per-test-order in `e39eaf4`) and are
+> what `REVIEWER_INSTRUCTIONS.md` tells reviewers to use. They render only for Shopify
+> test orders or on development stores. The demo video still shows the real physical cycle.
 
 ---
 
 ## 3. Protected Customer Data request (draft justifications)
 
-The app accesses Level-1 protected customer data. Justifications for the Partner/
+The app accesses **Level 2** protected customer data (name, email, phone, address; see PROTECTED_CUSTOMER_DATA.md, which is authoritative). Justifications for the Partner/
 Dev Dashboard "Protected customer data" request:
 
 | Data | Why the app needs it | Safeguards |
