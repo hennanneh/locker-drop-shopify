@@ -1549,6 +1549,17 @@
     <meta name="shopify-api-key" content="__SHOPIFY_API_KEY__">
     <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
     <script>
+        // HTML-escaping helpers for innerHTML templates (customer-controlled data).
+        function escHtml(v) {
+            return String(v == null ? '' : v).replace(/[&<>"']/g, c =>
+                ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        // For a value passed as a JS string argument inside an HTML attribute.
+        function escJsArg(v) { return escHtml(JSON.stringify(String(v == null ? '' : v))); }
+        // Only allow http(s) links (blocks javascript: URLs).
+        function safeUrl(u) { return /^https?:\/\//i.test(String(u || '')) ? String(u) : '#'; }
+    </script>
+    <script>
         // notify() uses Shopify's native Polaris toast (App Bridge) for branded notifications.
         // Falls back to the raw window.alert outside the embedded admin (e.g. local browsing).
         window.__rawAlert = window.alert.bind(window);
@@ -3827,18 +3838,18 @@
 
             tbody.innerHTML = filteredOrders.map(order => `
                 <tr>
-                    <td data-label="Order"><strong>#${order.orderNumber}</strong></td>
-                    <td data-label="Date">${order.date}</td>
+                    <td data-label="Order"><strong>#${escHtml(order.orderNumber)}</strong></td>
+                    <td data-label="Date">${escHtml(order.date)}</td>
                     <td data-label="Pickup Date">${order.pickupDate ? formatPickupDate(order.pickupDate) : '<span style="color: #6d7175;">-</span>'}</td>
-                    <td data-label="Customer">${order.customerName}</td>
-                    <td data-label="Locker">${order.lockerName || 'Not assigned'}</td>
+                    <td data-label="Customer">${escHtml(order.customerName)}</td>
+                    <td data-label="Locker">${escHtml(order.lockerName || 'Not assigned')}</td>
                     <td data-label="Drop-off">${order.dropoffLink ? `<a href="/dropoff-confirm?order=${encodeURIComponent(order.orderNumber)}&shop=${encodeURIComponent(shop)}&t=${encodeURIComponent(order.t || '')}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'pending_dropoff' ? 'Drop Off' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
-                    <td data-label="Pickup">${order.pickupLink ? `<a href="${order.pickupLink}" target="_blank" class="btn btn-secondary btn-small">${order.status === 'ready_for_pickup' ? 'Open' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
-                    <td data-label="Status"><span class="status-badge status-${order.status}">${formatStatus(order.status, order.completedAt)}</span></td>
+                    <td data-label="Pickup">${order.pickupLink ? `<a href="${escHtml(safeUrl(order.pickupLink))}" target="_blank" rel="noopener" class="btn btn-secondary btn-small">${order.status === 'ready_for_pickup' ? 'Open' : 'Used'}</a>` : '<span style="color: #6d7175;">-</span>'}</td>
+                    <td data-label="Status"><span class="status-badge status-${escHtml(order.status)}">${formatStatus(order.status, order.completedAt)}</span></td>
                     <td>
-                        <button class="btn btn-primary btn-small" onclick="viewOrder('${order.orderNumber}')">View</button>
-                        ${(order.canSimulate || shopPlanData?.partnerDevelopment) && order.status === 'pending_dropoff' ? `<button class="btn btn-secondary btn-small" title="Test order: simulate the physical drop-off at the locker" onclick="simulateStep('${order.orderNumber}','dropoff')">Sim drop-off</button>` : ''}
-                        ${(order.canSimulate || shopPlanData?.partnerDevelopment) && order.status === 'ready_for_pickup' ? `<button class="btn btn-secondary btn-small" title="Test order: simulate the customer's pickup at the locker" onclick="simulateStep('${order.orderNumber}','pickup')">Sim pickup</button>` : ''}
+                        <button class="btn btn-primary btn-small" onclick="viewOrder(${escJsArg(order.orderNumber)})">View</button>
+                        ${(order.canSimulate || shopPlanData?.partnerDevelopment) && order.status === 'pending_dropoff' ? `<button class="btn btn-secondary btn-small" title="Test order: simulate the physical drop-off at the locker" onclick="simulateStep(${escJsArg(order.orderNumber)},'dropoff')">Sim drop-off</button>` : ''}
+                        ${(order.canSimulate || shopPlanData?.partnerDevelopment) && order.status === 'ready_for_pickup' ? `<button class="btn btn-secondary btn-small" title="Test order: simulate the customer's pickup at the locker" onclick="simulateStep(${escJsArg(order.orderNumber)},'pickup')">Sim pickup</button>` : ''}
                     </td>
                 </tr>
             `).join('');
@@ -3948,7 +3959,7 @@
                             📦 Drop Off Package
                         </a>
                         ${dropoffPending ? `
-                        <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLink('${order.orderNumber}')" style="margin-left: 8px;" title="Regenerate if link expired">
+                        <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLink(${escJsArg(order.orderNumber)})" style="margin-left: 8px;" title="Regenerate if link expired">
                             🔄 Regenerate
                         </button>
                         <details style="margin-top: 12px;">
@@ -3956,10 +3967,10 @@
                             <div style="margin-top: 10px; padding: 10px; background: #f6f6f7; border-radius: 6px;">
                                 <p style="color: #6d7175; font-size: 12px; margin-bottom: 8px;">Force a specific locker size if the auto-picked one won't fit. This swaps the reservation; the old link stops working.</p>
                                 <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                                    <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'small')">Small</button>
-                                    <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'medium')">Medium</button>
-                                    <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'large')">Large</button>
-                                    <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'x-large')">X-Large</button>
+                                    <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize(${escJsArg(order.orderNumber)}, 'small')">Small</button>
+                                    <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize(${escJsArg(order.orderNumber)}, 'medium')">Medium</button>
+                                    <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize(${escJsArg(order.orderNumber)}, 'large')">Large</button>
+                                    <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize(${escJsArg(order.orderNumber)}, 'x-large')">X-Large</button>
                                 </div>
                             </div>
                         </details>
@@ -3973,7 +3984,7 @@
                             <strong>Test order: no physical locker reserved.</strong>
                             <p style="color: #6d7175; font-size: 13px; margin-top: 4px;">Use Sim drop-off to stand in for the merchant placing the package in the locker. The customer then gets their pickup email with a pickup link.</p>
                         </div>
-                        <button class="btn btn-primary btn-small" onclick="closeModal(); simulateStep('${order.orderNumber}','dropoff')">Sim drop-off</button>
+                        <button class="btn btn-primary btn-small" onclick="closeModal(); simulateStep(${escJsArg(order.orderNumber)},'dropoff')">Sim drop-off</button>
                     `;
                 } else if (dropoffPending && order.locationId) {
                     // Order had a locker but it was cleared (doesn't fit / expired)
@@ -3983,16 +3994,16 @@
                             <p style="color: #9a3412; font-size: 13px; margin-top: 4px;">Select a size below to get a new locker.</p>
                         </div>
                         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                            <button class="btn btn-primary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', null)">Auto Size</button>
-                            <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'medium')">Medium</button>
-                            <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'large')">Large</button>
-                            <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize('${order.orderNumber}', 'x-large')">X-Large</button>
+                            <button class="btn btn-primary btn-small" onclick="regenerateDropoffLinkWithSize(${escJsArg(order.orderNumber)}, null)">Auto Size</button>
+                            <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize(${escJsArg(order.orderNumber)}, 'medium')">Medium</button>
+                            <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize(${escJsArg(order.orderNumber)}, 'large')">Large</button>
+                            <button class="btn btn-secondary btn-small" onclick="regenerateDropoffLinkWithSize(${escJsArg(order.orderNumber)}, 'x-large')">X-Large</button>
                         </div>
                     `;
                 } else {
                     dropoffContent.innerHTML = `
                         <p style="color: #6d7175; margin-bottom: 8px;">Not generated yet.</p>
-                        <button class="btn btn-primary btn-small" onclick="regenerateDropoffLink('${order.orderNumber}')">
+                        <button class="btn btn-primary btn-small" onclick="regenerateDropoffLink(${escJsArg(order.orderNumber)})">
                             🔗 Generate Dropoff Link
                         </button>
                     `;
@@ -4003,18 +4014,18 @@
                 const canRegenPickup = order.status === 'ready_for_pickup' || order.status === 'dropped_off';
                 if (order.pickupLink) {
                     pickupContent.innerHTML = `
-                        <a href="${order.pickupLink}" target="_blank" class="btn btn-secondary">
+                        <a href="${escHtml(safeUrl(order.pickupLink))}" target="_blank" rel="noopener" class="btn btn-secondary">
                             🔓 Customer Pickup Link
                         </a>
                         ${canRegenPickup ? `
-                        <button class="btn btn-secondary btn-small" onclick="regeneratePickupLink('${order.orderNumber}')" style="margin-left: 8px;" title="Regenerate if link expired">
+                        <button class="btn btn-secondary btn-small" onclick="regeneratePickupLink(${escJsArg(order.orderNumber)})" style="margin-left: 8px;" title="Regenerate if link expired">
                             🔄 Regenerate
                         </button>
                         <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e1e3e5;">
                             <p style="color: #6d7175; font-size: 13px; margin-bottom: 8px;">Resend notification to customer:</p>
-                            <button class="btn btn-small" onclick="resendNotification('${order.orderNumber}', 'sms')" style="margin-right: 6px;">📱 Send SMS</button>
-                            <button class="btn btn-small" onclick="resendNotification('${order.orderNumber}', 'email')" style="margin-right: 6px;">📧 Send Email</button>
-                            <button class="btn btn-small" onclick="resendNotification('${order.orderNumber}', 'both')">📱📧 Send Both</button>
+                            <button class="btn btn-small" onclick="resendNotification(${escJsArg(order.orderNumber)}, 'sms')" style="margin-right: 6px;">📱 Send SMS</button>
+                            <button class="btn btn-small" onclick="resendNotification(${escJsArg(order.orderNumber)}, 'email')" style="margin-right: 6px;">📧 Send Email</button>
+                            <button class="btn btn-small" onclick="resendNotification(${escJsArg(order.orderNumber)}, 'both')">📱📧 Send Both</button>
                         </div>
                         ` : '<span style="color: #008060; margin-left: 8px;">✓ Picked up</span>'}
                     `;

@@ -6823,10 +6823,19 @@ async function processOrderCancellation(order, shopDomain) {
 
         logger.info(`🚫 Processing cancellation for order #${orderNumber} (${shopifyOrderId})`);
 
-        // Find the order in our database
+        if (!shopDomain) {
+            logger.warn('Cancellation webhook without shop domain, skipping');
+            return;
+        }
+
+        // Find the order in our database. Scoped to the webhook's shop: order
+        // numbers start at #1001 on every store, so an unscoped lookup could
+        // cancel another shop's order and release its locker.
         const orderResult = await db.query(
-            'SELECT id, locker_id, tower_id, dropoff_request_id, status FROM orders WHERE shopify_order_id = $1 OR order_number = $2',
-            [shopifyOrderId, orderNumber]
+            `SELECT id, locker_id, tower_id, dropoff_request_id, status FROM orders
+             WHERE shop = $3 AND (shopify_order_id = $1 OR order_number = $2)
+             ORDER BY (shopify_order_id = $1) DESC NULLS LAST LIMIT 1`,
+            [shopifyOrderId, orderNumber, shopDomain]
         );
 
         if (orderResult.rows.length === 0) {
@@ -6891,10 +6900,14 @@ async function processOrderUpdate(order, shopDomain) {
         const shopifyOrderId = order.id?.toString();
         const orderNumber = order.order_number?.toString() || order.name?.replace('#', '');
 
-        // Find the order in our database
+        if (!shopDomain) return;
+
+        // Find the order in our database (shop-scoped, see processOrderCancellation)
         const orderResult = await db.query(
-            'SELECT id, status FROM orders WHERE shopify_order_id = $1 OR order_number = $2',
-            [shopifyOrderId, orderNumber]
+            `SELECT id, status FROM orders
+             WHERE shop = $3 AND (shopify_order_id = $1 OR order_number = $2)
+             ORDER BY (shopify_order_id = $1) DESC NULLS LAST LIMIT 1`,
+            [shopifyOrderId, orderNumber, shopDomain]
         );
 
         if (orderResult.rows.length === 0) {
