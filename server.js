@@ -445,7 +445,7 @@ async function finalizeNewOrder(order, shopDomain) {
 }
 
 // Shopify GraphQL Admin API helper
-const SHOPIFY_API_VERSION = '2025-10';
+const SHOPIFY_API_VERSION = '2026-10';
 
 async function shopifyGraphQL(shop, accessToken, query, variables = {}) {
     const response = await axios.post(
@@ -8031,7 +8031,7 @@ app.delete('/api/branding/:shop/logo', requireApiAuth, async (req, res) => {
 async function getShopPlan(shop, accessToken) {
     try {
         const result = await shopifyGraphQL(shop, accessToken, `
-            { shop { plan { displayName partnerDevelopment shopifyPlus } } }
+            { shop { plan { publicDisplayName displayName partnerDevelopment shopifyPlus } } }
         `);
         const plan = result.shop?.plan;
         if (!plan) {
@@ -8039,7 +8039,12 @@ async function getShopPlan(shop, accessToken) {
             return null;
         }
         return {
-            displayName: plan.displayName,
+            // displayName is deprecated in favor of publicDisplayName, but dev stores
+            // report publicDisplayName "Development" while displayName still carries the
+            // tier (Advanced/Grow/Basic) that CCS gating depends on. Prefer the tier;
+            // fall back to publicDisplayName if Shopify ever drops displayName.
+            displayName: plan.displayName || plan.publicDisplayName,
+            publicDisplayName: plan.publicDisplayName || null,
             partnerDevelopment: plan.partnerDevelopment || false,
             shopifyPlus: plan.shopifyPlus || false
         };
@@ -8055,7 +8060,7 @@ async function getShopPlan(shop, accessToken) {
 function isCarrierEligible(planData) {
     if (!planData) return false;
     if (planData.shopifyPlus) return true;
-    const name = (planData.displayName || '').toLowerCase();
+    const name = `${planData.displayName || ''} ${planData.publicDisplayName || ''}`.toLowerCase();
     if (name.includes('advanced') || name.includes('plus')) return true;
     // Dev stores: only eligible if plan name suggests Advanced/Plus
     // Basic dev stores don't have carrier-calculated shipping enabled
@@ -8852,8 +8857,8 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
         const failures = [];
         for (const fo of openFulfillmentOrders) {
             const fulfillResult = await shopifyGraphQL(shop, accessToken, `
-                mutation fulfillmentCreateV2($fulfillment: FulfillmentV2Input!) {
-                    fulfillmentCreateV2(fulfillment: $fulfillment) {
+                mutation fulfillmentCreate($fulfillment: FulfillmentInput!) {
+                    fulfillmentCreate(fulfillment: $fulfillment) {
                         fulfillment {
                             id
                             status
@@ -8884,13 +8889,13 @@ async function fulfillShopifyOrder(shop, shopifyOrderId) {
                 }
             });
 
-            const errors = fulfillResult.fulfillmentCreateV2?.userErrors;
+            const errors = fulfillResult.fulfillmentCreate?.userErrors;
             if (errors && errors.length > 0) {
                 const msg = errors.map(e => (e.field ? `${e.field.join('.')}: ` : '') + e.message).join('; ');
                 logger.error(`❌ Fulfillment error for order ${shopifyOrderId} (FO ${fo.id}): ${msg}`);
                 failures.push(msg);
             } else {
-                const fulfillmentId = fulfillResult.fulfillmentCreateV2?.fulfillment?.id;
+                const fulfillmentId = fulfillResult.fulfillmentCreate?.fulfillment?.id;
                 logger.info(`✅ Fulfillment created for order ${shopifyOrderId}:`, fulfillmentId);
                 // Locker pickup == delivered. Add a "Delivered" fulfillment event so
                 // the order shows Delivered (not just Fulfilled) and the seller

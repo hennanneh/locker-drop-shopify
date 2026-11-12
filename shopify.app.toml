@@ -30,7 +30,7 @@ scopes = "write_shipping,read_orders,write_orders,read_products,read_fulfillment
 redirect_urls = ["https://app.lockerdrop.it/auth/callback"]
 
 [webhooks]
-api_version = "2025-10"
+api_version = "2026-10"
 
   [webhooks.privacy_compliance]
   customer_deletion_url = "https://app.lockerdrop.it/webhooks/customers/redact"
