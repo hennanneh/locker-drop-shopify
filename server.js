@@ -2259,7 +2259,7 @@ app.post('/api/order/:shop/:orderId/status', requireApiAuth, async (req, res) =>
                                 persistKeypadCode: false,
                                 returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${shop}&t=${signOrderToken(shop, orderNumber)}`,
                                 clientInfo: `customer-${orderNumber}`,
-                                payload: { order_id: order.shopify_order_id, order_number: orderNumber, customer_name: order.customer_name }
+                                payload: { order_id: order.shopify_order_id, order_number: orderNumber }
                             },
                             { headers: { 'Authorization': `Bearer ${accessToken}` }}
                         );
@@ -3262,12 +3262,24 @@ const DEV_STORES = ['enna-test.myshopify.com'];
 // Usage-based billing configuration (per locker order, $200/month cap)
 const USAGE_BILLING = {
     name: 'LockerDrop Locker Pickup',
-    perOrderFee: 1.50,
+    perOrderFee: 1.50, // legacy default stored on subscriptions; actual fee is size-based (see feeForLockerSize)
     cappedAmount: 200.00,
-    terms: 'Locker pickup fee per order. Maximum $200.00 per 30-day billing cycle.',
+    terms: 'Locker pickup fee per order, by locker size: Extra Small $1.50, Small $2.00, Medium $3.00, Large $5.00, Extra Large $6.00. Maximum $200.00 per 30-day billing cycle.',
     trialDays: 7,
     currencyCode: 'USD'
 };
+
+// Per-order fee by locker size (docs/PRICING_MODEL.md, locked 2026-08-08):
+// Harbor's per-transaction cost + $1. Unknown size bills as Medium, matching the
+// allocator's default size.
+function feeForLockerSize(sizeName) {
+    const n = String(sizeName || '').toLowerCase().replace(/[\s_]+/g, '-');
+    if (/^(x-small|xs|extra-small|xsmall)$/.test(n)) return 1.50;
+    if (/^(x-large|xl|extra-large|xlarge)$/.test(n)) return 6.00;
+    if (n === 'small') return 2.00;
+    if (n === 'large') return 5.00;
+    return 3.00; // medium / unknown
+}
 
 // Get or create subscription for a shop
 async function getOrCreateSubscription(shop) {
@@ -3415,7 +3427,8 @@ async function createUsageSubscription(shop, accessToken) {
 }
 
 // Charge a per-order usage fee via Shopify Billing API
-async function chargeUsageFee(shop, shopifyOrderId, orderNumber) {
+async function chargeUsageFee(shop, shopifyOrderId, orderNumber, lockerSize) {
+    const fee = feeForLockerSize(lockerSize);
     try {
         // Check if already charged (idempotency)
         const orderCheck = await db.query(
@@ -3446,7 +3459,7 @@ async function chargeUsageFee(shop, shopifyOrderId, orderNumber) {
         }
 
         // Pre-check against capped amount
-        const newTotal = parseFloat(sub.total_charged_this_month || 0) + parseFloat(sub.per_order_fee);
+        const newTotal = parseFloat(sub.total_charged_this_month || 0) + fee;
         if (newTotal > parseFloat(sub.capped_amount)) {
             logger.warn({ shop, shopifyOrderId, currentTotal: sub.total_charged_this_month, cap: sub.capped_amount },
                 'Would exceed capped amount, skipping charge');
@@ -3493,10 +3506,10 @@ async function chargeUsageFee(shop, shopifyOrderId, orderNumber) {
         const variables = {
             subscriptionLineItemId: sub.shopify_line_item_id,
             price: {
-                amount: parseFloat(sub.per_order_fee),
+                amount: fee,
                 currencyCode: 'USD'
             },
-            description: `Locker pickup fee - Order #${orderNumber}`
+            description: `Locker pickup fee (${lockerSize || 'medium'} locker) - Order #${orderNumber}`
         };
 
         const data = await shopifyGraphQL(shop, accessToken, mutation, variables);
@@ -3514,7 +3527,7 @@ async function chargeUsageFee(shop, shopifyOrderId, orderNumber) {
                 total_charged_this_month = total_charged_this_month + $1,
                 updated_at = NOW()
             WHERE shop = $2
-        `, [sub.per_order_fee, shop]);
+        `, [fee, shop]);
 
         // Mark order as charged
         await db.query(
@@ -3522,7 +3535,7 @@ async function chargeUsageFee(shop, shopifyOrderId, orderNumber) {
             [shopifyOrderId]
         );
 
-        logger.info({ shop, shopifyOrderId, orderNumber, fee: sub.per_order_fee,
+        logger.info({ shop, shopifyOrderId, orderNumber, fee, lockerSize,
             usageRecordId: result.appUsageRecord?.id },
             'Usage fee charged successfully');
 
@@ -5693,7 +5706,7 @@ app.post('/api/manual-order/:shop', requireApiAuth, async (req, res) => {
                 requireLowLocker: false,  // Don't require low locker - use any available
                 returnUrl: `https://app.lockerdrop.it/dropoff-success?order=${orderNumber}&shop=${shop}&t=${signOrderToken(shop, orderNumber)}`,
                 clientInfo: `manual-order-${orderNumber}`,
-                payload: { order_number: orderNumber, customer_name: customerName, manual: true }
+                payload: { order_number: orderNumber, manual: true }
             },
             { headers: { 'Authorization': `Bearer ${accessToken}` }}
         );
@@ -5821,7 +5834,7 @@ app.post('/api/generate-pickup-link/:shop', requireApiAuth, async (req, res) => 
                 persistKeypadCode: false,
                 returnUrl: `https://app.lockerdrop.it/pickup-success?order=${orderNumber}&shop=${req.params.shop}&t=${signOrderToken(req.params.shop, orderNumber)}`,
                 clientInfo: `customer-${orderNumber}`,
-                payload: { order_id: orderId, order_number: orderNumber, customer_name: customerName }
+                payload: { order_id: orderId, order_number: orderNumber }
             },
             { headers: { 'Authorization': `Bearer ${accessToken}` }}
         );
@@ -7188,7 +7201,7 @@ async function processNewOrder(order, shopDomain) {
                 }
 
                 // Charge usage fee via Shopify Billing (after commit; idempotent by order id).
-                const chargeResult = await chargeUsageFee(shop, order.id.toString(), order.order_number?.toString());
+                const chargeResult = await chargeUsageFee(shop, order.id.toString(), order.order_number?.toString(), reservation.locker_size);
                 if (!chargeResult.charged) {
                     logger.warn({ shop, orderId: order.id, reason: chargeResult.reason },
                         'Usage fee not charged -- order still processed');
@@ -7360,7 +7373,8 @@ async function processNewOrder(order, shopDomain) {
         }
 
         // Charge usage fee via Shopify Billing (after order is saved)
-        const chargeResult2 = await chargeUsageFee(shop, order.id.toString(), order.order_number?.toString());
+        const billedSize = usedSize || (allSizes.find(sz => sz.id === minLockerTypeId) || {}).name;
+        const chargeResult2 = await chargeUsageFee(shop, order.id.toString(), order.order_number?.toString(), billedSize);
         if (!chargeResult2.charged) {
             logger.warn({ shop, orderId: order.id, reason: chargeResult2.reason },
                 'Usage fee not charged -- order still processed');
