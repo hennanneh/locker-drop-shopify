@@ -10,7 +10,7 @@
     "migrate:up": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
     "migrate:create": "node-pg-migrate create",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node test/tokens.test.mjs"
   },
   "keywords": [
     "shopify",
@@ -39,6 +39,7 @@
     "twilio": "^5.10.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.2.17",
     "nodemon": "^3.0.2"
   }
 }

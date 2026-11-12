@@ -448,19 +448,36 @@ async function finalizeNewOrder(order, shopDomain) {
 const SHOPIFY_API_VERSION = '2026-10';
 
 async function shopifyGraphQL(shop, accessToken, query, variables = {}) {
-    const response = await axios.post(
+    const send = (token) => axios.post(
         `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`,
         { query, variables },
         {
             headers: {
-                'X-Shopify-Access-Token': accessToken,
+                'X-Shopify-Access-Token': token,
                 'Content-Type': 'application/json'
             }
         }
     );
 
+    // Every Admin API call goes through here, so this is where expiring offline
+    // tokens are kept valid: send the freshest token (refreshing one about to
+    // expire), and on a 401 force one refresh and retry once.
+    let token = await tokenForRequest(shop, accessToken);
+    let response;
+    try {
+        response = await send(token);
+    } catch (e) {
+        if (e.response?.status !== 401) throw e;
+        const fresh = await getValidAccessToken(shop, { force: true });
+        // No different token to try (legacy token, or the refresh itself failed;
+        // refreshAccessToken flags needs_reauth when Shopify rejects the refresh).
+        if (!fresh || fresh === token) throw e;
+        logger.info({ shop }, 'Admin API 401; retrying once with a refreshed token');
+        response = await send(fresh);
+    }
+
     if (response.data.errors) {
-        logger.error('GraphQL errors:', response.data.errors);
+        logger.error({ shop, errors: response.data.errors }, 'GraphQL errors');
         throw new Error(response.data.errors[0]?.message || 'GraphQL query failed');
     }
 
@@ -807,6 +824,15 @@ app.use('/webhooks/', webhookLimiter);
 
 // Store access tokens (use a database in production)
 const accessTokens = new Map();
+// In-memory expiry per shop (ms epoch; 0 = legacy/non-expiring). Lets
+// shopifyGraphQL decide whether to refresh without a DB read on every call.
+const tokenExpiry = new Map();
+
+// One in-flight refresh per shop. Shopify ROTATES the refresh token on every
+// refresh, so two concurrent refreshes would race and the loser's stored token
+// would be dead. Everyone asking for a refresh shares the same promise.
+const refreshInFlight = new Map();
+
 
 // Short-lived OAuth nonces (state) keyed by shop, for CSRF protection on the
 // install -> callback round-trip. Expire after 10 minutes.
@@ -888,12 +914,20 @@ app.get('/auth/callback', async (req, res) => {
         // Save to database (tokens encrypted at rest if TOKEN_ENCRYPTION_KEY is set;
         // see db.js). Persists the refresh token + expiry for the expiring-offline-
         // token flow; a non-expiring response is stored with NULL expiries.
+        // The install is useless without a stored token (it would look connected,
+        // then fail within the hour), so retry once and fail the install loudly.
         try {
             await storeShopTokens(shop, tokenData);
-            logger.info('✅ Token saved to database for', shop);
         } catch (dbError) {
-            logger.error('❌ Database save error:', dbError);
+            logger.error({ shop, err: dbError.message }, '❌ Token save failed; retrying once');
+            try {
+                await storeShopTokens(shop, tokenData);
+            } catch (dbError2) {
+                logger.error({ shop, err: dbError2.message }, '❌ Token save failed twice; aborting install');
+                return res.status(500).send('LockerDrop could not finish connecting to your store. Please reopen the app to try again.');
+            }
         }
+        logger.info({ shop }, '✅ Token saved to database');
 
         // Register webhooks (don't fail if they already exist)
         try {
@@ -998,9 +1032,11 @@ app.get('/api/validate-token/:shop', requireApiAuth, async (req, res) => {
 
     try {
         // Get token from database
-        const result = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop]);
+        const result = await db.query('SELECT access_token, needs_reauth FROM stores WHERE shop = $1', [shop]);
 
-        if (result.rows.length === 0 || !result.rows[0].access_token) {
+        // A shop flagged needs_reauth (dead refresh token) is reported exactly like a
+        // missing token, so the dashboard silently re-runs OAuth once per session.
+        if (result.rows.length === 0 || !result.rows[0].access_token || result.rows[0].needs_reauth) {
             return res.json({ valid: false, error: 'No token found', needsReconnect: true });
         }
 
@@ -8631,9 +8667,10 @@ async function getAccessToken(shop, code) {
 // EXPIRING OFFLINE TOKEN HELPERS
 // ============================================
 
-// Persist tokens from an OAuth code-exchange or refresh response. Encrypts both
-// tokens at rest and records expiry timestamps. A non-expiring response (no
-// expires_in) stores NULL expiries and is treated as a permanent/legacy token.
+// Persist tokens from an OAuth code-exchange, refresh, or legacy-migration
+// response. Encrypts both tokens at rest and records expiry timestamps. A
+// non-expiring response (no expires_in) stores NULL expiries and is treated as a
+// permanent/legacy token. Storing new tokens always clears needs_reauth.
 async function storeShopTokens(shop, tokenData) {
     const now = Date.now();
     const tokenExpiresAt = tokenData.expires_in
@@ -8641,13 +8678,14 @@ async function storeShopTokens(shop, tokenData) {
     const refreshExpiresAt = tokenData.refresh_token_expires_in
         ? new Date(now + tokenData.refresh_token_expires_in * 1000) : null;
     await db.query(
-        `INSERT INTO stores (shop, access_token, refresh_token, token_expires_at, refresh_token_expires_at)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO stores (shop, access_token, refresh_token, token_expires_at, refresh_token_expires_at, needs_reauth)
+         VALUES ($1, $2, $3, $4, $5, false)
          ON CONFLICT (shop) DO UPDATE SET
              access_token = EXCLUDED.access_token,
              refresh_token = EXCLUDED.refresh_token,
              token_expires_at = EXCLUDED.token_expires_at,
-             refresh_token_expires_at = EXCLUDED.refresh_token_expires_at`,
+             refresh_token_expires_at = EXCLUDED.refresh_token_expires_at,
+             needs_reauth = false`,
         [
             shop,
             db.encryptToken(tokenData.access_token),
@@ -8657,69 +8695,152 @@ async function storeShopTokens(shop, tokenData) {
         ]
     );
     accessTokens.set(shop, tokenData.access_token); // keep in-memory cache fresh
+    tokenExpiry.set(shop, tokenExpiresAt ? tokenExpiresAt.getTime() : 0);
+}
+
+async function markNeedsReauth(shop, reason) {
+    logger.error({ shop, reason }, '❌ Shop needs re-authorization; merchant will be reconnected on next app open');
+    try {
+        await db.query('UPDATE stores SET needs_reauth = true WHERE shop = $1', [shop]);
+    } catch (e) {
+        logger.error({ shop, err: e.message }, 'Could not set needs_reauth');
+    }
 }
 
 // Exchange a refresh token for a new expiring offline access token, persist it,
 // and return the new access token. Transient failures (network/5xx/429) retry
-// with the SAME refresh token (Shopify returns the same response for up to 1h).
-// A 401 means the refresh token is dead and the shop must re-authorize.
+// with the SAME refresh token. A 400/401 means the refresh token is dead
+// (expired/replaced/invalid): flag the shop for re-auth and throw.
 async function refreshAccessToken(shop, refreshToken) {
-    let lastErr;
-    for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-            const resp = await axios.post(`https://${shop}/admin/oauth/access_token`, {
-                client_id: process.env.SHOPIFY_API_KEY,
-                client_secret: process.env.SHOPIFY_API_SECRET,
-                grant_type: 'refresh_token',
-                refresh_token: refreshToken,
-            });
-            await storeShopTokens(shop, resp.data);
-            logger.info({ shop }, '🔁 Refreshed expiring offline token');
-            return resp.data.access_token;
-        } catch (e) {
-            lastErr = e;
-            if (e.response?.status === 401) {
-                logger.error({ shop }, '❌ Refresh token rejected (401); shop must re-authorize');
-                throw e;
+    if (refreshInFlight.has(shop)) return refreshInFlight.get(shop);
+    const p = (async () => {
+        let lastErr;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                const resp = await axios.post(`https://${shop}/admin/oauth/access_token`, {
+                    client_id: process.env.SHOPIFY_API_KEY,
+                    client_secret: process.env.SHOPIFY_API_SECRET,
+                    grant_type: 'refresh_token',
+                    refresh_token: refreshToken,
+                });
+                await storeShopTokens(shop, resp.data);
+                logger.info({ shop }, '🔁 Refreshed expiring offline token');
+                return resp.data.access_token;
+            } catch (e) {
+                lastErr = e;
+                const status = e.response?.status;
+                if (status === 401) {
+                    await markNeedsReauth(shop, 'refresh token rejected (401)');
+                    throw e;
+                }
+                await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // backoff, retry
             }
-            await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // backoff, retry
         }
+        throw lastErr;
+    })();
+    refreshInFlight.set(shop, p);
+    try {
+        return await p;
+    } finally {
+        refreshInFlight.delete(shop);
     }
-    throw lastErr;
 }
 
 // Return a usable offline access token for the shop, refreshing it first if it
-// expires within 5 minutes. Legacy permanent tokens (token_expires_at IS NULL)
-// pass through unchanged. Returns null if the shop has no token.
-async function getValidAccessToken(shop) {
+// expires within 5 minutes (or always, with { force: true }). Legacy permanent
+// tokens (token_expires_at IS NULL) pass through unchanged. Returns null if the
+// shop has no token.
+async function getValidAccessToken(shop, { force = false } = {}) {
     const result = await db.query(
         'SELECT access_token, refresh_token, token_expires_at FROM stores WHERE shop = $1',
         [shop]
     );
     if (result.rows.length === 0 || !result.rows[0].access_token) return null;
     const row = result.rows[0];
+    tokenExpiry.set(shop, row.token_expires_at ? new Date(row.token_expires_at).getTime() : 0);
     if (!row.token_expires_at) return row.access_token;            // legacy permanent token
     const msLeft = new Date(row.token_expires_at).getTime() - Date.now();
-    if (msLeft > 5 * 60 * 1000) return row.access_token;           // still fresh
+    if (!force && msLeft > 5 * 60 * 1000) {                         // still fresh
+        accessTokens.set(shop, row.access_token);
+        return row.access_token;
+    }
     if (!row.refresh_token) return row.access_token;               // can't refresh; return as-is
     try {
         return await refreshAccessToken(shop, row.refresh_token);
     } catch (e) {
-        return row.access_token; // fall back; a 401 downstream can trigger re-auth
+        return row.access_token; // refresh failed; caller's request will surface the 401
     }
 }
 
-// Proactively refresh every shop whose access token expires within the window,
-// keeping the stored token fresh so all existing read sites stay valid. Runs on
-// an interval (see startTokenRefreshLoop); a 60-min TTL with a 15-min cadence
-// leaves wide margin.
+// Pick the token to send for this shop: the freshest one we know of, refreshed
+// first if it is about to expire. Call sites pass whatever token they loaded,
+// which may predate a refresh, so the in-memory cache wins when present.
+async function tokenForRequest(shop, passedToken) {
+    let exp = tokenExpiry.get(shop);
+    if (exp === undefined) {
+        try {
+            const r = await db.query('SELECT token_expires_at FROM stores WHERE shop = $1', [shop]);
+            exp = r.rows[0]?.token_expires_at ? new Date(r.rows[0].token_expires_at).getTime() : 0;
+            tokenExpiry.set(shop, exp);
+        } catch (e) {
+            return accessTokens.get(shop) || passedToken;
+        }
+    }
+    if (exp && exp - Date.now() < 5 * 60 * 1000) {
+        return (await getValidAccessToken(shop)) || passedToken;
+    }
+    return accessTokens.get(shop) || passedToken;
+}
+
+// Migrate a legacy non-expiring offline token to an expiring one via Shopify's
+// token exchange (no merchant interaction). Shopify permanently invalidates the
+// old token on success, so the new pair MUST be stored; if storing fails, the
+// same request within 7 days returns the same pair, so the next sweep recovers.
+async function migrateLegacyToken(shop, legacyToken) {
+    try {
+        const resp = await axios.post(
+            `https://${shop}/admin/oauth/access_token`,
+            new URLSearchParams({
+                grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+                client_id: process.env.SHOPIFY_API_KEY,
+                client_secret: process.env.SHOPIFY_API_SECRET,
+                subject_token: legacyToken,
+                subject_token_type: 'urn:shopify:params:oauth:token-type:offline-access-token',
+                requested_token_type: 'urn:shopify:params:oauth:token-type:offline-access-token',
+                expiring: '1',
+            }).toString(),
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+        );
+        if (!resp.data?.access_token || !resp.data?.expires_in) {
+            logger.error({ shop }, 'Legacy token migration returned no expiring token');
+            return false;
+        }
+        await storeShopTokens(shop, resp.data);
+        logger.info({ shop }, '🔁 Migrated legacy offline token to expiring');
+        return true;
+    } catch (e) {
+        const err = e.response?.data?.error;
+        if (err === 'invalid_subject_token') {
+            // Token is not an active non-expiring offline token for this app (revoked,
+            // uninstalled, or already migrated elsewhere): only re-auth can fix it.
+            await markNeedsReauth(shop, 'legacy migration: invalid_subject_token');
+        } else {
+            logger.warn({ shop, status: e.response?.status, err: err || e.message }, 'Legacy token migration failed; will retry next sweep');
+        }
+        return false;
+    }
+}
+
+// Sweep (every 15 min): refresh tokens expiring within 30 minutes (two full
+// cadences of margin, so one slow or failed run never lets a token lapse), and
+// migrate any remaining legacy non-expiring tokens.
 async function refreshExpiringTokens() {
     try {
-        const soon = new Date(Date.now() + 15 * 60 * 1000);
+        const soon = new Date(Date.now() + 30 * 60 * 1000);
         const due = await db.query(
             `SELECT shop, refresh_token FROM stores
              WHERE token_expires_at IS NOT NULL AND refresh_token IS NOT NULL
-               AND token_expires_at <= $1`,
+               AND needs_reauth = false AND token_expires_at <= $1`,
             [soon]
         );
         for (const row of due.rows) {
@@ -8730,6 +8851,16 @@ async function refreshExpiringTokens() {
             }
         }
         if (due.rows.length) logger.info({ count: due.rows.length }, '🔁 Proactively refreshed expiring tokens');
+
+        const legacy = await db.query(
+            `SELECT shop, access_token FROM stores
+             WHERE token_expires_at IS NULL AND access_token IS NOT NULL AND needs_reauth = false`
+        );
+        let migrated = 0;
+        for (const row of legacy.rows) {
+            if (await migrateLegacyToken(row.shop, row.access_token)) migrated++;
+        }
+        if (legacy.rows.length) logger.info({ found: legacy.rows.length, migrated }, '🔁 Legacy token migration pass');
     } catch (e) {
         logger.error({ err: e.message }, 'refreshExpiringTokens sweep failed');
     }
