@@ -2304,23 +2304,53 @@
 
                 <div class="info-box success" style="margin-top: 20px;">
                     <strong style="color: #008060;">How to add:</strong>
-                    <span style="color: #6d7175;"> Online Store → Themes → Customize → navigate to page → Add block/section → find under Apps</span>
+                    <span style="color: #6d7175;"> use the one-click buttons in <em>Add a LockerDrop Block to Your Theme</em> below. Each opens the theme editor with the block already placed; you just click Save.</span>
                 </div>
                 </div>
             </div>
 
-            <!-- Theme Blocks deep-link installer -->
-            <div class="card" style="margin-top: 24px;">
+            <!-- Theme Blocks deep-link installer + onboarding instructions -->
+            <div class="card" style="margin-top: 24px;" id="theme-blocks-onboarding">
                 <h3 style="margin-top: 0;">📦 Add a LockerDrop Block to Your Theme</h3>
-                <p style="color: #6d7175;">LockerDrop's elements are <strong>section blocks</strong>, not "App embeds". They won't appear under the Theme Editor's <em>App embeds</em> toggle — that panel is for global stuff like chat widgets. To add a LockerDrop block:</p>
-                <ol style="color: #202223; font-size: 13px; margin: 8px 0 16px 20px; padding: 0;">
-                    <li>Click a button below to open the Theme Editor on the right template (Product / Cart / Page / Home).</li>
-                    <li>In the left panel, click the section you want the block inside (e.g. "Product information").</li>
-                    <li>Click <strong>+ Add block</strong> inside that section.</li>
-                    <li>Switch to the <strong>Apps</strong> tab and pick the LockerDrop block.</li>
-                </ol>
+                <p style="color: #6d7175;">These storefront blocks are <strong>optional</strong>. Locker pickup at checkout works on any theme without them; the blocks just help shoppers discover it before checkout.</p>
+
+                <div class="info-box" style="margin: 12px 0;">
+                    <strong>Before you start: check your theme</strong>
+                    <ul style="margin: 6px 0 0 18px; padding: 0; font-size: 13px; color: #202223;">
+                        <li><strong>Online Store 2.0 themes</strong> (Dawn, Horizon and most themes from the Theme Store since 2021): all blocks below are supported.</li>
+                        <li><strong>Vintage themes</strong> (older themes without JSON templates) can't use app blocks. Locker pickup at checkout still works. To use the blocks, switch to an Online Store 2.0 theme or ask your theme developer to upgrade.</li>
+                        <li>Not sure? Go to <strong>Online Store → Themes → Customize</strong>. If you can click <strong>Add section</strong> or <strong>Add block</strong> on product pages, you're on Online Store 2.0.</li>
+                    </ul>
+                </div>
+
+                <h4 style="margin: 16px 0 6px;">1. Add a block (one click)</h4>
+                <p style="color: #6d7175; font-size: 13px; margin: 0 0 8px;">Each button opens your theme editor on the right page with the block already added. Review it, then click <strong>Save</strong> in the top-right corner.</p>
                 <div id="theme-block-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 12px;"></div>
-                <p style="color: #6d7175; font-size: 12px; margin-top: 12px;">If LockerDrop doesn't appear under <em>Apps</em>, your theme may not yet support app blocks (requires Online Store 2.0+).</p>
+
+                <h4 style="margin: 20px 0 6px;">2. Configure a block</h4>
+                <ol style="color: #202223; font-size: 13px; margin: 0 0 0 20px; padding: 0;">
+                    <li>In the theme editor's left panel, click the LockerDrop block.</li>
+                    <li>Change its text, colors and options in the settings panel that opens.</li>
+                    <li>Click <strong>Save</strong>.</li>
+                </ol>
+
+                <h4 style="margin: 16px 0 6px;">3. Move or reorder a block</h4>
+                <p style="color: #202223; font-size: 13px; margin: 0;">In the left panel, drag the block by its handle (⋮⋮) to a new position within its section, then click <strong>Save</strong>.</p>
+
+                <h4 style="margin: 16px 0 6px;">4. Hide or remove a block</h4>
+                <ul style="color: #202223; font-size: 13px; margin: 0 0 0 20px; padding: 0;">
+                    <li><strong>Hide:</strong> hover the block in the left panel and click the eye icon.</li>
+                    <li><strong>Remove:</strong> click the block, then <strong>Remove block</strong> at the bottom of its settings.</li>
+                    <li>Click <strong>Save</strong>. Uninstalling LockerDrop removes all of its blocks automatically.</li>
+                </ul>
+
+                <h4 style="margin: 16px 0 6px;">Prefer to add blocks by hand?</h4>
+                <ol style="color: #202223; font-size: 13px; margin: 0 0 0 20px; padding: 0;">
+                    <li>Go to <strong>Online Store → Themes → Customize</strong> and open the page shown on the block's card.</li>
+                    <li>Click <strong>Add block</strong> (inside a section) or <strong>Add section</strong>, then open the <strong>Apps</strong> tab.</li>
+                    <li>Pick the LockerDrop block and click <strong>Save</strong>.</li>
+                </ol>
+                <p style="color: #6d7175; font-size: 12px; margin-top: 12px;">LockerDrop blocks are app blocks, so they appear under <em>Apps</em> when you add a block or section. They aren't listed under <em>App embeds</em>.</p>
             </div>
 
             <!-- Need Help - Bottom of Learn Tab -->
@@ -3535,34 +3565,34 @@
             }
         }
 
-        // Build the theme-block deep-link panel (S3-4).
-        // Each button opens the Theme Editor at the relevant template; merchant
-        // adds the block via the side panel. We deliberately don't include
-        // activateAppId because the value Shopify expects there is the *deployed*
-        // extension UUID (assigned at release time) — not the local uid in
-        // shopify.extension.toml — and getting it right at runtime requires an
-        // App Management API call we don't currently make.
+        // Build the theme-block deep-link panel. Each button opens the Theme Editor
+        // with the block already added (Shopify "addAppBlockId" deep link):
+        //   /admin/themes/current/editor?template=T&addAppBlockId={api_key}/{handle}&target=...
+        // api_key is the app's client_id (same value App Bridge reads from the
+        // shopify-api-key meta tag); handle is the block's Liquid filename.
         function renderThemeBlockInstaller() {
             const grid = document.getElementById('theme-block-grid');
             if (!grid || grid.dataset.rendered === '1') return;
+            const apiKey = document.querySelector('meta[name="shopify-api-key"]')?.content || '';
 
             const blocks = [
-                { handle: 'product-pickup-badge', template: 'product', label: 'Product pickup badge', desc: 'Shows "Available for locker pickup" on each eligible product page.' },
-                { handle: 'cart-pickup-reminder', template: 'cart', label: 'Cart pickup reminder', desc: 'Reminds shoppers in the cart that locker pickup is available.' },
-                { handle: 'locker-finder', template: 'page', label: 'Locker finder', desc: 'Map + search widget so customers can find the nearest locker.' },
-                { handle: 'how-it-works', template: 'page', label: 'How it works (compact)', desc: 'Three-step explainer block.' },
-                { handle: 'how-it-works-page', template: 'page', label: 'How it works (full page)', desc: 'Full-page explainer.' },
-                { handle: 'promo-banner', template: 'index', label: 'Promo banner', desc: 'Site-wide locker pickup promotion.' }
+                { handle: 'product-pickup-badge', template: 'product', target: 'mainSection', page: 'Product pages', label: 'Product pickup badge', desc: 'Shows "Available for locker pickup" on eligible product pages, inside the product information section.' },
+                { handle: 'cart-pickup-reminder', template: 'cart', target: 'newAppsSection', page: 'Cart page', label: 'Cart pickup reminder', desc: 'Reminds shoppers in the cart that locker pickup is available.' },
+                { handle: 'locker-finder', template: 'page', target: 'newAppsSection', page: 'Pages (e.g. a "Locker pickup" page)', label: 'Locker finder', desc: 'Map and ZIP search so customers can find their nearest locker.' },
+                { handle: 'how-it-works', template: 'page', target: 'newAppsSection', page: 'Pages', label: 'How it works (compact)', desc: 'Three-step explainer.' },
+                { handle: 'how-it-works-page', template: 'page', target: 'newAppsSection', page: 'Pages', label: 'How it works (full page)', desc: 'Full-page explainer with steps, benefits and FAQ.' },
+                { handle: 'promo-banner', template: 'index', target: 'newAppsSection', page: 'Home page', label: 'Promo banner', desc: 'Promotes locker pickup on your home page.' }
             ];
 
             grid.innerHTML = blocks.map(b => {
                 const url = 'https://' + shop + '/admin/themes/current/editor'
-                    + '?context=apps'
-                    + '&template=' + encodeURIComponent(b.template);
+                    + '?template=' + encodeURIComponent(b.template)
+                    + (apiKey ? '&addAppBlockId=' + encodeURIComponent(apiKey + '/' + b.handle) + '&target=' + encodeURIComponent(b.target) : '&context=apps');
                 return '<div class="info-box" style="display: flex; flex-direction: column; gap: 8px;">'
-                    + '<strong>' + b.label + '</strong>'
-                    + '<span style="color: #6d7175; font-size: 13px;">' + b.desc + '</span>'
-                    + '<a href="' + url + '" target="_blank" rel="noopener" class="btn btn-primary" style="text-align: center; text-decoration: none; font-size: 13px; padding: 8px 12px;">Open ' + b.template + ' template</a>'
+                    + '<strong>' + escHtml(b.label) + '</strong>'
+                    + '<span style="color: #6d7175; font-size: 13px;">' + escHtml(b.desc) + '</span>'
+                    + '<span style="color: #6d7175; font-size: 12px;">Goes on: <strong>' + escHtml(b.page) + '</strong></span>'
+                    + '<a href="' + escHtml(url) + '" target="_blank" rel="noopener" class="btn btn-primary" style="text-align: center; text-decoration: none; font-size: 13px; padding: 8px 12px;">Add to ' + escHtml(b.template === 'index' ? 'home' : b.template) + ' page</a>'
                     + '</div>';
             }).join('');
             grid.dataset.rendered = '1';

@@ -63,7 +63,12 @@ it up with a secure link, and the Shopify order auto-fulfills on pickup.
    They run the exact production completion path — real order token, real Shopify fulfillment —
    only the physical locker step is simulated. The full physical cycle is in the demo video.)
 
-6. **Uninstall** to confirm clean removal (sessions revoked, webhooks removed).
+6. **(Optional) Storefront blocks:** in LockerDrop → **Learn**, under *Add a LockerDrop Block
+   to Your Theme*, click **Add to product page**. The theme editor opens with the pickup badge
+   already placed; click Save. The tab also has written steps to configure, reorder and remove
+   blocks. Blocks need an Online Store 2.0 theme; checkout pickup works on any theme.
+
+7. **Uninstall** to confirm clean removal (sessions revoked, webhooks removed).
 
 **Notes**
 - Customer emails/SMS use the address/phone on the test order.

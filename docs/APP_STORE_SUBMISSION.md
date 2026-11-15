@@ -66,6 +66,11 @@ Advanced, or Plus**. Basic is not supported.
 - Automatic right-size locker selection from product dimensions
 - Auto-fulfillment on pickup — no manual status updates
 - Usage-based pricing billed through your Shopify invoice
+- Optional storefront blocks (pickup badge, cart reminder, locker finder, how-it-works,
+  promo banner) added in one click from the app's Learn tab
+
+**Theme compatibility (put this in the listing description):** "Locker pickup at checkout
+works with any theme. The optional storefront blocks require an Online Store 2.0 theme."
 
 **Pricing:** usage-based, billed through your Shopify invoice. Per locker order, by
 locker size: Extra Small $1.50, Small $2.00, Medium $3.00, Large $5.00, Extra Large $6.00.
