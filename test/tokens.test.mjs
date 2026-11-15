@@ -8,7 +8,7 @@ const src = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
 const grab = (startMarker, endMarker) => { const a = src.indexOf(startMarker), b = src.indexOf(endMarker, a); assert(a >= 0 && b > a, startMarker); return src.slice(a, b); };
 const code = [
   grab('async function shopifyGraphQL(', '// Fetch all products with variants'),
-  grab('// Persist tokens from an OAuth code-exchange', 'async function registerCarrierService('),
+  grab('// Persist tokens from an OAuth code-exchange', "// Install setup and the dashboard's plan check"),
 ].join('\n');
 
 const pg = new PGlite();

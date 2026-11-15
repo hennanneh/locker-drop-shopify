@@ -9161,7 +9161,19 @@ async function findLockerDropCarrierServices(shop, accessToken) {
     return (data.carrierServices?.nodes || []).filter(c => c.callbackUrl === CARRIER_CALLBACK_URL);
 }
 
-async function registerCarrierService(shop, accessToken) {
+// Install setup and the dashboard's plan check can both register on a fresh
+// install at the same moment; without this lock both could create a carrier
+// service (shoppers would see LockerDrop twice).
+const carrierRegistrationInFlight = new Map();
+function registerCarrierService(shop, accessToken) {
+    if (carrierRegistrationInFlight.has(shop)) return carrierRegistrationInFlight.get(shop);
+    const p = registerCarrierServiceOnce(shop, accessToken)
+        .finally(() => carrierRegistrationInFlight.delete(shop));
+    carrierRegistrationInFlight.set(shop, p);
+    return p;
+}
+
+async function registerCarrierServiceOnce(shop, accessToken) {
     try {
         // Reuse an existing LockerDrop carrier service; remove duplicates (two
         // registrations would show shoppers two LockerDrop options).
