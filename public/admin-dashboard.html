@@ -6147,7 +6147,10 @@
                         length,
                         width,
                         height,
-                        locker_size: lockerSize || 'medium',
+                        // 'Auto' with dimensions: no fixed size, so checkout and allocation
+                        // pick the smallest locker the dimensions fit. Medium only when
+                        // there are no dimensions to go on.
+                        locker_size: lockerSize || ((length > 0 || width > 0 || height > 0) ? null : 'medium'),
                         excluded: isExcluded
                     });
                 }

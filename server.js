@@ -4514,7 +4514,8 @@ app.post('/api/product-sizes/:shop', requireApiAuth, async (req, res) => {
                 product.length || 0,
                 product.width || 0,
                 product.height || 0,
-                product.locker_size || 'medium',
+                // Auto + dimensions => NULL (dimensions decide); Medium only without dimensions.
+                product.locker_size || ((product.length > 0 || product.width > 0 || product.height > 0) ? null : 'medium'),
                 product.excluded || false
             ]);
         }
