@@ -19,7 +19,7 @@ let handler;
 const axios = { post: async (url, body, opts) => { calls.push({ url, body, opts }); await new Promise(r => setTimeout(r, 20)); return handler(url, body, opts); } };
 const err = (status, data) => Object.assign(new Error('HTTP ' + status), { response: { status, data } });
 const logs = []; const logger = { info: (...a) => logs.push(['info', ...a]), warn: (...a) => logs.push(['warn', ...a]), error: (...a) => logs.push(['error', ...a]) };
-const ctx = { db, axios, logger, accessTokens: new Map(), tokenExpiry: new Map(), refreshInFlight: new Map(), process: { env: { SHOPIFY_API_KEY: 'k', SHOPIFY_API_SECRET: 's' } }, SHOPIFY_API_VERSION: '2026-10', URLSearchParams, setTimeout, Date, Promise, Error, Map };
+const ctx = { db, axios, logger, accessTokens: new Map(), tokenExpiry: new Map(), refreshInFlight: new Map(), provisionedShops: new Set(), process: { env: { SHOPIFY_API_KEY: 'k', SHOPIFY_API_SECRET: 's' } }, SHOPIFY_API_VERSION: '2026-10', URLSearchParams, setTimeout, Date, Promise, Error, Map };
 vm.createContext(ctx); vm.runInContext(code + '\nthis.F={shopifyGraphQL,storeShopTokens,refreshAccessToken,getValidAccessToken,tokenForRequest,migrateLegacyToken,refreshExpiringTokens};', ctx);
 const F = ctx.F;
 const reset = async (rows) => { await pg.exec('DELETE FROM stores'); ctx.accessTokens.clear(); ctx.tokenExpiry.clear(); calls.length = 0; logs.length = 0;

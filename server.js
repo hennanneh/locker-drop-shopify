@@ -8837,12 +8837,13 @@ async function storeShopTokens(shop, tokenData) {
 
 async function markNeedsReauth(shop, reason) {
     logger.error({ shop, reason }, '❌ Shop needs re-authorization; merchant will be reconnected on next app open');
-    provisionedShops.delete(shop);
     try {
         await db.query('UPDATE stores SET needs_reauth = true WHERE shop = $1', [shop]);
     } catch (e) {
         logger.error({ shop, err: e.message }, 'Could not set needs_reauth');
     }
+    // Next authenticated request re-checks the DB and re-runs token exchange.
+    provisionedShops.delete(shop);
 }
 
 // Exchange a refresh token for a new expiring offline access token, persist it,
