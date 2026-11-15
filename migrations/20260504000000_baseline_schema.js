@@ -99,6 +99,44 @@ exports.up = pgm => {
     pgm.sql(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS location_name VARCHAR(255);`);
     pgm.sql(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS billing_charged BOOLEAN DEFAULT false;`);
 
+    // product_locker_sizes and shop_settings were created by hand on the prod DB
+    // and never had a CREATE in the repo, so a fresh database (local dev, a new
+    // environment) could not be built. Definitions match prod exactly
+    // (read from information_schema 2026-11-15). IF NOT EXISTS: no-op on prod.
+    pgm.sql(`
+        CREATE TABLE IF NOT EXISTS product_locker_sizes (
+            id SERIAL PRIMARY KEY,
+            shop VARCHAR(255) NOT NULL,
+            product_id VARCHAR(255) NOT NULL,
+            product_title VARCHAR(255),
+            variant_id VARCHAR(255) NOT NULL DEFAULT '',
+            variant_title VARCHAR(255),
+            length_inches NUMERIC DEFAULT 0,
+            width_inches NUMERIC DEFAULT 0,
+            height_inches NUMERIC DEFAULT 0,
+            locker_size VARCHAR(50),
+            excluded BOOLEAN DEFAULT false,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (shop, product_id, variant_id)
+        );
+        CREATE TABLE IF NOT EXISTS shop_settings (
+            shop VARCHAR(255) PRIMARY KEY,
+            free_pickup BOOLEAN DEFAULT false,
+            hold_time_days INTEGER DEFAULT 3,
+            processing_days INTEGER DEFAULT 1,
+            fulfillment_days VARCHAR(255) DEFAULT 'monday,tuesday,wednesday,thursday,friday',
+            vacation_days TEXT DEFAULT '[]',
+            use_checkout_extension BOOLEAN DEFAULT true,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            price_small_cents INTEGER DEFAULT 100,
+            price_medium_cents INTEGER DEFAULT 100,
+            price_large_cents INTEGER DEFAULT 100,
+            price_xlarge_cents INTEGER DEFAULT 100
+        );
+    `);
+
     // product_locker_sizes — exclude flag
     pgm.sql(`ALTER TABLE product_locker_sizes ADD COLUMN IF NOT EXISTS excluded BOOLEAN DEFAULT FALSE;`);
 
