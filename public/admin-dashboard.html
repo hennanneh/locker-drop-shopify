@@ -4035,7 +4035,8 @@
                 const result = await resp.json().catch(() => ({}));
                 if (resp.ok && result.success !== false) {
                     notify(`Simulated ${label} for #${orderNumber}.`);
-                    await loadOrders();
+                    // Refresh the stat cards and Next Action banner too, not just the table.
+                    await Promise.all([loadOrders(), loadStats()]);
                 } else {
                     notify(result.error || result.message || `Could not simulate ${label}.`);
                 }
