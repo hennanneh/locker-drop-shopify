@@ -4892,6 +4892,7 @@ app.post('/api/shipping-rates/:shop', requireApiAuth, async (req, res) => {
                         zonesToUpdate: zoneIds.map(zoneId => ({
                             id: zoneId,
                             methodDefinitionsToCreate: [{
+                                name: 'LockerDrop',
                                 active: true,
                                 participant: {
                                     carrierServiceId: status.carrierServiceId,
