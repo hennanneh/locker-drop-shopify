@@ -2423,13 +2423,17 @@
                         <svg width="16" height="16" viewBox="0 0 20 20" fill="#008060"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/></svg>
                         <span style="color: #008060; font-size: 14px;"><strong>Carrier service active.</strong> LockerDrop can calculate shipping rates automatically.</span>
                     </div>
-                    <p style="font-size: 14px; color: #6d7175; margin-bottom: 12px;">Make sure LockerDrop is added as a shipping rate in your shipping profile. If you haven't done this yet:</p>
-                    <ol style="margin: 0 0 12px 0; padding-left: 20px; font-size: 13px; line-height: 1.8; color: #6d7175;">
+                    <div class="ld-rate-status" style="font-size: 14px; color: #6d7175; margin-bottom: 12px;">Checking your shipping rates...</div>
+                    <button class="btn btn-primary ld-rate-btn" onclick="addLockerDropShippingRate(this)" style="display: none;">Add LockerDrop to my shipping rates</button>
+                    <details style="margin-top: 12px; font-size: 13px; color: #6d7175;">
+                        <summary style="cursor: pointer;">Prefer to do it yourself?</summary>
+                    <ol style="margin: 8px 0 12px 0; padding-left: 20px; font-size: 13px; line-height: 1.8; color: #6d7175;">
                         <li>Go to <strong>Settings → Shipping and delivery</strong></li>
                         <li>Click <strong>Manage</strong> on your shipping profile</li>
                         <li>In your shipping zone, click <strong>Add rate</strong> → <strong>"Use carrier or app to calculate rates"</strong> → select <strong>LockerDrop</strong></li>
                     </ol>
                     <button class="btn btn-secondary" onclick="openShippingSettings()">Open Shipping Settings</button>
+                    </details>
                 </div>
 
                 <!-- State B: Eligible but not registered (yellow) -->
@@ -2899,9 +2903,13 @@
                     <!-- Carrier service instructions (confirmed registered) -->
                     <div id="onboarding-carrier-instructions" style="display: none;">
                         <div style="background: #e3f5ef; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; font-size: 14px; color: #008060;">
-                            LockerDrop carrier service is registered — just add it to your shipping zones.
+                            LockerDrop carrier service is registered. Add it to your shipping zones so customers see it at checkout.
                         </div>
-                        <div style="background: var(--p-color-bg-surface-secondary); border-radius: var(--p-border-radius-200); padding: var(--p-space-400);">
+                        <div class="ld-rate-status" style="font-size: 14px; color: #6d7175; margin-bottom: 12px;">Checking your shipping rates...</div>
+                    <button class="btn btn-primary ld-rate-btn" onclick="addLockerDropShippingRate(this)" style="display: none;">Add LockerDrop to my shipping rates</button>
+                    <details style="margin-top: 12px; font-size: 13px; color: #6d7175;">
+                        <summary style="cursor: pointer;">Prefer to do it yourself?</summary>
+                        <div style="background: var(--p-color-bg-surface-secondary); border-radius: var(--p-border-radius-200); padding: var(--p-space-400); margin-top: 8px;">
                             <ol style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 2;">
                                 <li>Go to <strong>Settings → Shipping and delivery</strong></li>
                                 <li>Click <strong>Manage</strong> on your shipping profile</li>
@@ -2911,6 +2919,7 @@
                                 <li>Click <strong>Done</strong>, then <strong>Save</strong></li>
                             </ol>
                         </div>
+                        </details>
                     </div>
                     <!-- Manual rate instructions (carrier not registered — Basic/Standard or registration failed) -->
                     <div id="onboarding-manual-instructions" style="display: none;">
@@ -3248,6 +3257,7 @@
             if (planInfo.carrierServiceRegistered) {
                 // State A: Carrier service active
                 document.getElementById('shipping-state-registered').style.display = '';
+                loadShippingRateStatus();
                 badge.textContent = 'Active';
                 badge.style.background = '#e3f5ef';
                 badge.style.color = '#008060';
@@ -3278,11 +3288,61 @@
             // Only show carrier instructions if carrier service is actually registered and confirmed working
             if (planInfo && planInfo.carrierServiceRegistered) {
                 if (carrierInstr) carrierInstr.style.display = '';
+                loadShippingRateStatus();
                 if (manualInstr) manualInstr.style.display = 'none';
             } else {
                 // Show manual rate instructions (covers: Basic plan, registration failed, API error)
                 if (carrierInstr) carrierInstr.style.display = 'none';
                 if (manualInstr) manualInstr.style.display = '';
+            }
+        }
+
+        // Is LockerDrop a rate in the store's US shipping zones? Updates every
+        // .ld-rate-status / .ld-rate-btn pair (Settings card + setup wizard).
+        function renderShippingRateStatus(data, error) {
+            document.querySelectorAll('.ld-rate-status').forEach(el => {
+                if (error) {
+                    el.textContent = error;
+                    el.style.color = '#bf0711';
+                } else if (data.added) {
+                    el.textContent = '✓ LockerDrop is in your shipping rates (' +
+                        data.zones.map(z => z.zoneName).join(', ') + '). Customers will see it at checkout.';
+                    el.style.color = '#008060';
+                } else {
+                    const missing = (data.zones || []).filter(z => !z.covered).map(z => z.zoneName);
+                    el.textContent = missing.length
+                        ? 'LockerDrop is not in your shipping rates yet (' + missing.join(', ') + '), so customers won\'t see it at checkout.'
+                        : 'No shipping zone covers the United States yet. Add one in Shopify\'s shipping settings first.';
+                    el.style.color = '#8a6d00';
+                }
+            });
+            const showBtn = !error && data && !data.added && (data.zones || []).length > 0;
+            document.querySelectorAll('.ld-rate-btn').forEach(b => { b.style.display = showBtn ? '' : 'none'; });
+        }
+
+        async function loadShippingRateStatus() {
+            try {
+                const resp = await window.__nativeFetch(`/api/shipping-rates/${shop}`);
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok) return renderShippingRateStatus(null, data.error || 'Could not check your shipping rates.');
+                renderShippingRateStatus(data);
+            } catch (e) {
+                renderShippingRateStatus(null, 'Could not check your shipping rates.');
+            }
+        }
+
+        async function addLockerDropShippingRate(btn) {
+            const all = document.querySelectorAll('.ld-rate-btn');
+            all.forEach(b => { b.disabled = true; b.textContent = 'Adding...'; });
+            try {
+                const resp = await window.__nativeFetch(`/api/shipping-rates/${shop}`, { method: 'POST' });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok) throw new Error(data.error || 'Could not add LockerDrop to your shipping rates.');
+                renderShippingRateStatus({ added: data.success, zones: data.zones || [] });
+            } catch (e) {
+                renderShippingRateStatus(null, e.message);
+            } finally {
+                all.forEach(b => { b.disabled = false; b.textContent = 'Add LockerDrop to my shipping rates'; });
             }
         }
 

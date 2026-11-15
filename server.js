@@ -4789,6 +4789,135 @@ app.get('/api/locker-preferences/:shop', requireApiAuth, async (req, res) => {
     }
 });
 
+// ---- Shipping rates: is LockerDrop added to the shop's US shipping zones? ----
+// Registering a carrier service does not put it at checkout; it must also be a
+// rate in each shipping zone. Fresh installs (and reinstalls, which drop the old
+// rate) need this, so setup offers a one-click "add to my shipping rates".
+async function getShippingRateStatus(shop, accessToken) {
+    const carriers = await findLockerDropCarrierServices(shop, accessToken);
+    const carrierIds = new Set(carriers.map(c => c.id));
+    const data = await shopifyGraphQL(shop, accessToken, `{
+        deliveryProfiles(first: 25) { nodes { id name default
+            profileLocationGroups { locationGroup { id }
+                locationGroupZones(first: 100) { nodes {
+                    zone { id name countries { code { countryCode restOfWorld } } }
+                    methodDefinitions(first: 100) { nodes { id active
+                        rateProvider { ... on DeliveryParticipant { carrierService { id } } } } }
+                } }
+            }
+        } }
+    }`);
+    const zones = [];
+    for (const profile of data.deliveryProfiles?.nodes || []) {
+        for (const plg of profile.profileLocationGroups || []) {
+            for (const lgz of plg.locationGroupZones?.nodes || []) {
+                const shipsToUS = (lgz.zone.countries || []).some(c =>
+                    c.code?.countryCode === 'US' || c.code?.restOfWorld);
+                if (!shipsToUS) continue;
+                const covered = (lgz.methodDefinitions?.nodes || []).some(m =>
+                    m.active && carrierIds.has(m.rateProvider?.carrierService?.id));
+                zones.push({
+                    profileId: profile.id, profileName: profile.name,
+                    locationGroupId: plg.locationGroup.id,
+                    zoneId: lgz.zone.id, zoneName: lgz.zone.name, covered
+                });
+            }
+        }
+    }
+    return {
+        carrierServiceId: carriers[0]?.id || null,
+        zones,
+        added: zones.length > 0 && zones.every(z => z.covered)
+    };
+}
+
+async function shopAccessToken(shop) {
+    const r = await db.query('SELECT access_token FROM stores WHERE shop = $1', [shop]);
+    return accessTokens.get(shop) || r.rows[0]?.access_token || null;
+}
+
+app.get('/api/shipping-rates/:shop', requireApiAuth, async (req, res) => {
+    try {
+        const { shop } = req.params;
+        const token = await shopAccessToken(shop);
+        if (!token) return res.status(401).json({ error: 'Not connected to Shopify' });
+        const status = await getShippingRateStatus(shop, token);
+        res.json({ carrierRegistered: !!status.carrierServiceId, added: status.added,
+            zones: status.zones.map(z => ({ profileName: z.profileName, zoneName: z.zoneName, covered: z.covered })) });
+    } catch (error) {
+        logger.error({ err: error.message }, 'Error reading shipping rate status');
+        res.status(500).json({ error: 'Could not read your shipping settings' });
+    }
+});
+
+app.post('/api/shipping-rates/:shop', requireApiAuth, async (req, res) => {
+    try {
+        const { shop } = req.params;
+        const token = await shopAccessToken(shop);
+        if (!token) return res.status(401).json({ error: 'Not connected to Shopify' });
+
+        // Registration reuses an existing carrier service and removes duplicates.
+        const reg = await registerCarrierService(shop, token);
+        if (!reg) {
+            return res.status(400).json({ error: "Your Shopify plan doesn't have carrier-calculated shipping enabled, so LockerDrop can't be added as a rate yet." });
+        }
+        const status = await getShippingRateStatus(shop, token);
+        if (status.zones.length === 0) {
+            return res.status(400).json({ error: 'No shipping zone covers the United States. Add a US shipping zone in Shopify, then try again.' });
+        }
+
+        // One deliveryProfileUpdate per profile, adding a LockerDrop rate to each
+        // US zone that doesn't have one.
+        const byProfile = new Map();
+        for (const z of status.zones.filter(z => !z.covered)) {
+            if (!byProfile.has(z.profileId)) byProfile.set(z.profileId, new Map());
+            const groups = byProfile.get(z.profileId);
+            if (!groups.has(z.locationGroupId)) groups.set(z.locationGroupId, []);
+            groups.get(z.locationGroupId).push(z.zoneId);
+        }
+        const errors = [];
+        for (const [profileId, groups] of byProfile) {
+            const result = await shopifyGraphQL(shop, token, `
+                mutation($id: ID!, $profile: DeliveryProfileInput!) {
+                    deliveryProfileUpdate(id: $id, profile: $profile) {
+                        profile { id }
+                        userErrors { field message }
+                    }
+                }`, {
+                id: profileId,
+                profile: {
+                    locationGroupsToUpdate: [...groups].map(([lgId, zoneIds]) => ({
+                        id: lgId,
+                        zonesToUpdate: zoneIds.map(zoneId => ({
+                            id: zoneId,
+                            methodDefinitionsToCreate: [{
+                                active: true,
+                                participant: {
+                                    carrierServiceId: status.carrierServiceId,
+                                    adaptToNewServices: true,
+                                    participantServices: []
+                                }
+                            }]
+                        }))
+                    }))
+                }
+            });
+            const ue = result.deliveryProfileUpdate?.userErrors || [];
+            if (ue.length) errors.push(...ue.map(e => e.message));
+        }
+        if (errors.length) {
+            logger.warn({ shop, errors }, 'Adding LockerDrop shipping rate returned errors');
+            return res.status(400).json({ error: errors.join('; ') });
+        }
+        const after = await getShippingRateStatus(shop, token);
+        logger.info({ shop, zones: after.zones.length, added: after.added }, '🚚 Added LockerDrop to shipping rates');
+        res.json({ success: after.added, zones: after.zones.map(z => ({ profileName: z.profileName, zoneName: z.zoneName, covered: z.covered })) });
+    } catch (error) {
+        logger.error({ err: error.message }, 'Error adding LockerDrop shipping rate');
+        res.status(500).json({ error: 'Could not update your shipping settings. You can add it manually in Settings > Shipping and delivery.' });
+    }
+});
+
 // Selected lockers that Harbor no longer lists (location removed or no longer
 // shared with our account). Checkout silently skips those, so the dashboard
 // warns the merchant. Harbor's location list is cached for 5 minutes.
@@ -9021,8 +9150,35 @@ async function refreshExpiringTokens() {
     }
 }
 
+const CARRIER_CALLBACK_URL = 'https://app.lockerdrop.it/carrier-service/rates';
+
+// All LockerDrop carrier services on the shop (matched by our callback URL).
+async function findLockerDropCarrierServices(shop, accessToken) {
+    const data = await shopifyGraphQL(shop, accessToken,
+        `{ carrierServices(first: 50) { nodes { id name callbackUrl active } } }`);
+    return (data.carrierServices?.nodes || []).filter(c => c.callbackUrl === CARRIER_CALLBACK_URL);
+}
+
 async function registerCarrierService(shop, accessToken) {
     try {
+        // Reuse an existing LockerDrop carrier service; remove duplicates (two
+        // registrations would show shoppers two LockerDrop options).
+        const existing = await findLockerDropCarrierServices(shop, accessToken);
+        if (existing.length > 0) {
+            for (const dup of existing.slice(1)) {
+                try {
+                    const del = await shopifyGraphQL(shop, accessToken,
+                        `mutation($id: ID!) { carrierServiceDelete(id: $id) { deletedId userErrors { message } } }`,
+                        { id: dup.id });
+                    logger.info({ shop, id: dup.id, errors: del.carrierServiceDelete?.userErrors }, 'Removed duplicate LockerDrop carrier service');
+                } catch (e) {
+                    logger.warn({ shop, id: dup.id, err: e.message }, 'Could not remove duplicate carrier service');
+                }
+            }
+            logger.info({ shop, id: existing[0].id }, '✅ Carrier service already registered');
+            return existing[0];
+        }
+
         logger.info('🚚 Registering carrier service...');
         const result = await shopifyGraphQL(shop, accessToken, `
             mutation carrierServiceCreate($input: DeliveryCarrierServiceCreateInput!) {
@@ -9040,7 +9196,7 @@ async function registerCarrierService(shop, accessToken) {
         `, {
             input: {
                 name: 'LockerDrop',
-                callbackUrl: 'https://app.lockerdrop.it/carrier-service/rates',
+                callbackUrl: CARRIER_CALLBACK_URL,
                 active: true,
                 supportsServiceDiscovery: true
             }
