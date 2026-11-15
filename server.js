@@ -1621,8 +1621,23 @@ async function requireApiAuth(req, res, next) {
 // Shops known to have a usable offline token (skips a DB read per request).
 const provisionedShops = new Set();
 
+// One provisioning run per shop: the dashboard fires several API calls at once
+// on first load, and each would otherwise run the whole post-install setup.
+const provisioningInFlight = new Map();
+
 async function ensureShopProvisioned(shop, idToken) {
     if (provisionedShops.has(shop)) return;
+    if (provisioningInFlight.has(shop)) return provisioningInFlight.get(shop);
+    const p = provisionShop(shop, idToken);
+    provisioningInFlight.set(shop, p);
+    try {
+        await p;
+    } finally {
+        provisioningInFlight.delete(shop);
+    }
+}
+
+async function provisionShop(shop, idToken) {
     try {
         const r = await db.query('SELECT access_token, needs_reauth FROM stores WHERE shop = $1', [shop]);
         if (r.rows[0]?.access_token && !r.rows[0].needs_reauth) {
