@@ -887,6 +887,50 @@ app.get('/auth/install', (req, res) => {
 });
 
 // OAuth callback
+// Post-install setup shared by the OAuth callback and token-exchange install:
+// register webhooks, detect the plan, and register the carrier service that
+// puts LockerDrop at checkout. Each step logs and continues on failure.
+async function completeShopSetup(shop, accessToken) {
+    // Register webhooks (don't fail if they already exist)
+    try {
+        await registerWebhooks(shop, accessToken);
+    } catch (e) {
+        logger.info('⚠️ Webhook registration skipped:', e.message);
+    }
+
+    // Detect shop plan and conditionally register carrier service
+    let carrierRegistered = false;
+    try {
+        const planData = await getShopPlan(shop, accessToken);
+        if (planData) {
+            await db.query(
+                `UPDATE stores SET shop_plan = $1, partner_development = $2, shopify_plus = $3, plan_last_checked = NOW() WHERE shop = $4`,
+                [planData.displayName, planData.partnerDevelopment, planData.shopifyPlus, shop]
+            );
+            logger.info({ shop, plan: planData.displayName, eligible: isCarrierEligible(planData) }, 'Shop plan detected');
+        }
+
+        // LockerDrop requires carrier-calculated shipping. Attempt registration
+        // for EVERY store, not just name-eligible plans — a Grow store with the
+        // CCS add-on (or annual billing) is eligible even though its plan name
+        // isn't "Advanced"/"Plus". registerCarrierService returns null and logs
+        // when the plan doesn't have CCS enabled; the dashboard then prompts the
+        // merchant to turn it on (see docs/CCS_REQUIREMENT.md).
+        try {
+            const result = await registerCarrierService(shop, accessToken);
+            carrierRegistered = !!result;
+        } catch (e) {
+            logger.info('⚠️ Carrier service registration skipped:', e.message);
+        }
+        await db.query(
+            'UPDATE stores SET carrier_service_registered = $1 WHERE shop = $2',
+            [carrierRegistered, shop]
+        );
+    } catch (planError) {
+        logger.error({ shop, err: planError.message }, 'Error during plan detection / carrier registration');
+    }
+}
+
 app.get('/auth/callback', async (req, res) => {
     const { shop, code, state } = req.query;
 
@@ -929,44 +973,7 @@ app.get('/auth/callback', async (req, res) => {
         }
         logger.info({ shop }, '✅ Token saved to database');
 
-        // Register webhooks (don't fail if they already exist)
-        try {
-            await registerWebhooks(shop, accessToken);
-        } catch (e) {
-            logger.info('⚠️ Webhook registration skipped:', e.message);
-        }
-
-        // Detect shop plan and conditionally register carrier service
-        let carrierRegistered = false;
-        try {
-            const planData = await getShopPlan(shop, accessToken);
-            if (planData) {
-                await db.query(
-                    `UPDATE stores SET shop_plan = $1, partner_development = $2, shopify_plus = $3, plan_last_checked = NOW() WHERE shop = $4`,
-                    [planData.displayName, planData.partnerDevelopment, planData.shopifyPlus, shop]
-                );
-                logger.info({ shop, plan: planData.displayName, eligible: isCarrierEligible(planData) }, 'Shop plan detected');
-            }
-
-            // LockerDrop requires carrier-calculated shipping. Attempt registration
-            // for EVERY store, not just name-eligible plans — a Grow store with the
-            // CCS add-on (or annual billing) is eligible even though its plan name
-            // isn't "Advanced"/"Plus". registerCarrierService returns null and logs
-            // when the plan doesn't have CCS enabled; the dashboard then prompts the
-            // merchant to turn it on (see docs/CCS_REQUIREMENT.md).
-            try {
-                const result = await registerCarrierService(shop, accessToken);
-                carrierRegistered = !!result;
-            } catch (e) {
-                logger.info('⚠️ Carrier service registration skipped:', e.message);
-            }
-            await db.query(
-                'UPDATE stores SET carrier_service_registered = $1 WHERE shop = $2',
-                [carrierRegistered, shop]
-            );
-        } catch (planError) {
-            logger.error({ shop, err: planError.message }, 'Error during plan detection / carrier registration');
-        }
+        await completeShopSetup(shop, accessToken);
 
         // Create authenticated session
         req.session.authenticated = true;
@@ -1600,10 +1607,71 @@ async function requireApiAuth(req, res, next) {
             return res.status(401).json({ error: 'Unauthorized', message: 'Token shop mismatch.' });
         }
         req.shopifyAuth = payload;
-        return next();
     } catch (err) {
         logger.warn({ shop, path: req.path, err: err.message }, 'API auth: invalid session token');
         return res.status(401).json({ error: 'Unauthorized', message: 'Invalid session token.' });
+    }
+
+    // Shopify-managed install never calls /auth/callback, so a freshly installed
+    // shop has no offline token. Get one by exchanging this verified session token.
+    await ensureShopProvisioned(shop, authHeader.slice(7));
+    return next();
+}
+
+// Shops known to have a usable offline token (skips a DB read per request).
+const provisionedShops = new Set();
+
+async function ensureShopProvisioned(shop, idToken) {
+    if (provisionedShops.has(shop)) return;
+    try {
+        const r = await db.query('SELECT access_token, needs_reauth FROM stores WHERE shop = $1', [shop]);
+        if (r.rows[0]?.access_token && !r.rows[0].needs_reauth) {
+            provisionedShops.add(shop);
+            return;
+        }
+        const isNewInstall = !r.rows[0]?.access_token;
+        const accessToken = await exchangeSessionToken(shop, idToken);
+        provisionedShops.add(shop);
+        if (isNewInstall) {
+            logger.info({ shop }, '🆕 New install via token exchange; running setup');
+            completeShopSetup(shop, accessToken).catch(e =>
+                logger.error({ shop, err: e.message }, 'Post-install setup failed'));
+        }
+    } catch (e) {
+        // Leave the request alone; routes report the missing token as before.
+        logger.error({ shop, status: e.response?.status, err: e.response?.data?.error || e.message }, 'Token exchange failed');
+    }
+}
+
+// Exchange a verified App Bridge ID token for an expiring offline access token.
+// Shares the per-shop lock with refresh: a concurrent refresh and exchange would
+// each retire the other's token.
+async function exchangeSessionToken(shop, idToken) {
+    if (refreshInFlight.has(shop)) return refreshInFlight.get(shop);
+    const p = (async () => {
+        const resp = await axios.post(
+            `https://${shop}/admin/oauth/access_token`,
+            new URLSearchParams({
+                client_id: process.env.SHOPIFY_API_KEY,
+                client_secret: process.env.SHOPIFY_API_SECRET,
+                grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+                subject_token: idToken,
+                subject_token_type: 'urn:ietf:params:oauth:token-type:id_token',
+                requested_token_type: 'urn:shopify:params:oauth:token-type:offline-access-token',
+                expiring: '1',
+            }).toString(),
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+        );
+        if (!resp.data?.access_token) throw new Error('Token exchange returned no access_token');
+        await storeShopTokens(shop, resp.data);
+        logger.info({ shop }, '🔑 Offline token obtained via token exchange');
+        return resp.data.access_token;
+    })();
+    refreshInFlight.set(shop, p);
+    try {
+        return await p;
+    } finally {
+        refreshInFlight.delete(shop);
     }
 }
 
@@ -6993,6 +7061,8 @@ async function processAppUninstall(shop, { throwOnError = false } = {}) {
             catch (e) { logger.info(`   ⚠️ Could not delete logo file: ${e.message}`); }
         }
         accessTokens.delete(shop);
+        tokenExpiry.delete(shop);
+        provisionedShops.delete(shop);
 
         logger.info(`✅ All data cleaned up for ${shop}`);
     } catch (error) {
@@ -8767,6 +8837,7 @@ async function storeShopTokens(shop, tokenData) {
 
 async function markNeedsReauth(shop, reason) {
     logger.error({ shop, reason }, '❌ Shop needs re-authorization; merchant will be reconnected on next app open');
+    provisionedShops.delete(shop);
     try {
         await db.query('UPDATE stores SET needs_reauth = true WHERE shop = $1', [shop]);
     } catch (e) {

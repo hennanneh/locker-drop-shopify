@@ -1755,6 +1755,14 @@
                 </button>
             </div>
 
+            <!-- Billing Approval Banner: usage subscription not approved yet -->
+            <div id="billing-approve-banner" style="display: none; background: #eef4ff; color: #1c3d5a; padding: 16px 24px; text-align: center; font-weight: 500; border-bottom: 1px solid #c9dcf7;">
+                <span id="billing-approve-message">Approve LockerDrop's usage billing to finish setup. You're only charged per locker order, capped at $200 per 30 days.</span>
+                <button id="billing-approve-btn" onclick="approveBilling()" style="margin-left: 16px; padding: 8px 20px; background: #FE5535; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    Review and approve
+                </button>
+            </div>
+
             <!-- Removed Locker Banner: selected lockers Harbor no longer lists -->
             <div id="locker-removed-banner" role="alert" style="display: none; background: #fdecea; color: #8a1c13; padding: 16px 24px; text-align: center; font-weight: 500; border-bottom: 1px solid #f5c2bd;">
                 <span id="locker-removed-message"></span>
@@ -3349,6 +3357,42 @@
             }
         }
 
+        // Usage billing must be approved by the merchant on Shopify's own page. With
+        // Shopify-managed install there is no OAuth callback to redirect from, so the
+        // dashboard offers it whenever the subscription isn't active.
+        async function checkBillingStatus() {
+            const banner = document.getElementById('billing-approve-banner');
+            if (!banner) return;
+            try {
+                const resp = await window.__nativeFetch(`/api/subscription/${shop}`);
+                if (!resp.ok) return;
+                const sub = await resp.json();
+                banner.style.display = sub.status === 'active' ? 'none' : 'block';
+            } catch (e) {
+                console.warn('Billing status check failed', e);
+            }
+        }
+
+        async function approveBilling() {
+            const btn = document.getElementById('billing-approve-btn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Opening...'; }
+            try {
+                const resp = await window.__nativeFetch(`/api/billing/retry/${shop}`, { method: 'POST' });
+                const data = await resp.json().catch(() => ({}));
+                if (data.alreadyActive) {
+                    document.getElementById('billing-approve-banner').style.display = 'none';
+                    return;
+                }
+                if (!resp.ok || !data.confirmationUrl) throw new Error(data.error || 'Could not start billing approval');
+                // Shopify's approval page must load in the top window, not this iframe.
+                window.open(data.confirmationUrl, '_top');
+            } catch (e) {
+                alert(e.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = 'Review and approve'; }
+            }
+        }
+
         async function pruneRemovedLockers() {
             const btn = document.getElementById('locker-removed-btn');
             if (btn) { btn.disabled = true; btn.textContent = 'Removing...'; }
@@ -3380,6 +3424,7 @@
             setTimeout(() => {
                 checkOnboardingNeeded();
                 checkLockerHealth();
+                checkBillingStatus();
             }, 500); // Small delay to let the page initialize
         }
 
