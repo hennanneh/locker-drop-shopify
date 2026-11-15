@@ -3219,6 +3219,13 @@ app.post('/api/order-change-location/:shop/:orderNumber', requireApiAuth, async 
             [shop, newLocationId, locationName]
         ).catch(() => {}); // ignore if constraint doesn't exist
 
+        // Test orders (reviewer / dev store) never reserve a physical locker: just
+        // record the new location; the Sim buttons complete the flow.
+        if (await canSimulateOrder(order.shop, order.order_number)) {
+            logger.info({ orderNumber, newLocationId }, '🧪 Test order moved to a new location (no Harbor reservation)');
+            return res.json({ success: true, locationName, simulated: true });
+        }
+
         // Generate a new dropoff link at the new location
         let dropoffLink = null;
         try {
