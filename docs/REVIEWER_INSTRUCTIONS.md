@@ -26,13 +26,15 @@ it up with a secure link, and the Shopify order auto-fulfills on pickup.
 1. **Install** from the listing → approve the requested data access → you land on the
    LockerDrop dashboard.
 
-2. **Run the 3-step setup guide:**
+2. **Run the setup guide** (it opens automatically after install):
    a. **My Lockers** — search the map and select at least one locker location to offer.
    b. **Product Sizes**: set a size for one product (so the app reserves a right-sized locker).
       Choose **Small** for your test product: LockerDrop only offers a locker when at least two
       of the required size are free, and small units are the most widely available. (The My
       Lockers list shows each location's sizes.)
-   c. **Settings** — enable the LockerDrop shipping rate and set pickup pricing.
+   c. **Settings**: under **Shipping Setup**, click **Add LockerDrop to my shipping rates**
+      (adds LockerDrop to your US shipping zone in one click; the status line turns green).
+      Pickup pricing defaults to $1.00 per order and can be changed below it.
 
 3. **Place a test order:** on the storefront, add the sized product → checkout → enter an
    address **within a few miles of your selected locker** (or the locker's own address) → the **"LockerDrop @ [locker]"** option appears
