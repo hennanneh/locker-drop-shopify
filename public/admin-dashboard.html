@@ -1755,6 +1755,14 @@
                 </button>
             </div>
 
+            <!-- Removed Locker Banner: selected lockers Harbor no longer lists -->
+            <div id="locker-removed-banner" role="alert" style="display: none; background: #fdecea; color: #8a1c13; padding: 16px 24px; text-align: center; font-weight: 500; border-bottom: 1px solid #f5c2bd;">
+                <span id="locker-removed-message"></span>
+                <button id="locker-removed-btn" onclick="pruneRemovedLockers()" style="margin-left: 16px; padding: 8px 20px; background: #FE5535; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    Remove unavailable lockers
+                </button>
+            </div>
+
             <!-- Scope Warning Banner -->
             <div id="scope-warning-banner" style="display: none; background: #fff3cd; color: #856404; padding: 16px 24px; text-align: center; font-weight: 500; border-bottom: 1px solid #ffeeba;">
                 <span id="scope-warning-message">Auto-fulfillment is disabled. Missing permission: write_fulfillments.</span>
@@ -3315,10 +3323,63 @@
             });
         }
 
+        // Warn when a selected locker is no longer offered by Harbor. Checkout
+        // skips it silently, so without this the merchant just stops getting orders.
+        async function checkLockerHealth() {
+            const banner = document.getElementById('locker-removed-banner');
+            const msg = document.getElementById('locker-removed-message');
+            if (!banner || !msg) return;
+            try {
+                const resp = await window.__nativeFetch(`/api/locker-health/${shop}`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                const removed = Array.isArray(data.removed) ? data.removed : [];
+                if (!data.checked || removed.length === 0) {
+                    banner.style.display = 'none';
+                    return;
+                }
+                const names = removed.map(r => r.name).join(', ');
+                const all = removed.length >= data.total;
+                msg.textContent = all
+                    ? `LockerDrop is hidden at checkout: your selected locker${removed.length === 1 ? '' : 's'} (${names}) ${removed.length === 1 ? 'is' : 'are'} no longer available from Harbor. Choose a new locker to keep offering pickup.`
+                    : `${removed.length} of your selected lockers (${names}) ${removed.length === 1 ? 'is' : 'are'} no longer available from Harbor, so customers won't see ${removed.length === 1 ? 'it' : 'them'} at checkout.`;
+                banner.style.display = 'block';
+            } catch (e) {
+                console.warn('Locker health check failed', e);
+            }
+        }
+
+        async function pruneRemovedLockers() {
+            const btn = document.getElementById('locker-removed-btn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Removing...'; }
+            try {
+                const resp = await window.__nativeFetch(`/api/locker-health/${shop}/prune`, { method: 'POST' });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok) throw new Error(data.error || 'Could not remove lockers');
+                document.getElementById('locker-removed-banner').style.display = 'none';
+                // Reload so My Lockers counts and checkboxes reflect the server.
+                if (typeof savedPreferenceIds !== 'undefined') {
+                    try {
+                        const prefs = await (await window.__nativeFetch(`/api/locker-preferences/${shop}`)).json();
+                        savedPreferenceIds = prefs.map(p => p.location_id);
+                        if (typeof originalSavedIds !== 'undefined') originalSavedIds = [...savedPreferenceIds];
+                        if (typeof updateLockerSelectionCount === 'function') updateLockerSelectionCount();
+                    } catch (_) { /* tab reload below still recovers */ }
+                }
+                showTab('lockers');
+                if (data.remaining === 0 && typeof checkOnboardingNeeded === 'function') checkOnboardingNeeded();
+            } catch (e) {
+                alert(e.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = 'Remove unavailable lockers'; }
+            }
+        }
+
         // Check onboarding when page loads
         if (shop) {
             setTimeout(() => {
                 checkOnboardingNeeded();
+                checkLockerHealth();
             }, 500); // Small delay to let the page initialize
         }
 
@@ -4856,6 +4917,7 @@
                     }, 2500);
                     // Also hide reminder banner if it was showing
                     hideSetupReminderBanner();
+                    checkLockerHealth();
                     if (typeof refreshSetupGuide === 'function') refreshSetupGuide();
                 } else {
                     notify(friendlyError(data, 'Save locker preferences'));

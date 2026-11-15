@@ -28,11 +28,14 @@ it up with a secure link, and the Shopify order auto-fulfills on pickup.
 
 2. **Run the 3-step setup guide:**
    a. **My Lockers** — search the map and select at least one locker location to offer.
-   b. **Product Sizes** — set a size for one product (so the app reserves a right-sized locker).
+   b. **Product Sizes**: set a size for one product (so the app reserves a right-sized locker).
+      Choose **Small** for your test product: LockerDrop only offers a locker when at least two
+      of the required size are free, and small units are the most widely available. (The My
+      Lockers list shows each location's sizes.)
    c. **Settings** — enable the LockerDrop shipping rate and set pickup pricing.
 
 3. **Place a test order:** on the storefront, add the sized product → checkout → enter an
-   address **near your selected locker** → the **"LockerDrop @ [locker]"** option appears
+   address **within a few miles of your selected locker** (or the locker's own address) → the **"LockerDrop @ [locker]"** option appears
    alongside normal shipping (with distance + pickup date) → select it → pay with
    **Bogus Gateway** (card number `1`).
 

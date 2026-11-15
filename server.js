@@ -4705,6 +4705,73 @@ app.get('/api/locker-preferences/:shop', requireApiAuth, async (req, res) => {
     }
 });
 
+// Selected lockers that Harbor no longer lists (location removed or no longer
+// shared with our account). Checkout silently skips those, so the dashboard
+// warns the merchant. Harbor's location list is cached for 5 minutes.
+let harborLocationCache = { at: 0, map: null };
+async function getHarborLocationMapCached() {
+    if (harborLocationCache.map && Date.now() - harborLocationCache.at < 5 * 60 * 1000) {
+        return harborLocationCache.map;
+    }
+    const map = await fetchHarborLocationNames();
+    if (map) harborLocationCache = { at: Date.now(), map };
+    return map;
+}
+
+app.get('/api/locker-health/:shop', requireApiAuth, async (req, res) => {
+    try {
+        const { shop } = req.params;
+        const prefs = await db.query(
+            'SELECT location_id, location_name FROM locker_preferences WHERE shop = $1',
+            [shop]
+        );
+        if (prefs.rows.length === 0) return res.json({ checked: true, total: 0, removed: [] });
+
+        const harborMap = await getHarborLocationMapCached();
+        if (!harborMap) {
+            // Harbor unreachable: don't raise a false alarm.
+            return res.json({ checked: false, total: prefs.rows.length, removed: [] });
+        }
+        const removed = prefs.rows
+            .filter(r => !harborMap.has(Number(r.location_id)))
+            .map(r => ({ id: r.location_id, name: r.location_name || `Location ${r.location_id}` }));
+        if (removed.length) {
+            logger.warn({ shop, removed: removed.map(r => r.id) }, 'Shop has selected lockers Harbor no longer lists');
+        }
+        res.json({ checked: true, total: prefs.rows.length, removed });
+    } catch (error) {
+        logger.error({ err: error.message }, 'Error checking locker health');
+        res.status(500).json({ error: 'Failed to check lockers' });
+    }
+});
+
+// Remove selected lockers Harbor no longer lists (merchant-initiated from the
+// dashboard banner). Uses a fresh Harbor fetch, never the cache, and refuses to
+// prune when Harbor is unreachable or returns an empty list.
+app.post('/api/locker-health/:shop/prune', requireApiAuth, async (req, res) => {
+    try {
+        const { shop } = req.params;
+        const harborMap = await fetchHarborLocationNames();
+        if (!harborMap || harborMap.size === 0) {
+            return res.status(503).json({ error: 'Harbor is unreachable right now; nothing was removed.' });
+        }
+        harborLocationCache = { at: Date.now(), map: harborMap };
+        const prefs = await db.query('SELECT location_id FROM locker_preferences WHERE shop = $1', [shop]);
+        const removeIds = prefs.rows.map(r => r.location_id).filter(id => !harborMap.has(Number(id)));
+        if (removeIds.length) {
+            await db.query(
+                'DELETE FROM locker_preferences WHERE shop = $1 AND location_id = ANY($2)',
+                [shop, removeIds]
+            );
+            logger.info({ shop, removed: removeIds }, 'Pruned lockers Harbor no longer lists');
+        }
+        res.json({ success: true, removed: removeIds.length, remaining: prefs.rows.length - removeIds.length });
+    } catch (error) {
+        logger.error({ err: error.message }, 'Error pruning lockers');
+        res.status(500).json({ error: 'Failed to remove lockers' });
+    }
+});
+
 // Get real-time locker availability for dashboard
 app.get('/api/locker-availability/:shop', requireApiAuth, async (req, res) => {
     try {
