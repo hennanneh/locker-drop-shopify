@@ -1,0 +1,27 @@
+LockerDrop adds smart-locker pickup as a checkout shipping option: the customer picks a nearby locker, the merchant drops the package in, the customer collects it with a secure link, and the order auto-fulfills on pickup.
+
+BEFORE YOU START
+- Carrier-calculated shipping must be on (Development, Advanced and Plus stores have it).
+- Embedded app, no separate login.
+- Billing is usage-based via Shopify Billing: $1.50-$6.00 per order by locker size, capped at $200 per 30 days. Test charges on a dev store.
+
+STEPS
+1. Install and approve data access. The setup guide opens automatically.
+2. Setup:
+ a. My Lockers: search the map (e.g. ZIP 75212) and select a locker. Save.
+ b. Product Sizes: give one product a Small size (or dimensions such as 10 x 6 x 3). A locker is offered only when 2+ of the needed size are free; small units are most available.
+ c. Shipping: in the wizard's last step (or Settings > Shipping Setup) click "Add LockerDrop to my shipping rates". The status turns green.
+ d. Approve billing: click "Review and approve" in the blue banner, then Approve (test charge).
+3. Storefront: add the sized product, checkout, and enter an address within a few miles of the locker. "LockerDrop @ [locker]" appears with distance and pickup date. Select it and pay with Bogus Gateway (card 1).
+4. The order email gets "Order confirmed: locker pickup". In LockerDrop > Orders the order shows Pending drop-off.
+5. Test orders never reserve a physical locker, so they show reviewer Sim buttons (Actions column and the View panel):
+ - Sim drop-off > confirm: Ready for pickup, pickup link created, customer emailed.
+ - Sim pickup > confirm: Completed, and the order auto-fulfills in Shopify (open it in Admin to see Fulfilled).
+ Sim buttons appear only for test orders or on development stores. They run the real completion path; only the physical locker step is simulated. The demo video shows a real locker cycle.
+6. Optional storefront blocks: LockerDrop > Learn > "Add a LockerDrop Block to Your Theme" > "Add to product page". The theme editor opens with the badge placed; click Save. Blocks need an Online Store 2.0 theme; checkout pickup works on any theme.
+7. Uninstall to confirm clean removal.
+
+NOTES
+- Scopes are minimized and justified in the app configuration.
+- Privacy policy lists all processors (Harbor, Twilio, Resend, DigitalOcean, OpenStreetMap tiles, Zippopotam.us ZIP lookup, Google Analytics on the marketing site only).
+- Contact: anne@lockerdrop.it. Happy to provide a fresh test order or hop on a call.
