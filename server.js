@@ -4793,15 +4793,16 @@ app.get('/api/locker-preferences/:shop', requireApiAuth, async (req, res) => {
 // Registering a carrier service does not put it at checkout; it must also be a
 // rate in each shipping zone. Fresh installs (and reinstalls, which drop the old
 // rate) need this, so setup offers a one-click "add to my shipping rates".
+// Page sizes keep the query under Shopify's 1000-point cost cap (10x25x25).
 async function getShippingRateStatus(shop, accessToken) {
     const carriers = await findLockerDropCarrierServices(shop, accessToken);
     const carrierIds = new Set(carriers.map(c => c.id));
     const data = await shopifyGraphQL(shop, accessToken, `{
-        deliveryProfiles(first: 25) { nodes { id name default
+        deliveryProfiles(first: 10) { nodes { id name default
             profileLocationGroups { locationGroup { id }
-                locationGroupZones(first: 100) { nodes {
+                locationGroupZones(first: 25) { nodes {
                     zone { id name countries { code { countryCode restOfWorld } } }
-                    methodDefinitions(first: 100) { nodes { id active
+                    methodDefinitions(first: 25) { nodes { id active
                         rateProvider { ... on DeliveryParticipant { carrierService { id } } } } }
                 } }
             }
