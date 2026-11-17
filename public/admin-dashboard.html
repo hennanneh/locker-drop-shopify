@@ -1757,7 +1757,7 @@
 
             <!-- Billing Approval Banner: usage subscription not approved yet -->
             <div id="billing-approve-banner" style="display: none; background: #eef4ff; color: #1c3d5a; padding: 16px 24px; text-align: center; font-weight: 500; border-bottom: 1px solid #c9dcf7;">
-                <span id="billing-approve-message">Approve LockerDrop's usage billing to finish setup. You're only charged per locker order, capped at $200 per 30 days.</span>
+                <span id="billing-approve-message">Approve LockerDrop's usage billing to finish setup. Locker pickup appears at checkout once it's approved. You're only charged per locker order, capped at $200 per 30 days, with a 7-day free trial.</span>
                 <button id="billing-approve-btn" onclick="approveBilling()" style="margin-left: 16px; padding: 8px 20px; background: #FE5535; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                     Review and approve
                 </button>
@@ -3458,7 +3458,23 @@
                 const resp = await window.__nativeFetch(`/api/subscription/${shop}`);
                 if (!resp.ok) return;
                 const sub = await resp.json();
-                banner.style.display = sub.status === 'active' ? 'none' : 'block';
+                const msg = document.getElementById('billing-approve-message');
+                const declined = sub.status === 'declined'
+                    || new URLSearchParams(window.location.search).get('billing') === 'declined';
+                if (sub.status === 'active') {
+                    banner.style.display = 'none';
+                    return;
+                }
+                // A decline on Shopify's charge page returns the merchant to the
+                // admin, not to us, so this banner is where LockerDrop handles it.
+                banner.style.background = declined ? '#fdecea' : '#eef4ff';
+                banner.style.color = declined ? '#8a1c13' : '#1c3d5a';
+                banner.style.borderBottomColor = declined ? '#f5c2bd' : '#c9dcf7';
+                banner.setAttribute('role', declined ? 'alert' : 'status');
+                if (msg) msg.textContent = declined
+                    ? "You declined LockerDrop's usage billing, so LockerDrop isn't active for your store yet. Approve it to start offering locker pickup. You're only charged per locker order, capped at $200 per 30 days, with a 7-day free trial."
+                    : "Approve LockerDrop's usage billing to finish setup. Locker pickup appears at checkout once it's approved. You're only charged per locker order, capped at $200 per 30 days, with a 7-day free trial.";
+                banner.style.display = 'block';
             } catch (e) {
                 console.warn('Billing status check failed', e);
             }

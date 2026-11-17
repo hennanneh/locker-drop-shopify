@@ -981,26 +981,12 @@ app.get('/auth/callback', async (req, res) => {
         req.session.authenticatedAt = Date.now();
         logger.info(`🔐 Session created for ${shop}`);
 
-        // Create usage-based billing subscription
-        try {
-            const billingResult = await createUsageSubscription(shop, accessToken);
-
-            if (billingResult.alreadyActive) {
-                // Already has subscription, go to dashboard
-                const shopHost = Buffer.from(`${shop}/admin`).toString('base64').replace(/=+$/, '');
-                return res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}`);
-            }
-
-            if (billingResult.confirmationUrl) {
-                // Redirect to Shopify payment confirmation page
-                return res.redirect(billingResult.confirmationUrl);
-            }
-        } catch (billingError) {
-            logger.error({ shop, err: billingError.message }, 'Failed to create billing subscription on install');
-            // Don't block install -- let them in, they'll see billing prompt in dashboard
-        }
-
-        // Fallback: redirect to embedded app
+        // Billing is requested from INSIDE the app (dashboard banner), never from
+        // here. If we redirected to the charge page before the app had opened, a
+        // decline would land the merchant on Settings > Apps with no way for the app
+        // to handle it (App Store review 1.2.2, Nov 2026). Opening the app first
+        // means the dashboard can show the declined state and ask again.
+        // Open the embedded app
         const shopHost = Buffer.from(`${shop}/admin`).toString('base64').replace(/=+$/, '');
         res.redirect(`https://${shop}/admin/apps/${process.env.SHOPIFY_API_KEY}?host=${shopHost}`);
     } catch (error) {
@@ -3697,6 +3683,32 @@ app.get('/api/subscription/:shop', requireApiAuth, async (req, res) => {
     try {
         const { shop } = req.params;
         const subscription = await getOrCreateSubscription(shop);
+
+        // Shopify never calls our returnUrl when a merchant declines: it sends them
+        // to Settings > Apps. So a declined charge still reads 'pending' here until
+        // we ask Shopify. Reconcile so the dashboard can say it was declined.
+        if (subscription.status === 'pending' && subscription.shopify_subscription_id) {
+            try {
+                const data = await shopifyGraphQL(shop, await getValidAccessToken(shop),
+                    `query($id: ID!) { node(id: $id) { ... on AppSubscription { id status } } }`,
+                    { id: subscription.shopify_subscription_id });
+                const st = data?.node?.status;
+                if (st === 'ACTIVE') {
+                    await db.query(`
+                        UPDATE subscriptions
+                        SET status = 'active', billing_cycle_start = NOW(),
+                            orders_this_month = 0, total_charged_this_month = 0, updated_at = NOW()
+                        WHERE shop = $1 AND status = 'pending'
+                    `, [shop]);
+                    subscription.status = 'active';
+                } else if (st === 'DECLINED' || st === 'EXPIRED' || st === 'CANCELLED') {
+                    await db.query(`UPDATE subscriptions SET status = 'declined', updated_at = NOW() WHERE shop = $1 AND status = 'pending'`, [shop]);
+                    subscription.status = 'declined';
+                }
+            } catch (e) {
+                logger.warn({ shop, err: e.message }, 'Could not reconcile pending subscription with Shopify');
+            }
+        }
 
         res.json({
             plan: subscription.plan_name,
@@ -9523,6 +9535,22 @@ app.post('/carrier-service/rates', async (req, res) => {
         // To bring back the Plus inline widget later, fetch stores.shopify_plus and set:
         //   useNativePickup = (settings.use_checkout_extension || false) && shopIsPlus;
         let useNativePickup = false;
+
+        // No locker pickup until the merchant approves usage billing. Without this a
+        // store that declined the charge would still get LockerDrop at checkout for
+        // free (App Store req 1.2.2: the app must handle a declined charge). Fails
+        // open on a DB error so a transient blip never hides pickup from a paying store.
+        if (shopDomain) {
+            try {
+                const subResult = await db.query('SELECT status FROM subscriptions WHERE shop = $1', [shopDomain]);
+                if (subResult.rows[0]?.status !== 'active') {
+                    logger.info({ shop: shopDomain, status: subResult.rows[0]?.status || 'none' }, 'Billing not approved; no LockerDrop rates');
+                    return res.json({ rates: [] });
+                }
+            } catch (e) {
+                logger.warn({ shop: shopDomain, err: e.message }, 'Billing check failed; offering rates anyway');
+            }
+        }
 
         if (shopDomain) {
             try {
