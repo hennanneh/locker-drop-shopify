@@ -16,7 +16,7 @@ per-field reason.
 | **Orders** (line items, quantities, product refs) | Size each package against product dimensions to reserve the smallest locker that fits, and to fulfill the order on pickup. |
 | **Customer name** | Shown to the merchant on the drop-off screen and included in the customer's pickup notifications so they can identify their order. |
 | **Customer email** | Send the order confirmation and the secure drop-off/pickup links, plus "ready for pickup" reminders (via Resend). |
-| **Customer phone** | Send SMS pickup notifications and reminders (via Twilio). Optional — only used if provided. |
+| **Customer phone** | Shown to the merchant on the order. SMS is paused (2026-11-18), so no texts are sent and Twilio receives nothing. |
 | **Shipping address** | Find the nearest Harbor locker to the customer and confirm the order is within pickup range; determines whether LockerDrop is offered at checkout. |
 
 > Keep reasons specific and tied to the app's core function — Shopify rejects vague or
@@ -31,7 +31,7 @@ Shopify asks you to confirm you meet each requirement. Current status:
 | Encrypt data **in transit** | ✅ | All traffic over HTTPS (`app.lockerdrop.it`); Harbor/Shopify calls over TLS. |
 | Encrypt sensitive data **at rest** | ✅ | Shopify access tokens encrypted AES-256-GCM (`enc:v1:` — S2-10). Confirm DB volume/PII handling meets your bar. |
 | **Data minimization** | ✅ | Scopes trimmed 10→6 with per-scope justifications in `shopify.app.toml` (S3-6). Only the fields above are read. |
-| Up-to-date **privacy policy** naming processors | ✅ | `public/privacy-policy.html` lists Shopify, Harbor, Twilio, Resend, DigitalOcean + links. |
+| Up-to-date **privacy policy** naming processors | ✅ | `public/privacy-policy.html` lists Shopify, Harbor, Resend, DigitalOcean + links. |
 | **Deletion / redaction** on request | ✅ | Mandatory compliance webhooks wired: `customers/redact`, `customers/data_request`, `shop/redact` (in `shopify.app.toml`, HMAC-verified). |
 | **Incident response** process | ✅ | `docs/INCIDENT_RESPONSE_POLICY.md`. |
 | **Least-privilege / limited staff access** | ⚠️ confirm | Confirm who has DB/server access and that it's limited; note it in the attestation. |

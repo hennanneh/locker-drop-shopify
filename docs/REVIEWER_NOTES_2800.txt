@@ -23,5 +23,5 @@ STEPS
 
 NOTES
 - Scopes are minimized and justified in the app configuration.
-- Privacy policy lists all processors (Harbor, Twilio, Resend, DigitalOcean, OpenStreetMap tiles, Zippopotam.us ZIP lookup, Google Analytics on the marketing site only).
+- Privacy policy lists all processors (Harbor, Resend, DigitalOcean, OpenStreetMap tiles, Zippopotam.us ZIP lookup, Google Analytics on the marketing site only).
 - Contact: anne@lockerdrop.it. Happy to provide a fresh test order or hop on a call.

@@ -47,7 +47,7 @@ LockerDrop adds contactless, 24/7 **smart-locker pickup** to your store.
 - **When an order comes in**, LockerDrop reserves the right-sized locker (based on
   your product dimensions) and gives you a secure drop-off link.
 - **After you drop the package in the locker**, the customer gets a pickup link and
-  reminders by email/SMS.
+  reminders by email.
 - **When they pick up**, the order is **automatically fulfilled** in Shopify and the
   locker is released.
 
@@ -148,7 +148,7 @@ Dev Dashboard "Protected customer data" request:
 |------|----------------------|-----------|
 | Customer **name** | Label the order in the merchant dashboard and personalize drop-off/pickup notifications | Stored only for active orders; deleted on uninstall / customer redact |
 | Customer **email** | Send the customer their secure pickup-locker open link + reminders | Not shared with third parties beyond Harbor for locker access; deleted on redact |
-| Customer **phone** | Optional SMS pickup notifications/reminders | Same as email |
+| Customer **phone** | Shown to the merchant on the order (SMS paused 2026-11-18) | Same as email |
 | **Shipping address** | Geolocate the nearest available locker and sort options by distance at checkout | Used transiently for distance calc; not sold; deleted on redact |
 | **Order** (line items) | Compute required locker size and route to a LockerDrop reservation | Minimal fields retained |
 
@@ -160,7 +160,7 @@ Dev Dashboard "Protected customer data" request:
   customer data deleted on redact request.
 - Access limited to the minimum scopes needed; staff access to prod is restricted.
 - Privacy policy URL: **https://app.lockerdrop.it/privacy** — ✅ published & live
-  (verified HTTP 200, 2026-07-02). Lists subprocessors (Harbor, Twilio, Resend,
+  (verified HTTP 200, 2026-07-02). Lists subprocessors (Harbor, Resend,
   DigitalOcean) and confirms Harbor receives no customer PII (name/email/phone/address).
 - **Action item (remaining):** confirm a data-processing agreement with Harbor
   (subprocessor) before final attestation.

@@ -118,7 +118,10 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 
 // SMS service (Twilio)
 const twilio = require('twilio');
-const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
+// SMS is OFF unless SMS_ENABLED=true (paused 2026-11-18: Twilio account inactive,
+// US texting also needs A2P 10DLC registration). Customer notices go by email.
+const SMS_ENABLED = process.env.SMS_ENABLED === 'true';
+const twilioClient = SMS_ENABLED && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
     ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
     : null;
 const twilioFromNumber = process.env.TWILIO_PHONE_NUMBER;

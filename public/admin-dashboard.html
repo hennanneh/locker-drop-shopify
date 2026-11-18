@@ -4237,9 +4237,7 @@
                         </button>
                         <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e1e3e5;">
                             <p style="color: #6d7175; font-size: 13px; margin-bottom: 8px;">Resend notification to customer:</p>
-                            <button class="btn btn-small" onclick="resendNotification(${escJsArg(order.orderNumber)}, 'sms')" style="margin-right: 6px;">📱 Send SMS</button>
-                            <button class="btn btn-small" onclick="resendNotification(${escJsArg(order.orderNumber)}, 'email')" style="margin-right: 6px;">📧 Send Email</button>
-                            <button class="btn btn-small" onclick="resendNotification(${escJsArg(order.orderNumber)}, 'both')">📱📧 Send Both</button>
+                            <button class="btn btn-small" onclick="resendNotification(${escJsArg(order.orderNumber)}, 'email')">📧 Resend pickup email</button>
                         </div>
                         ` : '<span style="color: #008060; margin-left: 8px;">✓ Picked up</span>'}
                     `;
