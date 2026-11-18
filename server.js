@@ -124,9 +124,15 @@ const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_T
 const twilioFromNumber = process.env.TWILIO_PHONE_NUMBER;
 
 // SMS helper function
+// Logs keep only the last 4 digits of a customer's phone number.
+function maskPhone(p) {
+    const d = String(p || '').replace(/\D/g, '');
+    return d ? `***${d.slice(-4)}` : '';
+}
+
 async function sendSMS(to, message) {
     if (!twilioClient || !twilioFromNumber) {
-        logger.info(`📱 SMS service not configured. Would send to ${to}: ${message}`);
+        logger.info({ to: maskPhone(to) }, '📱 SMS service not configured; SMS skipped');
         return { success: false, reason: 'SMS service not configured' };
     }
 
@@ -144,10 +150,10 @@ async function sendSMS(to, message) {
             from: twilioFromNumber,
             to: formattedNumber
         });
-        logger.info(`✅ SMS sent to ${formattedNumber}: ${result.sid}`);
+        logger.info({ to: maskPhone(formattedNumber), sid: result.sid }, '✅ SMS sent');
         return { success: true, sid: result.sid };
     } catch (error) {
-        logger.error(`❌ Failed to send SMS to ${to}:`, error.message);
+        logger.error({ to: maskPhone(to), err: error.message, code: error.code }, '❌ Failed to send SMS');
         return { success: false, error: error.message };
     }
 }
@@ -3032,8 +3038,7 @@ app.post('/api/dropoff-complete', requireOrderToken, async (req, res) => {
             await sendSMS(
                 order.customer_phone,
                 `LockerDrop: Your order #${orderNumber} is ready for pickup! Open your locker here: ${pickupLink}`
-            );
-            logger.info(`📱 Pickup SMS sent to ${order.customer_phone}`);
+            );  // sendSMS logs its own success or failure
         }
 
         res.json({ success: true, message: `Order ${orderNumber} ready for pickup, customer notified` });
