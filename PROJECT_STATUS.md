@@ -143,7 +143,7 @@ locker-drop-shopify/
 │
 ├── public/
 │   ├── admin-dashboard.html           # Merchant dashboard (orders, lockers, settings, billing)
-│   ├── landing.html                   # Marketing homepage / waitlist signup
+│   ├── landing.html                   # Marketing homepage (App Store install CTAs)
 │   ├── change-pickup-date.html        # Customer date change flow (3-step)
 │   ├── dropoff-success.html           # Seller confirmation after drop-off
 │   ├── pickup-success.html            # Customer confirmation after pickup (brandable)
@@ -390,7 +390,6 @@ locker-drop-shopify/
 | GET | `/` | Landing page or redirect to dashboard |
 | GET | `/admin/dashboard` | Serve admin dashboard (with auth check) |
 | GET | `/api/stats/:shop` | Dashboard stats (pending, ready, completed, active) |
-| GET | `/api/waitlist` | Waitlist signup |
 | GET | `/pickup-success` | Customer pickup success page |
 | GET | `/dropoff-success` | Seller dropoff success page |
 | GET | `/change-pickup/:orderNumber` | Customer date change page |
@@ -474,7 +473,6 @@ locker-drop-shopify/
 ### Landing Page (lockerdrop.it)
 - Marketing page with animated hero section, orange brand color scheme
 - Interactive locker finder with Leaflet.js map (350+ Harbor locations)
-- Email waitlist signup form (stored in `waitlist` PostgreSQL table)
 - Mobile responsive design
 
 ### Locker Finder API
@@ -513,7 +511,7 @@ locker-drop-shopify/
 17. **Order status page** — live progress tracking in customer account
 18. **Admin order block** — locker info visible in Shopify Admin order details
 19. **Theme blocks** — 6 customizable Liquid blocks for storefront
-20. **Landing page** — marketing page with locker finder and waitlist signup
+20. **Landing page** — marketing page with locker finder and App Store install CTAs
 21. **Privacy policy, FAQs, training docs** — full documentation suite
 22. **Rate limiting** — 3 tiers: public API (30/min), checkout (60/min), webhooks (120/min)
 23. **Locker expiry automation** — cron job every 6 hours: warns customers 1 day before expiry, auto-releases expired lockers, emails customer + seller

@@ -742,7 +742,6 @@ app.use((req, res, next) => {
         req.path.startsWith('/api/customer/') ||
         req.path.startsWith('/api/pickup-points') ||
         req.path.startsWith('/api/checkout/') ||
-        req.path.startsWith('/api/waitlist') ||
         req.path.startsWith('/api/order-pickup-details/') ||
         req.path.startsWith('/api/update-pickup-date/') ||
         req.path.startsWith('/api/available-pickup-dates/') ||
@@ -822,7 +821,6 @@ app.use('/api/', apiLimiter);
 // Apply rate limiters to public routes
 app.use('/api/public/', publicApiLimiter);
 app.use('/api/pickup-points', publicApiLimiter);
-app.use('/api/waitlist', publicApiLimiter);
 app.use('/api/customer/', publicApiLimiter);
 app.use('/api/order-pickup-details/', publicApiLimiter);
 app.use('/api/update-pickup-date/', publicApiLimiter);
@@ -5605,31 +5603,6 @@ app.get('/api/public/lockers', async (req, res) => {
     } catch (error) {
         logger.error('Error in public locker finder:', error.message);
         res.status(500).json({ error: 'Failed to fetch lockers', locations: [] });
-    }
-});
-
-// Waitlist signup for landing page
-app.post('/api/waitlist', async (req, res) => {
-    try {
-        const { email } = req.body;
-
-        if (!email || !email.includes('@')) {
-            return res.status(400).json({ error: 'Valid email required' });
-        }
-
-        // Store email in database
-        await db.query(
-            `INSERT INTO waitlist (email, created_at) VALUES ($1, NOW())
-             ON CONFLICT (email) DO UPDATE SET updated_at = NOW()`,
-            [email.toLowerCase().trim()]
-        );
-
-        logger.info(`📧 Waitlist signup: ${email}`);
-
-        res.json({ success: true, message: 'Added to waitlist' });
-    } catch (error) {
-        logger.error('Waitlist signup error:', error.message);
-        res.status(500).json({ error: 'Failed to join waitlist' });
     }
 });
 
