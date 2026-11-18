@@ -12,7 +12,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LockerDrop - Smart Locker Pickup for Shopify Stores</title>
-    <meta name="description" content="Offer convenient locker pickup to your customers. They shop, you drop off, they pick up 24/7. No more missed deliveries.">
+    <meta name="description" content="LockerDrop is live on the Shopify App Store. Offer smart locker pickup: they shop, you drop off, they pick up 24/7. Free to install.">
 
     <!-- Open Graph / link preview -->
     <meta property="og:type" content="website">
@@ -709,6 +709,29 @@
             border: 1px solid rgba(255,255,255,0.3);
         }
 
+
+        /* Install CTA */
+        .install-btn {
+            display: inline-block;
+            padding: 1.1rem 2.5rem;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-decoration: none;
+            background: linear-gradient(135deg, #FE5535 0%, #FF7A45 100%);
+            color: white;
+            border-radius: 50px;
+            box-shadow: 0 10px 40px rgba(254, 85, 53, 0.3);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .install-btn:hover, .install-btn:focus-visible {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(254, 85, 53, 0.45);
+        }
+        .cta-section .install-btn {
+            background: white;
+            color: #FE5535;
+        }
+
         /* Footer */
         footer {
             padding: 3rem 2rem;
@@ -1153,7 +1176,7 @@
             <a href="#how-it-works">How It Works</a>
             <a href="#demo">Demo</a>
             <a href="#find-lockers">Find Lockers</a>
-            <a href="#notify" class="cta-nav">Get Early Access</a>
+            <a href="https://apps.shopify.com/lockerdrop?utm_source=lockerdrop.it&utm_medium=website&utm_content=nav" class="cta-nav" target="_blank" rel="noopener">Install on Shopify</a>
         </div>
     </nav>
 
@@ -1168,7 +1191,7 @@
         <div class="hero-content">
             <span class="hero-badge fade-in">
                 <span class="pulse"></span>
-                Coming Soon for Shopify
+                Now live on the Shopify App Store
             </span>
             <h1 class="fade-in fade-in-delay-1">
                 The Future of<br><span class="gradient-text">Package Pickup</span>
@@ -1192,14 +1215,9 @@
                 </div>
             </div>
 
-            <form class="email-form fade-in fade-in-delay-3" id="heroForm">
-                <input type="email" placeholder="Enter your email" required>
-                <button type="submit">Get Early Access</button>
-            </form>
-            <p class="form-note fade-in fade-in-delay-3">Be first in line when we launch. No spam, ever.</p>
+            <a href="https://apps.shopify.com/lockerdrop?utm_source=lockerdrop.it&utm_medium=website&utm_content=hero" class="install-btn fade-in fade-in-delay-3" target="_blank" rel="noopener">Install free on Shopify</a>
+            <p class="form-note fade-in fade-in-delay-3">Free to install. $1.50 to $6.00 per locker order, based on locker size.</p>
             <a href="#find-lockers" class="hero-link fade-in fade-in-delay-3">Find lockers near you →</a>
-            <div class="form-success" id="heroSuccess">🎉 You're on the list! We'll notify you when LockerDrop launches.</div>
-            <div class="form-error" id="heroError">Something went wrong. Please try again.</div>
         </div>
     </section>
 
@@ -1224,7 +1242,7 @@
                     <span class="step-number">2</span>
                     <div class="step-icon">📍</div>
                     <h3>Get Notified</h3>
-                    <p>They receive a text + email when their package is ready with a magic link</p>
+                    <p>They get an email with a pickup link as soon as their package is in the locker</p>
                 </div>
                 <div class="step">
                     <span class="step-number">3</span>
@@ -1512,15 +1530,11 @@
 
     <!-- CTA Section -->
     <section class="cta-section gradient-bg" id="notify">
-        <h2>Ready to revolutionize pickup?</h2>
-        <p>Join the waitlist and be first to offer LockerDrop to your customers.</p>
+        <h2>Ready to offer locker pickup?</h2>
+        <p>LockerDrop is live on the Shopify App Store. Install it and add locker pickup to your checkout in minutes.</p>
 
-        <form class="email-form" id="ctaForm">
-            <input type="email" placeholder="Enter your email" required>
-            <button type="submit">Join Waitlist</button>
-        </form>
-        <p class="form-note">No spam. Just launch updates.</p>
-        <div class="form-success" id="ctaSuccess">🎉 You're on the list! We'll be in touch soon.</div>
+        <a href="https://apps.shopify.com/lockerdrop?utm_source=lockerdrop.it&utm_medium=website&utm_content=cta" class="install-btn" target="_blank" rel="noopener">Get LockerDrop on Shopify</a>
+        <p class="form-note">Free to install. You only pay per locker order ($1.50 to $6.00, based on locker size).</p>
     </section>
 
     <!-- Footer -->
@@ -1537,46 +1551,6 @@
         let searchLat = null;
         let searchLon = null;
 
-        // Email signup
-        async function handleEmailSignup(form, successEl, errorEl) {
-            const email = form.querySelector('input[type="email"]').value;
-            const button = form.querySelector('button');
-
-            button.disabled = true;
-            button.textContent = 'Submitting...';
-
-            try {
-                const response = await fetch('/api/waitlist', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email })
-                });
-
-                if (response.ok) {
-                    successEl.style.display = 'block';
-                    if (errorEl) errorEl.style.display = 'none';
-                    form.style.display = 'none';
-                } else {
-                    throw new Error('Failed');
-                }
-            } catch (err) {
-                if (errorEl) {
-                    errorEl.style.display = 'block';
-                }
-                button.disabled = false;
-                button.textContent = 'Try Again';
-            }
-        }
-
-        document.getElementById('heroForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            handleEmailSignup(e.target, document.getElementById('heroSuccess'), document.getElementById('heroError'));
-        });
-
-        document.getElementById('ctaForm').addEventListener('submit', (e) => {
-            e.preventDefault();
-            handleEmailSignup(e.target, document.getElementById('ctaSuccess'));
-        });
 
         // Initialize map
         function initMap(lat, lon) {
